@@ -1,10 +1,11 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main, dev]
   push:
-    branches: [dev]
+    branches: [main, dev]
 
 jobs:
   lint-and-test:
