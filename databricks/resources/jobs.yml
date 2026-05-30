@@ -11,13 +11,6 @@ resources:
           notebook_task:
             notebook_path: /notebooks/01_data_ingestion.py
             source: WORKSPACE
-          job_cluster_key: default
-      job_clusters:
-        - job_cluster_key: default
-          new_cluster:
-            spark_version: 17.3.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 1
 
     btc_retrain_job:
       name: BTC Retrain Job
@@ -30,31 +23,21 @@ resources:
           notebook_task:
             notebook_path: /notebooks/02_feature_engineering.py
             source: WORKSPACE
-          job_cluster_key: default
         - task_key: model_training
           notebook_task:
             notebook_path: /notebooks/03_model_training.py
             source: WORKSPACE
-          job_cluster_key: default
           depends_on:
             - task_key: feature_engineering
         - task_key: champion_challenger
           notebook_task:
             notebook_path: /notebooks/04_champion_challenger.py
             source: WORKSPACE
-          job_cluster_key: default
           depends_on:
             - task_key: model_training
         - task_key: prediction
           notebook_task:
             notebook_path: /notebooks/05_prediction.py
             source: WORKSPACE
-          job_cluster_key: default
           depends_on:
             - task_key: champion_challenger
-      job_clusters:
-        - job_cluster_key: default
-          new_cluster:
-            spark_version: 17.3.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 1
