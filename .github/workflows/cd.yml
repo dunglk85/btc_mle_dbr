@@ -1,20 +1,23 @@
 name: Databricks CD
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Install Databricks CLI
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+        uses: databricks/setup-cli@main
 
       - name: Deploy Databricks Asset Bundle
         run: |
