@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from pyspark.sql import SparkSession, DataFrame, functions as F
 from pyspark.sql.types import StructType, StructField, DoubleType, LongType, TimestampType

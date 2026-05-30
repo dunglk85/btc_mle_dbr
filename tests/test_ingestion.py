@@ -1,4 +1,3 @@
-import pytest
 from src.data.ingestion import klines_to_rows
 
 
