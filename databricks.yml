@@ -7,12 +7,7 @@ variables:
     default: btc_dev
 
 include:
-  - resources/*.yml
-
-sync:
-  paths:
-    - ../notebooks
-    - ../src
+  - databricks/resources/*.yml
 
 targets:
   dev:

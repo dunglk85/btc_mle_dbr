@@ -22,4 +22,3 @@ jobs:
 
       - name: Run ingestion job
         run: databricks bundle run btc_ingestion_job --target dev
-        working-directory: databricks
