@@ -8,11 +8,19 @@ on:
 jobs:
   trigger-ingestion:
     runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      INGESTION_JOB_ID: ${{ secrets.INGESTION_JOB_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
+
+      - name: Check required secrets
+        run: |
+          test -n "$DATABRICKS_HOST" || (echo "Missing DATABRICKS_HOST secret" && exit 1)
+          test -n "$DATABRICKS_TOKEN" || (echo "Missing DATABRICKS_TOKEN secret" && exit 1)
+          test -n "$INGESTION_JOB_ID" || (echo "Missing INGESTION_JOB_ID secret" && exit 1)
+
       - run: |
-          databricks jobs run-now ${{ secrets.INGESTION_JOB_ID }}
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          databricks jobs run-now "$INGESTION_JOB_ID"
