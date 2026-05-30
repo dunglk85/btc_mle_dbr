@@ -4,7 +4,7 @@ resources:
       name: BTC Ingestion Job
       schedule:
         quartz_cron_expression: "0 0 * * * ?"
-        timezone: UTC
+        timezone_id: UTC
         pause_status: UNPAUSED
       tasks:
         - task_key: data_ingestion
@@ -23,7 +23,7 @@ resources:
       name: BTC Retrain Job
       schedule:
         quartz_cron_expression: "0 0 */3 * * ?"
-        timezone: UTC
+        timezone_id: UTC
         pause_status: UNPAUSED
       tasks:
         - task_key: feature_engineering

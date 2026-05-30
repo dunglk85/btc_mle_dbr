@@ -1,6 +1,11 @@
 bundle:
   name: btc-mlops
 
+variables:
+  catalog:
+    description: Unity Catalog name for the selected environment
+    default: btc_dev
+
 include:
   - resources/*.yml
 
