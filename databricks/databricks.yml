@@ -9,6 +9,11 @@ variables:
 include:
   - resources/*.yml
 
+sync:
+  paths:
+    - ../notebooks
+    - ../src
+
 targets:
   dev:
     variables:

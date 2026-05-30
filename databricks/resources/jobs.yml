@@ -9,7 +9,7 @@ resources:
       tasks:
         - task_key: data_ingestion
           notebook_task:
-            notebook_path: /notebooks/01_data_ingestion.py
+            notebook_path: ../notebooks/01_data_ingestion.py
             source: WORKSPACE
 
     btc_retrain_job:
@@ -21,23 +21,23 @@ resources:
       tasks:
         - task_key: feature_engineering
           notebook_task:
-            notebook_path: /notebooks/02_feature_engineering.py
+            notebook_path: ../notebooks/02_feature_engineering.py
             source: WORKSPACE
         - task_key: model_training
           notebook_task:
-            notebook_path: /notebooks/03_model_training.py
+            notebook_path: ../notebooks/03_model_training.py
             source: WORKSPACE
           depends_on:
             - task_key: feature_engineering
         - task_key: champion_challenger
           notebook_task:
-            notebook_path: /notebooks/04_champion_challenger.py
+            notebook_path: ../notebooks/04_champion_challenger.py
             source: WORKSPACE
           depends_on:
             - task_key: model_training
         - task_key: prediction
           notebook_task:
-            notebook_path: /notebooks/05_prediction.py
+            notebook_path: ../notebooks/05_prediction.py
             source: WORKSPACE
           depends_on:
             - task_key: champion_challenger
