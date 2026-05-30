@@ -19,6 +19,7 @@ jobs:
       - name: Deploy Databricks Asset Bundle
         run: |
           databricks bundle deploy --target dev
+        working-directory: databricks
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
