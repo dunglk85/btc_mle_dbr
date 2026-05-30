@@ -4,7 +4,9 @@ from pyspark.sql import SparkSession
 
 @pytest.fixture(scope="session")
 def spark():
-    return SparkSession.builder.master("local[1]").appName("test").getOrCreate()
+    spark = SparkSession.builder.master("local[1]").appName("test").getOrCreate()
+    yield spark
+    spark.stop()
 
 
 def test_compute_features_basic(spark):

@@ -11,6 +11,7 @@ optuna>=3.4
 # Databricks
 databricks-sdk>=0.20
 databricks-cli>=0.18
+pyspark>=3.5
 
 # Monitoring & Logging
 mlflow>=2.8

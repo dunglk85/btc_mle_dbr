@@ -2,6 +2,7 @@ import mlflow
 import pandas as pd
 from typing import Any
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from mlflow.models import infer_signature
 
 
 METRICS = {
@@ -34,7 +35,8 @@ def promote_if_better(
 ) -> tuple[bool, dict[str, float]]:
     chal_metrics = evaluate(challenger, X_test, y_test, prefix="challenger_")
     if champion_uri is None:
-        mlflow.pyfunc.log_model("model", python_model=challenger)
+        signature = infer_signature(X_test, challenger.predict(X_test))
+        mlflow.sklearn.log_model(challenger, "model", signature=signature)
         return True, chal_metrics
 
     champion = mlflow.pyfunc.load_model(champion_uri)

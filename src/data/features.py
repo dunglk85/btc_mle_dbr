@@ -14,7 +14,7 @@ def compute_features(
     w = Window.orderBy("open_time")
 
     for w_size in ma_windows:
-        df = df.withColumn(f"ma_{w_size}", F.avg("close").over(w.rowsBetween(-w_size, 0)))
+        df = df.withColumn(f"ma_{w_size}", F.avg("close").over(w.rowsBetween(-w_size, -1)))
 
     for h in lag_hours:
         df = df.withColumn(f"close_lag_{h}h", F.lag("close", h).over(w))

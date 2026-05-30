@@ -9,6 +9,7 @@ jobs:
   trigger-ingestion:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
       - run: |
           databricks jobs run-now \
