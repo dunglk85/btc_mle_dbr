@@ -1,0 +1,26 @@
+# Core
+pandas>=2.0
+numpy>=1.24
+
+# ML
+scikit-learn>=1.3
+xgboost>=2.0
+lightgbm>=4.0
+optuna>=3.4
+
+# Databricks
+databricks-sdk>=0.20
+databricks-cli>=0.18
+
+# Monitoring & Logging
+mlflow>=2.8
+structlog>=23.0
+
+# Testing
+pytest>=7.4
+pytest-cov>=4.1
+
+# Utils
+python-dotenv>=1.0
+PyYAML>=6.0
+requests>=2.31

@@ -1,0 +1,23 @@
+bundle:
+  name: btc-mlops
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    workspace:
+      host: ${DATABRICKS_HOST}
+    variables:
+      catalog: btc_dev
+  prod:
+    workspace:
+      host: ${DATABRICKS_HOST}
+    variables:
+      catalog: btc_prd
+
+artifacts:
+  default:
+    type: whl
+    build: uv build --wheel
+    path: ..
