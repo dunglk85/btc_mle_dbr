@@ -16,9 +16,3 @@ targets:
   prod:
     variables:
       catalog: btc_prd
-
-artifacts:
-  default:
-    type: whl
-    build: uv build --wheel
-    path: ..
