@@ -12,8 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
       - run: |
-          databricks jobs run-now \
-            --job-id ${{ secrets.INGESTION_JOB_ID }}
+          databricks jobs run-now ${{ secrets.INGESTION_JOB_ID }}
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
