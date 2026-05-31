@@ -1,10 +1,15 @@
 import pytest
-from pyspark.sql import SparkSession
+
+pyspark = pytest.importorskip("pyspark.sql")
+SparkSession = pyspark.SparkSession
 
 
 @pytest.fixture(scope="session")
 def spark():
-    spark = SparkSession.builder.master("local[1]").appName("test").getOrCreate()
+    try:
+        spark = SparkSession.builder.master("local[1]").appName("test").getOrCreate()
+    except Exception as e:
+        pytest.skip(f"local PySpark runtime unavailable: {e}")
     yield spark
     spark.stop()
 

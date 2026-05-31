@@ -1,9 +1,17 @@
 import os
-import structlog
 import logging
+
+try:
+    import structlog
+except ImportError:
+    structlog = None
 
 
 def setup_logger(level: str = "INFO") -> None:
+    if structlog is None:
+        logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO))
+        return
+
     renderer = (
         structlog.dev.ConsoleRenderer()
         if os.getenv("ENV", "production") == "development"
@@ -26,4 +34,6 @@ def setup_logger(level: str = "INFO") -> None:
 
 
 def get_logger(name: str | None = None):
+    if structlog is None:
+        return logging.getLogger(name)
     return structlog.get_logger(name)
