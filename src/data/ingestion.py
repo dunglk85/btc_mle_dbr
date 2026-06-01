@@ -236,6 +236,8 @@ def load_landing_to_raw(
 
     df = spark.read.option("header", True).schema(LANDING_SCHEMA).csv(landing_path)
     raw_landing_count = df.count()
+    print(f"load_landing_to_raw: landing_path={landing_path}")
+    print(f"load_landing_to_raw: raw_landing_count={raw_landing_count}")
     if raw_landing_count == 0:
         raise ValueError(f"No landing rows found at {landing_path}")
 
@@ -245,12 +247,14 @@ def load_landing_to_raw(
     df = df.withColumn("ingested_at", F.current_timestamp())
     df = df.dropDuplicates(["open_time"])
     null_open_time_count = df.filter(F.col("open_time").isNull()).count()
+    print(f"load_landing_to_raw: null_open_time_count={null_open_time_count}")
     if null_open_time_count > 0:
         raise ValueError(
             f"Found {null_open_time_count} landing rows with unparseable open_time "
             f"at {landing_path}"
         )
     landing_count = df.count()
+    print(f"load_landing_to_raw: parsed_distinct_landing_count={landing_count}")
     if landing_count == 0:
         raise ValueError(
             f"No parsed landing rows found at {landing_path}; "
