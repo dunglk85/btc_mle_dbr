@@ -9,13 +9,14 @@ try:
         StructField,
         DoubleType,
         LongType,
+        StringType,
         TimestampType,
     )
 except ImportError:
     SparkSession = Any
     DataFrame = Any
     F = None
-    StructType = StructField = DoubleType = LongType = TimestampType = None
+    StructType = StructField = DoubleType = LongType = StringType = TimestampType = None
 
 from src.utils.logger import get_logger
 
@@ -123,6 +124,25 @@ if StructType is not None:
             StructField("close_time", TimestampType(), True),
             StructField("quote_volume", DoubleType(), True),
             StructField("trades", LongType(), True),
+            StructField("source", StringType(), True),
+            StructField("ingested_at", TimestampType(), True),
+        ]
+    )
+
+LANDING_SCHEMA = None
+if StructType is not None:
+    LANDING_SCHEMA = StructType(
+        [
+            StructField("open_time", TimestampType(), True),
+            StructField("open", DoubleType(), True),
+            StructField("high", DoubleType(), True),
+            StructField("low", DoubleType(), True),
+            StructField("close", DoubleType(), True),
+            StructField("volume", DoubleType(), True),
+            StructField("close_time", TimestampType(), True),
+            StructField("quote_volume", DoubleType(), True),
+            StructField("trades", LongType(), True),
+            StructField("source", StringType(), True),
         ]
     )
 
@@ -178,6 +198,51 @@ def incremental_ingest(
     spark.sql(f"""
         MERGE INTO {table_ref} AS target
         USING _new_data AS source
+        ON target.open_time = source.open_time
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+    """)
+    return spark.table(table_ref)
+
+
+def load_landing_to_raw(
+    spark: SparkSession,
+    catalog: str = "btc_dev",
+    raw_schema: str = "raw",
+    volume_name: str = "landing",
+    table: str = "btc_hourly",
+    landing_subdir: str = "btc_hourly",
+) -> DataFrame:
+    table_ref = f"{catalog}.{raw_schema}.{table}"
+    landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{landing_subdir}"
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{raw_schema}")
+    spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{raw_schema}.{volume_name}")
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {table_ref} (
+            open_time TIMESTAMP,
+            open DOUBLE,
+            high DOUBLE,
+            low DOUBLE,
+            close DOUBLE,
+            volume DOUBLE,
+            close_time TIMESTAMP,
+            quote_volume DOUBLE,
+            trades BIGINT,
+            source STRING,
+            ingested_at TIMESTAMP
+        )
+        USING DELTA
+    """)
+
+    df = spark.read.option("header", True).schema(LANDING_SCHEMA).csv(landing_path)
+    df = df.withColumn("source", F.coalesce(F.col("source"), F.lit("binance")))
+    df = df.withColumn("ingested_at", F.current_timestamp())
+    df = df.dropDuplicates(["open_time"])
+    df.createOrReplaceTempView("_btc_hourly_landing")
+
+    spark.sql(f"""
+        MERGE INTO {table_ref} AS target
+        USING _btc_hourly_landing AS source
         ON target.open_time = source.open_time
         WHEN MATCHED THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *

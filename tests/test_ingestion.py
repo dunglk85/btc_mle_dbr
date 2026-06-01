@@ -92,6 +92,25 @@ def test_fetch_klines_uses_python_binance_client(monkeypatch):
     assert client.calls[0]["startTime"] == 12345
 
 
+def test_load_landing_to_raw_merges_volume_files(monkeypatch):
+    monkeypatch.setattr(ingestion, "F", FakeFunctions())
+    spark = FakeLandingSpark()
+
+    result = ingestion.load_landing_to_raw(
+        spark,
+        catalog="btc_dev",
+        raw_schema="raw",
+        volume_name="landing",
+        table="btc_hourly",
+    )
+
+    assert spark.read.csv_path == "/Volumes/btc_dev/raw/landing/btc_hourly"
+    assert any("CREATE VOLUME IF NOT EXISTS btc_dev.raw.landing" in sql for sql in spark.sql_calls)
+    assert any("MERGE INTO btc_dev.raw.btc_hourly" in sql for sql in spark.sql_calls)
+    assert spark.temp_view == "_btc_hourly_landing"
+    assert result == "table:btc_dev.raw.btc_hourly"
+
+
 class FakeSpark:
     def __init__(self, table_missing):
         self.table_missing = table_missing
@@ -167,3 +186,60 @@ class FakeBinanceClient:
     def get_klines(self, **kwargs):
         self.calls.append(kwargs)
         return self.rows
+
+
+class FakeLandingSpark:
+    def __init__(self):
+        self.sql_calls = []
+        self.read = FakeReader(self)
+        self.temp_view = None
+
+    def sql(self, query):
+        self.sql_calls.append(query)
+
+    def table(self, table_name):
+        return FakeTable(table_name)
+
+
+class FakeReader:
+    def __init__(self, spark):
+        self.spark = spark
+        self.csv_path = None
+
+    def option(self, _key, _value):
+        return self
+
+    def schema(self, _schema):
+        return self
+
+    def csv(self, path):
+        self.csv_path = path
+        return FakeLandingDataFrame(self)
+
+
+class FakeLandingDataFrame:
+    def __init__(self, reader):
+        self.reader = reader
+
+    def withColumn(self, _name, _value):
+        return self
+
+    def dropDuplicates(self, _cols):
+        return self
+
+    def createOrReplaceTempView(self, name):
+        self.reader.spark.temp_view = name
+
+
+class FakeFunctions:
+    def coalesce(self, *_args):
+        return "coalesce"
+
+    def col(self, name):
+        return name
+
+    def lit(self, value):
+        return value
+
+    def current_timestamp(self):
+        return "current_timestamp"

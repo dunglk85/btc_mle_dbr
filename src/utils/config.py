@@ -10,6 +10,7 @@ def load_config(env: str = "dev") -> dict[str, Any]:
         "raw_schema": "raw",
         "features_schema": "features",
         "predictions_schema": "predictions",
+        "landing_volume": "landing",
         "binance_symbol": "BTCUSDT",
         "interval": "1h",
         "retrain_interval_hours": int(os.getenv("RETRAIN_INTERVAL", "3")),
