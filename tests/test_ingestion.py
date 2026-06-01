@@ -227,6 +227,9 @@ class FakeLandingDataFrame:
     def dropDuplicates(self, _cols):
         return self
 
+    def filter(self, _condition):
+        return FakeCountDataFrame(0)
+
     def count(self):
         return 1
 
@@ -239,7 +242,7 @@ class FakeFunctions:
         return "coalesce"
 
     def col(self, name):
-        return name
+        return FakeColumn(name)
 
     def lit(self, value):
         return value
@@ -249,3 +252,19 @@ class FakeFunctions:
 
     def to_timestamp(self, value):
         return value
+
+
+class FakeColumn:
+    def __init__(self, name):
+        self.name = name
+
+    def isNull(self):
+        return f"{self.name} IS NULL"
+
+
+class FakeCountDataFrame:
+    def __init__(self, count):
+        self._count = count
+
+    def count(self):
+        return self._count

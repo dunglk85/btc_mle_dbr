@@ -235,14 +235,27 @@ def load_landing_to_raw(
     """)
 
     df = spark.read.option("header", True).schema(LANDING_SCHEMA).csv(landing_path)
+    raw_landing_count = df.count()
+    if raw_landing_count == 0:
+        raise ValueError(f"No landing rows found at {landing_path}")
+
     df = df.withColumn("open_time", F.to_timestamp(F.col("open_time")))
     df = df.withColumn("close_time", F.to_timestamp(F.col("close_time")))
     df = df.withColumn("source", F.coalesce(F.col("source"), F.lit("binance")))
     df = df.withColumn("ingested_at", F.current_timestamp())
     df = df.dropDuplicates(["open_time"])
+    null_open_time_count = df.filter(F.col("open_time").isNull()).count()
+    if null_open_time_count > 0:
+        raise ValueError(
+            f"Found {null_open_time_count} landing rows with unparseable open_time "
+            f"at {landing_path}"
+        )
     landing_count = df.count()
     if landing_count == 0:
-        raise ValueError(f"No landing rows found at {landing_path}")
+        raise ValueError(
+            f"No parsed landing rows found at {landing_path}; "
+            f"raw_landing_count={raw_landing_count}"
+        )
     df.createOrReplaceTempView("_btc_hourly_landing")
 
     spark.sql(f"""
