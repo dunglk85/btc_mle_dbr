@@ -41,7 +41,9 @@ def test_fetch_and_upload_landing_file_uploads_to_volume(monkeypatch):
             1000,
         ]
     ]
-    monkeypatch.setattr(binance_landing, "fetch_klines", lambda **_kwargs: raw)
+    monkeypatch.setattr(
+        binance_landing, "fetch_klines_from_binance_vision", lambda **_kwargs: raw
+    )
     client = FakeWorkspaceClient()
 
     result = binance_landing.fetch_and_upload_landing_file(
@@ -54,6 +56,37 @@ def test_fetch_and_upload_landing_file_uploads_to_volume(monkeypatch):
     assert result.file_path.startswith("/Volumes/btc_dev/raw/landing/btc_hourly/btc_hourly_")
     assert client.files.uploads[0]["file_path"] == result.file_path
     assert b"open_time,open,high,low,close" in client.files.uploads[0]["contents"]
+
+
+def test_fetch_klines_from_binance_vision_uses_data_api(monkeypatch):
+    calls = {}
+
+    def fake_get(url, params, timeout):
+        calls["url"] = url
+        calls["params"] = params
+        calls["timeout"] = timeout
+        return FakeResponse([[1700000000000, "40000.0"]])
+
+    monkeypatch.setattr(binance_landing.requests, "get", fake_get)
+
+    result = binance_landing.fetch_klines_from_binance_vision(
+        symbol="BTCUSDT",
+        interval="1h",
+        limit=1,
+        start_time=123,
+        end_time=456,
+    )
+
+    assert calls["url"] == "https://data-api.binance.vision/api/v3/klines"
+    assert calls["params"] == {
+        "symbol": "BTCUSDT",
+        "interval": "1h",
+        "limit": 1,
+        "startTime": 123,
+        "endTime": 456,
+    }
+    assert calls["timeout"] == 30
+    assert result == [[1700000000000, "40000.0"]]
 
 
 class FakeWorkspaceClient:
@@ -73,3 +106,14 @@ class FakeFiles:
                 "overwrite": overwrite,
             }
         )
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.payload

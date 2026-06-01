@@ -7,10 +7,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Sequence
 
-from src.data.ingestion import fetch_klines, klines_to_rows
+import requests
+
+from src.data.ingestion import klines_to_rows
 
 
 DEFAULT_VOLUME_PATH = "/Volumes/btc_dev/raw/landing/btc_hourly"
+BINANCE_VISION_KLINES_URL = "https://data-api.binance.vision/api/v3/klines"
 
 
 @dataclass(frozen=True)
@@ -66,7 +69,7 @@ def fetch_and_upload_landing_file(
     end_time: int | None = None,
     client: Any | None = None,
 ) -> LandingUploadResult:
-    raw = fetch_klines(
+    raw = fetch_klines_from_binance_vision(
         symbol=symbol,
         interval=interval,
         limit=limit,
@@ -81,6 +84,28 @@ def fetch_and_upload_landing_file(
     file_path = f"{volume_path.rstrip('/')}/btc_hourly_{timestamp}.csv"
     upload_bytes_to_volume(client or _workspace_client(), rows_to_csv_bytes(rows), file_path)
     return LandingUploadResult(candle_count=len(rows), file_path=file_path)
+
+
+def fetch_klines_from_binance_vision(
+    symbol: str = "BTCUSDT",
+    interval: str = "1h",
+    limit: int = 24,
+    start_time: int | None = None,
+    end_time: int | None = None,
+) -> list:
+    params: dict[str, int | str] = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit,
+    }
+    if start_time is not None:
+        params["startTime"] = start_time
+    if end_time is not None:
+        params["endTime"] = end_time
+
+    response = requests.get(BINANCE_VISION_KLINES_URL, params=params, timeout=30)
+    response.raise_for_status()
+    return response.json()
 
 
 def build_parser() -> argparse.ArgumentParser:
