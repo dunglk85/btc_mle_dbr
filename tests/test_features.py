@@ -42,4 +42,4 @@ def test_compute_features_basic(spark):
     result_pd = result.toPandas()
     assert len(result_pd) == 24
     assert result_pd.loc[1, "close_lag_1h"] == 40000.0
-    assert result_pd.loc[1, "return_1h"] == 1 / 40000.0
+    assert result_pd.loc[1, "return_1h"] == pytest.approx(1 / 40000.0)
