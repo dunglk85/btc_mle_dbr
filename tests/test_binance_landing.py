@@ -89,6 +89,60 @@ def test_fetch_klines_from_binance_vision_uses_data_api(monkeypatch):
     assert result == [[1700000000000, "40000.0"]]
 
 
+def test_fetch_klines_from_binance_vision_paginates(monkeypatch):
+    calls = []
+    first_page = [[1000, "1"] for _ in range(1000)]
+    first_page[-1][0] = 1999
+    second_page = [[2000, "2"], [3000, "3"]]
+
+    def fake_get(_url, params, timeout):
+        assert timeout == 30
+        calls.append(params)
+        payload = first_page if len(calls) == 1 else second_page
+        return FakeResponse(payload)
+
+    monkeypatch.setattr(binance_landing.requests, "get", fake_get)
+
+    result = binance_landing.fetch_klines_from_binance_vision(limit=1002, start_time=1000)
+
+    assert len(result) == 1002
+    assert calls[0]["limit"] == 1000
+    assert calls[0]["startTime"] == 1000
+    assert calls[1]["limit"] == 2
+    assert calls[1]["startTime"] == 2000
+
+
+def test_fetch_and_upload_landing_file_accepts_start_date(monkeypatch):
+    calls = {}
+    raw = [
+        [
+            1735689600000,
+            "40000.0",
+            "41000.0",
+            "39000.0",
+            "40500.0",
+            "100.0",
+            1735693199999,
+            "4000000.0",
+            1000,
+        ]
+    ]
+
+    def fake_fetch(**kwargs):
+        calls.update(kwargs)
+        return raw
+
+    monkeypatch.setattr(binance_landing, "fetch_klines_from_binance_vision", fake_fetch)
+
+    binance_landing.fetch_and_upload_landing_file(
+        limit=1,
+        start_date="2025-01-01",
+        client=FakeWorkspaceClient(),
+    )
+
+    assert calls["start_time"] == 1735689600000
+
+
 class FakeWorkspaceClient:
     def __init__(self):
         self.files = FakeFiles()

@@ -14,6 +14,7 @@ from src.data.ingestion import klines_to_rows
 
 DEFAULT_VOLUME_PATH = "/Volumes/btc_dev/raw/landing/btc_hourly"
 BINANCE_VISION_KLINES_URL = "https://data-api.binance.vision/api/v3/klines"
+BINANCE_MAX_LIMIT = 1000
 
 
 @dataclass(frozen=True)
@@ -67,13 +68,18 @@ def fetch_and_upload_landing_file(
     volume_path: str = DEFAULT_VOLUME_PATH,
     start_time: int | None = None,
     end_time: int | None = None,
+    start_date: str | None = None,
     client: Any | None = None,
 ) -> LandingUploadResult:
+    resolved_start_time = start_time
+    if start_date:
+        resolved_start_time = _parse_utc_date_ms(start_date)
+
     raw = fetch_klines_from_binance_vision(
         symbol=symbol,
         interval=interval,
         limit=limit,
-        start_time=start_time,
+        start_time=resolved_start_time,
         end_time=end_time,
     )
     rows = klines_to_rows(raw)
@@ -90,6 +96,44 @@ def fetch_klines_from_binance_vision(
     symbol: str = "BTCUSDT",
     interval: str = "1h",
     limit: int = 24,
+    start_time: int | None = None,
+    end_time: int | None = None,
+) -> list:
+    if limit <= BINANCE_MAX_LIMIT:
+        return _fetch_klines_page(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    all_data = []
+    remaining = limit
+    current_start = start_time
+    while remaining > 0:
+        page_limit = min(remaining, BINANCE_MAX_LIMIT)
+        page = _fetch_klines_page(
+            symbol=symbol,
+            interval=interval,
+            limit=page_limit,
+            start_time=current_start,
+            end_time=end_time,
+        )
+        if not page:
+            break
+        all_data.extend(page)
+        remaining -= len(page)
+        if len(page) < page_limit:
+            break
+        current_start = int(page[-1][0]) + 1
+    return all_data
+
+
+def _fetch_klines_page(
+    symbol: str,
+    interval: str,
+    limit: int,
     start_time: int | None = None,
     end_time: int | None = None,
 ) -> list:
@@ -118,6 +162,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--volume-path", default=DEFAULT_VOLUME_PATH)
     parser.add_argument("--start-time", type=int, default=None)
     parser.add_argument("--end-time", type=int, default=None)
+    parser.add_argument(
+        "--start-date",
+        default=None,
+        help="UTC date in YYYY-MM-DD format. Overrides --start-time when provided.",
+    )
     return parser
 
 
@@ -131,6 +180,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         volume_path=args.volume_path,
         start_time=args.start_time,
         end_time=args.end_time,
+        start_date=args.start_date,
     )
     print(f"Fetched {result.candle_count} candles")
     print(f"Uploaded {result.file_path}")
@@ -143,6 +193,11 @@ def _format_timestamp(value: object) -> object:
             value = value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc).isoformat()
     return value
+
+
+def _parse_utc_date_ms(value: str) -> int:
+    parsed = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    return int(parsed.timestamp() * 1000)
 
 
 def _workspace_client() -> Any:
