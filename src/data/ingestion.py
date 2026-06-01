@@ -238,6 +238,9 @@ def load_landing_to_raw(
     df = df.withColumn("source", F.coalesce(F.col("source"), F.lit("binance")))
     df = df.withColumn("ingested_at", F.current_timestamp())
     df = df.dropDuplicates(["open_time"])
+    landing_count = df.count()
+    if landing_count == 0:
+        raise ValueError(f"No landing rows found at {landing_path}")
     df.createOrReplaceTempView("_btc_hourly_landing")
 
     spark.sql(f"""

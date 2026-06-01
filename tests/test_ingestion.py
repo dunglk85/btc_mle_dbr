@@ -227,6 +227,9 @@ class FakeLandingDataFrame:
     def dropDuplicates(self, _cols):
         return self
 
+    def count(self):
+        return 1
+
     def createOrReplaceTempView(self, name):
         self.reader.spark.temp_view = name
 
