@@ -246,3 +246,6 @@ class FakeFunctions:
 
     def current_timestamp(self):
         return "current_timestamp"
+
+    def to_timestamp(self, value):
+        return value

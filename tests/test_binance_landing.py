@@ -7,13 +7,13 @@ from src.data import binance_landing
 def test_rows_to_csv_bytes_adds_source_and_header():
     rows = [
         {
-            "open_time": "2026-06-01T00:00:00+00:00",
+            "open_time": "2026-06-01 00:00:00",
             "open": 100000.0,
             "high": 101000.0,
             "low": 99000.0,
             "close": 100500.0,
             "volume": 12.34,
-            "close_time": "2026-06-01T00:59:59+00:00",
+            "close_time": "2026-06-01 00:59:59",
             "quote_volume": 1234567.89,
             "trades": 1000,
         }
@@ -22,7 +22,7 @@ def test_rows_to_csv_bytes_adds_source_and_header():
     content = binance_landing.rows_to_csv_bytes(rows).decode("utf-8")
     parsed = list(csv.DictReader(io.StringIO(content)))
 
-    assert parsed[0]["open_time"] == "2026-06-01T00:00:00+00:00"
+    assert parsed[0]["open_time"] == "2026-06-01 00:00:00"
     assert parsed[0]["source"] == "binance"
     assert parsed[0]["trades"] == "1000"
 

@@ -191,7 +191,7 @@ def _format_timestamp(value: object) -> object:
     if isinstance(value, datetime):
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc).isoformat()
+        return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     return value
 
 

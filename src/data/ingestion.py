@@ -133,13 +133,13 @@ LANDING_SCHEMA = None
 if StructType is not None:
     LANDING_SCHEMA = StructType(
         [
-            StructField("open_time", TimestampType(), True),
+            StructField("open_time", StringType(), True),
             StructField("open", DoubleType(), True),
             StructField("high", DoubleType(), True),
             StructField("low", DoubleType(), True),
             StructField("close", DoubleType(), True),
             StructField("volume", DoubleType(), True),
-            StructField("close_time", TimestampType(), True),
+            StructField("close_time", StringType(), True),
             StructField("quote_volume", DoubleType(), True),
             StructField("trades", LongType(), True),
             StructField("source", StringType(), True),
@@ -235,6 +235,8 @@ def load_landing_to_raw(
     """)
 
     df = spark.read.option("header", True).schema(LANDING_SCHEMA).csv(landing_path)
+    df = df.withColumn("open_time", F.to_timestamp(F.col("open_time")))
+    df = df.withColumn("close_time", F.to_timestamp(F.col("close_time")))
     df = df.withColumn("source", F.coalesce(F.col("source"), F.lit("binance")))
     df = df.withColumn("ingested_at", F.current_timestamp())
     df = df.dropDuplicates(["open_time"])
