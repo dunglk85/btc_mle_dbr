@@ -81,11 +81,9 @@ def test_incremental_ingest_merges_existing_table(monkeypatch):
     assert any("MERGE INTO btc_dev.raw.btc_hourly" in sql for sql in spark.sql_calls)
 
 
-def test_fetch_klines_uses_python_binance_client_when_credentials_exist(monkeypatch):
+def test_fetch_klines_uses_python_binance_client(monkeypatch):
     client = FakeBinanceClient()
 
-    monkeypatch.setenv("BINANCE_API_KEY", "test-key")
-    monkeypatch.setenv("BINANCE_API_SECRET", "test-secret")
     monkeypatch.setattr(ingestion, "get_binance_client", lambda: client)
 
     rows = ingestion.fetch_klines(limit=1, start_time=12345)

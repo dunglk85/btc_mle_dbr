@@ -1,5 +1,4 @@
 import os
-import requests
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -20,7 +19,6 @@ except ImportError:
 
 from src.utils.logger import get_logger
 
-BINANCE_BASE = "https://api.binance.com/api/v3"
 logger = get_logger(__name__)
 
 
@@ -38,54 +36,31 @@ def fetch_klines(
     end_time: Optional[int] = None,
 ) -> list:
     client = get_binance_client()
-    if client is not None:
-        return fetch_klines_with_client(
-            client,
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-    all_data = []
-    remaining = limit
-    current_start = start_time
-    while remaining > 0:
-        page_size = min(remaining, PAGE_SIZE)
-        params = {"symbol": symbol, "interval": interval, "limit": page_size}
-        if current_start is not None:
-            params["startTime"] = current_start
-        if end_time:
-            params["endTime"] = end_time
-        resp = requests.get(f"{BINANCE_BASE}/klines", params=params, timeout=30)
-        resp.raise_for_status()
-        page = resp.json()
-        if not page:
-            break
-        all_data.extend(page)
-        remaining -= len(page)
-        if len(page) < page_size:
-            break
-        current_start = int(page[-1][0]) + 1
-    return all_data
+    return fetch_klines_with_client(
+        client,
+        symbol=symbol,
+        interval=interval,
+        limit=limit,
+        start_time=start_time,
+        end_time=end_time,
+    )
 
 
 def get_binance_client():
-    api_key = os.getenv("BINANCE_API_KEY")
-    api_secret = os.getenv("BINANCE_API_SECRET")
-    if not api_key or not api_secret:
-        return None
-
     try:
         from binance.client import Client
     except ImportError as e:
         raise RuntimeError(
-            "python-binance is required when BINANCE_API_KEY and "
-            "BINANCE_API_SECRET are set"
+            "python-binance is required for Binance ingestion. "
+            "Install it with `pip install python-binance`."
         ) from e
 
-    return Client(api_key, api_secret)
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
+    if api_key and api_secret:
+        return Client(api_key, api_secret)
+
+    return Client()
 
 
 def fetch_klines_with_client(
