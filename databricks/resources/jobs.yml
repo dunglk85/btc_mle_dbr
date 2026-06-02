@@ -65,6 +65,15 @@ resources:
           depends_on:
             - task_key: feature_engineering
 
+        - task_key: monitoring
+          notebook_task:
+            notebook_path: notebooks/06_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          depends_on:
+            - task_key: prediction
+
     btc_model_refresh_job:
       name: "[${bundle.target}] BTC Model Refresh Job"
       schedule:
