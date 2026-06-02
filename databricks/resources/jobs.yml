@@ -78,10 +78,12 @@ resources:
       tasks:
         - task_key: model_training
           notebook_task:
-            notebook_path: notebooks/03_model_training
+            notebook_path: notebooks/03_optuna_training
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+              n_trials: "15"
+              timeout_seconds: "900"
 
         - task_key: champion_challenger
           notebook_task:
