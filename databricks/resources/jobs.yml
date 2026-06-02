@@ -29,17 +29,18 @@ resources:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub
         git_branch: main
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
       tasks:
         - task_key: data_ingestion
+          environment_key: default
           notebook_task:
             notebook_path: notebooks/01_data_ingestion.py
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          new_cluster:
-            spark_version: "13.3.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 1
 
     btc_retrain_job:
       name: "[${bundle.target}] BTC Retrain Job"
@@ -51,53 +52,45 @@ resources:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub
         git_branch: main
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
       tasks:
         - task_key: feature_engineering
+          environment_key: default
           notebook_task:
             notebook_path: notebooks/02_feature_engineering.py
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          new_cluster:
-            spark_version: "13.3.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 2
 
         - task_key: model_training
+          environment_key: default
           notebook_task:
             notebook_path: notebooks/03_model_training.py
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          new_cluster:
-            spark_version: "13.3.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 2
           depends_on:
             - task_key: feature_engineering
 
         - task_key: champion_challenger
+          environment_key: default
           notebook_task:
             notebook_path: notebooks/04_champion_challenger.py
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          new_cluster:
-            spark_version: "13.3.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 1
           depends_on:
             - task_key: model_training
 
         - task_key: prediction
+          environment_key: default
           notebook_task:
             notebook_path: notebooks/05_prediction.py
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          new_cluster:
-            spark_version: "13.3.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 1
           depends_on:
             - task_key: champion_challenger
