@@ -1,43 +1,112 @@
+bundle:
+  name: btc_mle_dbr
+
+workspace:
+  host: ${var.databricks_host}
+
+variables:
+  databricks_host:
+    description: Databricks workspace URL
+  catalog:
+    default: btc_dev
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      catalog: btc_dev
+
+  prod:
+    mode: production
+    variables:
+      catalog: btc_prod
+
 resources:
   jobs:
     btc_ingestion_job:
-      name: BTC Ingestion Job
+      name: "[${bundle.target}] BTC Ingestion Job"
       schedule:
         quartz_cron_expression: "0 0 * * * ?"
         timezone_id: UTC
         pause_status: UNPAUSED
+      git_source:
+        git_url: https://github.com/dunglk85/btc_mle_dbr
+        git_provider: gitHub
+        git_branch: main
       tasks:
         - task_key: data_ingestion
           notebook_task:
-            notebook_path: ../../notebooks/01_data_ingestion.py
-            source: WORKSPACE
+            notebook_path: notebooks/01_data_ingestion.py
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "13.3.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 1
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
 
     btc_retrain_job:
-      name: BTC Retrain Job
+      name: "[${bundle.target}] BTC Retrain Job"
       schedule:
         quartz_cron_expression: "0 0 */3 * * ?"
         timezone_id: UTC
         pause_status: UNPAUSED
+      git_source:
+        git_url: https://github.com/dunglk85/btc_mle_dbr
+        git_provider: gitHub
+        git_branch: main
       tasks:
         - task_key: feature_engineering
           notebook_task:
-            notebook_path: ../../notebooks/02_feature_engineering.py
-            source: WORKSPACE
+            notebook_path: notebooks/02_feature_engineering.py
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "13.3.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 2
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
+
         - task_key: model_training
           notebook_task:
-            notebook_path: ../../notebooks/03_model_training.py
-            source: WORKSPACE
+            notebook_path: notebooks/03_model_training.py
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "13.3.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 2
           depends_on:
             - task_key: feature_engineering
+
         - task_key: champion_challenger
           notebook_task:
-            notebook_path: ../../notebooks/04_champion_challenger.py
-            source: WORKSPACE
+            notebook_path: notebooks/04_champion_challenger.py
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "13.3.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 1
           depends_on:
             - task_key: model_training
+
         - task_key: prediction
           notebook_task:
-            notebook_path: ../../notebooks/05_prediction.py
-            source: WORKSPACE
+            notebook_path: notebooks/05_prediction.py
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "13.3.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 1
           depends_on:
             - task_key: champion_challenger
