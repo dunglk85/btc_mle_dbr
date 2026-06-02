@@ -1,7 +1,15 @@
 # Databricks notebook source
-# MAGIC %md # 02 - Feature Engineering
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 02 - Feature Engineering
+
+# COMMAND ----------
 
 from pyspark.sql import Window, functions as F
+
+# COMMAND ----------
 
 catalog = "btc_dev"
 raw_schema = "raw"
@@ -15,13 +23,19 @@ print("RUNNING SELF-CONTAINED FEATURE ENGINEERING NOTEBOOK")
 print(f"raw_ref={raw_ref}")
 print(f"features_ref={features_ref}")
 
+# COMMAND ----------
+
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{features_schema}")
+
+# COMMAND ----------
 
 raw = spark.table(raw_ref).dropDuplicates(["open_time"]).orderBy("open_time")
 raw_count = raw.count()
 print(f"raw_count={raw_count}")
 if raw_count == 0:
     raise ValueError(f"No raw rows found in {raw_ref}")
+
+# COMMAND ----------
 
 w = Window.orderBy("open_time")
 features = raw
@@ -49,11 +63,21 @@ features = features.withColumn("day_of_week", F.dayofweek("open_time"))
 feature_count = features.count()
 print(f"feature_count={feature_count}")
 
+# COMMAND ----------
+
 features.write.format("delta").mode("overwrite").option(
     "overwriteSchema", "true"
 ).saveAsTable(features_ref)
 
+# COMMAND ----------
+
 result = spark.table(features_ref)
 print(f"features_table_count={result.count()}")
+
+# COMMAND ----------
+
 display(result.orderBy("open_time").limit(10))
+
+# COMMAND ----------
+
 display(result.orderBy(F.col("open_time").desc()).limit(10))
