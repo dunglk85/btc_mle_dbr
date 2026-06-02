@@ -52,7 +52,7 @@ spark.sql(f"""
 """)
 
 raw = spark.read.option("header", True).csv(landing_path).withColumn(
-    "_source_file", F.input_file_name()
+    "_source_file", F.col("_metadata.file_path")
 )
 raw_count = raw.count()
 print(f"raw_landing_count={raw_count}")
