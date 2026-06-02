@@ -1,7 +1,15 @@
 # Databricks notebook source
-# MAGIC %md # 01 - Data Ingestion
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 01 - Data Ingestion
+
+# COMMAND ----------
 
 from pyspark.sql import functions as F
+
+# COMMAND ----------
 
 catalog = "btc_dev"
 raw_schema = "raw"
@@ -13,6 +21,8 @@ table_ref = f"{catalog}.{raw_schema}.{table_name}"
 print("RUNNING SELF-CONTAINED INGESTION NOTEBOOK")
 print(f"landing_path={landing_path}")
 print(f"table_ref={table_ref}")
+
+# COMMAND ----------
 
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{raw_schema}")
 spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{raw_schema}.{volume_name}")
@@ -38,6 +48,8 @@ raw_count = raw.count()
 print(f"raw_landing_count={raw_count}")
 if raw_count == 0:
     raise ValueError(f"No CSV rows found at {landing_path}")
+
+# COMMAND ----------
 
 # Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
 parsed = raw.select(
@@ -68,6 +80,8 @@ if null_open_time_count > 0:
     display(raw.filter(F.col("open_time").isNotNull()).select("open_time", "close_time").limit(20))
     raise ValueError(f"Found {null_open_time_count} rows with unparseable open_time")
 
+# COMMAND ----------
+
 deduped = parsed.dropDuplicates(["open_time"])
 deduped_count = deduped.count()
 print(f"deduped_landing_count={deduped_count}")
@@ -75,6 +89,8 @@ if deduped_count == 0:
     raise ValueError(f"No parsed rows available from {landing_path}")
 
 deduped.createOrReplaceTempView("_btc_hourly_landing")
+
+# COMMAND ----------
 
 spark.sql(f"""
     MERGE INTO {table_ref} AS target
@@ -86,5 +102,11 @@ spark.sql(f"""
 
 result = spark.table(table_ref)
 print(f"table_count_after_merge={result.count()}")
+
+# COMMAND ----------
+
 display(result.orderBy("open_time").limit(10))
+
+# COMMAND ----------
+
 display(result.orderBy(F.col("open_time").desc()).limit(10))
