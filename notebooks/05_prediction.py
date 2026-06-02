@@ -10,6 +10,7 @@
 import mlflow
 import pandas as pd
 from pyspark.sql import functions as F
+from mlflow.exceptions import MlflowException
 
 # COMMAND ----------
 
@@ -80,7 +81,13 @@ latest_pdf = latest.select(*feature_cols).toPandas()
 # COMMAND ----------
 
 mlflow.set_registry_uri("databricks-uc")
-champion = mlflow.pyfunc.load_model(champion_uri)
+try:
+    champion = mlflow.pyfunc.load_model(champion_uri)
+except MlflowException as exc:
+    print(f"SKIP_PREDICTION_NO_CHAMPION: {champion_uri}")
+    print(f"mlflow_error={exc}")
+    dbutils.notebook.exit("SKIP_PREDICTION_NO_CHAMPION")
+
 prediction = float(champion.predict(pd.DataFrame(latest_pdf, columns=feature_cols))[0])
 print(f"feature_open_time={feature_open_time}")
 print(f"predicted_close={prediction:.4f}")
