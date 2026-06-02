@@ -50,6 +50,7 @@ feature_cols = [
     "open",
     "high",
     "low",
+    "close",
     "volume",
     "quote_volume",
     "trades",

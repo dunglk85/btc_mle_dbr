@@ -25,6 +25,7 @@ def compute_features(
     df = df.withColumn("oc_change", F.col("close") - F.col("open"))
     df = df.withColumn("hour", F.hour("open_time"))
     df = df.withColumn("day_of_week", F.dayofweek("open_time"))
+    df = df.withColumn("target_close_1h", F.lead("close", 1).over(w))
 
     return df
 

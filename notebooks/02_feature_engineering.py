@@ -59,6 +59,7 @@ features = features.withColumn("hl_spread", F.col("high") - F.col("low"))
 features = features.withColumn("oc_change", F.col("close") - F.col("open"))
 features = features.withColumn("hour", F.hour("open_time"))
 features = features.withColumn("day_of_week", F.dayofweek("open_time"))
+features = features.withColumn("target_close_1h", F.lead("close", 1).over(w))
 
 feature_count = features.count()
 print(f"feature_count={feature_count}")

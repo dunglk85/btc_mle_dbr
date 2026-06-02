@@ -25,10 +25,12 @@ print(f"features_ref={features_ref}")
 # COMMAND ----------
 
 source = spark.table(features_ref).orderBy("open_time")
+target_col = "target_close_1h"
 feature_cols = [
     "open",
     "high",
     "low",
+    "close",
     "volume",
     "quote_volume",
     "trades",
@@ -47,7 +49,7 @@ feature_cols = [
     "day_of_week",
 ]
 
-model_df = source.select("open_time", "close", *feature_cols).dropna()
+model_df = source.select("open_time", target_col, *feature_cols).dropna()
 row_count = model_df.count()
 print(f"training_rows_after_dropna={row_count}")
 if row_count < 100:
@@ -61,9 +63,9 @@ train = pdf.iloc[:split_idx]
 test = pdf.iloc[split_idx:]
 
 X_train = train[feature_cols]
-y_train = train["close"]
+y_train = train[target_col]
 X_test = test[feature_cols]
-y_test = test["close"]
+y_test = test[target_col]
 
 # COMMAND ----------
 

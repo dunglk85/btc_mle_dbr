@@ -39,7 +39,9 @@ def test_compute_features_basic(spark):
     assert "return_1h" in result.columns
     assert "hl_spread" in result.columns
     assert "oc_change" in result.columns
+    assert "target_close_1h" in result.columns
     result_pd = result.toPandas()
     assert len(result_pd) == 24
     assert result_pd.loc[1, "close_lag_1h"] == 40000.0
     assert result_pd.loc[1, "return_1h"] == pytest.approx(1 / 40000.0)
+    assert result_pd.loc[0, "target_close_1h"] == 40001.0
