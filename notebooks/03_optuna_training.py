@@ -7,6 +7,14 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install optuna
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 import mlflow
 import optuna
 from mlflow.models import infer_signature

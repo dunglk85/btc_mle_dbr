@@ -213,6 +213,147 @@ Purpose:
 - Log each trial to MLflow.
 - Log the best model as an MLflow model artifact.
 
+## Metrics
+
+The training notebooks log four core metrics:
+
+```text
+rmse, mae, r2, mape
+```
+
+These metrics evaluate prediction quality on the time-based holdout set.
+
+### RMSE
+
+Full name:
+
+```text
+Root Mean Squared Error
+```
+
+Conceptual formula:
+
+```text
+sqrt(mean((actual - predicted)^2))
+```
+
+Meaning:
+- Measures average prediction error with stronger penalty for large mistakes.
+- Unit is the same as the target, so here it is BTC price in USD.
+- Example: `RMSE = 500` means the model has material prediction error around hundreds of USD, with large misses weighted heavily.
+
+Usage:
+- Current primary metric for Champion/Challenger promotion.
+- Lower is better.
+- Useful when large forecast errors are especially undesirable.
+
+### MAE
+
+Full name:
+
+```text
+Mean Absolute Error
+```
+
+Conceptual formula:
+
+```text
+mean(abs(actual - predicted))
+```
+
+Meaning:
+- Measures average absolute prediction error.
+- Unit is also USD.
+- Example: `MAE = 300` means predictions are off by about 300 USD on average.
+
+Usage:
+- Easier to interpret than RMSE.
+- Lower is better.
+- Less sensitive to outliers than RMSE.
+
+### R2
+
+Full name:
+
+```text
+Coefficient of Determination
+```
+
+Meaning:
+- Measures how much target variance is explained by the model.
+- `1.0` means perfect prediction.
+- `0.0` means not better than predicting the average.
+- Negative values mean the model is worse than a naive average baseline.
+
+Usage:
+- Higher is better.
+- Useful as a relative signal that the model is learning structure.
+- For financial time series, high R2 does not automatically mean the model will generalize well, because market behavior can shift over time.
+
+### MAPE
+
+Full name:
+
+```text
+Mean Absolute Percentage Error
+```
+
+Conceptual formula:
+
+```text
+mean(abs(actual - predicted) / abs(actual))
+```
+
+Meaning:
+- Measures prediction error as a percentage of the actual price.
+- Example: `MAPE = 0.005` means average error is about `0.5%`.
+
+Usage:
+- Lower is better.
+- Easier to compare across price regimes than raw USD error.
+- Good for dashboards because it is interpretable as a percentage.
+
+### Reading Metrics Together
+
+Do not judge the model using only one metric.
+
+Interpretation examples:
+- High RMSE but low MAE means most predictions are acceptable, but a few large misses exist.
+- High RMSE and high MAE means the model is broadly inaccurate.
+- Low MAPE but high RMSE means percentage error may look acceptable while USD error is still large.
+- Low R2 with acceptable MAE/MAPE can still be usable for an MLOps demo, but it suggests weak explanatory power.
+
+### Champion Promotion Metric
+
+`notebooks/04_champion_challenger.py` currently promotes a Challenger when its RMSE is lower than the current Champion's RMSE.
+
+Rationale:
+- RMSE penalizes large misses more heavily than MAE.
+- For BTC price forecasting, avoiding large forecast errors is important.
+- The first valid Challenger is promoted if no Champion exists.
+
+### Trading Metrics Caveat
+
+These metrics evaluate price forecast accuracy, not trading profitability.
+
+A model with good RMSE/MAE/MAPE may still be poor for trading because these metrics do not account for:
+- Trading fees.
+- Slippage.
+- Direction accuracy.
+- Drawdown.
+- Position sizing.
+- Risk-adjusted returns.
+
+If the project evolves into a trading strategy, add metrics such as:
+
+```text
+direction_accuracy
+hit_rate
+profit_factor
+max_drawdown
+sharpe_ratio
+```
+
 ## Important Leakage Warning
 
 The current feature table includes same-candle columns such as:
