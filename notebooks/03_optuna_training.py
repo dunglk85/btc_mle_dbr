@@ -27,6 +27,7 @@ catalog = "btc_dev"
 features_schema = "features"
 features_table = "btc_features"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
+decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
 experiment_name = "/Shared/btc_baseline_training"
 default_n_trials = 15
 default_timeout_seconds = 900
@@ -47,6 +48,18 @@ print("RUNNING SELF-CONTAINED OPTUNA TRAINING NOTEBOOK")
 print(f"features_ref={features_ref}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
+
+# COMMAND ----------
+
+try:
+    latest_decision = spark.table(decisions_ref).orderBy(
+        "decision_time", ascending=False
+    ).limit(1).collect()
+    if latest_decision and not latest_decision[0]["should_retrain"]:
+        print(f"SKIP_RETRAIN: {latest_decision[0]['reason']}")
+        dbutils.notebook.exit("SKIP_RETRAIN")
+except Exception as exc:
+    print(f"No monitoring gate decision found, continuing training: {exc}")
 
 # COMMAND ----------
 
