@@ -99,6 +99,9 @@ def fetch_klines_from_binance_vision(
     start_time: int | None = None,
     end_time: int | None = None,
 ) -> list:
+    if limit > BINANCE_MAX_LIMIT and start_time is None:
+        raise ValueError("start_time or start_date is required when limit > 1000")
+
     if limit <= BINANCE_MAX_LIMIT:
         return _fetch_klines_page(
             symbol=symbol,

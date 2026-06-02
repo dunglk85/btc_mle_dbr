@@ -1,22 +1,3 @@
-bundle:
-  name: btc_mle_dbr
-
-variables:
-  catalog:
-    default: btc_dev
-
-targets:
-  dev:
-    mode: development
-    default: true
-    variables:
-      catalog: btc_dev
-
-  prod:
-    mode: production
-    variables:
-      catalog: btc_prod
-
 resources:
   jobs:
     btc_data_prediction_job:

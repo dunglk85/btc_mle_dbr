@@ -7,11 +7,19 @@
 
 # COMMAND ----------
 
-from pyspark.sql import functions as F
+from pyspark.sql import Window, functions as F
 
 # COMMAND ----------
 
-catalog = "btc_dev"
+def get_widget(name, default):
+    try:
+        dbutils.widgets.text(name, str(default))
+        return dbutils.widgets.get(name)
+    except Exception:
+        return str(default)
+
+
+catalog = get_widget("catalog", "btc_dev")
 raw_schema = "raw"
 volume_name = "landing"
 table_name = "btc_hourly"
@@ -43,7 +51,9 @@ spark.sql(f"""
     USING DELTA
 """)
 
-raw = spark.read.option("header", True).csv(landing_path)
+raw = spark.read.option("header", True).csv(landing_path).withColumn(
+    "_source_file", F.input_file_name()
+)
 raw_count = raw.count()
 print(f"raw_landing_count={raw_count}")
 if raw_count == 0:
@@ -72,6 +82,7 @@ parsed = raw.select(
     F.col("trades").cast("bigint").alias("trades"),
     F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
     F.current_timestamp().alias("ingested_at"),
+    F.col("_source_file"),
 )
 
 null_open_time_count = parsed.filter(F.col("open_time").isNull()).count()
@@ -82,7 +93,12 @@ if null_open_time_count > 0:
 
 # COMMAND ----------
 
-deduped = parsed.dropDuplicates(["open_time"])
+dedupe_window = Window.partitionBy("open_time").orderBy(F.col("_source_file").desc())
+deduped = (
+    parsed.withColumn("_row_number", F.row_number().over(dedupe_window))
+    .filter(F.col("_row_number") == 1)
+    .drop("_row_number", "_source_file")
+)
 deduped_count = deduped.count()
 print(f"deduped_landing_count={deduped_count}")
 if deduped_count == 0:

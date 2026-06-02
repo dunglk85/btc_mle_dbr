@@ -15,16 +15,6 @@ from pyspark.sql import functions as F
 
 # COMMAND ----------
 
-catalog = "btc_dev"
-monitoring_schema = "monitoring"
-model_schema = "models"
-model_name = "btc_price_model"
-
-metrics_ref = f"{catalog}.{monitoring_schema}.pipeline_metrics"
-decisions_ref = f"{catalog}.{monitoring_schema}.model_refresh_decisions"
-full_model_name = f"{catalog}.{model_schema}.{model_name}"
-
-
 def get_widget(name, default):
     try:
         dbutils.widgets.text(name, str(default))
@@ -32,6 +22,15 @@ def get_widget(name, default):
     except Exception:
         return str(default)
 
+
+catalog = get_widget("catalog", "btc_dev")
+monitoring_schema = "monitoring"
+model_schema = "models"
+model_name = "btc_price_model"
+
+metrics_ref = f"{catalog}.{monitoring_schema}.pipeline_metrics"
+decisions_ref = f"{catalog}.{monitoring_schema}.model_refresh_decisions"
+full_model_name = f"{catalog}.{model_schema}.{model_name}"
 
 trigger_mode = get_widget("trigger_mode", "scheduled")
 max_raw_freshness_hours = float(get_widget("max_raw_freshness_hours", "3"))

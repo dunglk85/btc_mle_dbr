@@ -1,6 +1,8 @@
 import csv
 import io
 
+import pytest
+
 from src.data import binance_landing
 
 
@@ -110,6 +112,11 @@ def test_fetch_klines_from_binance_vision_paginates(monkeypatch):
     assert calls[0]["startTime"] == 1000
     assert calls[1]["limit"] == 2
     assert calls[1]["startTime"] == 2000
+
+
+def test_fetch_klines_from_binance_vision_requires_start_for_large_limit():
+    with pytest.raises(ValueError, match="start_time"):
+        binance_landing.fetch_klines_from_binance_vision(limit=1001)
 
 
 def test_fetch_and_upload_landing_file_accepts_start_date(monkeypatch):

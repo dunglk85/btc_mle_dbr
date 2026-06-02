@@ -1,5 +1,6 @@
 -- BTC MLOps AI/BI Dashboard Queries
 -- Use these queries as dashboard datasets/tiles in Databricks SQL or AI/BI Dashboard.
+-- Create a query/dashboard parameter named catalog, e.g. btc_dev or btc_prod.
 
 -- 1. Data Freshness Tile
 SELECT
@@ -7,7 +8,7 @@ SELECT
   metric_value AS raw_freshness_hours,
   status,
   details
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE metric_name = 'raw_freshness_hours'
 ORDER BY metric_time DESC
 LIMIT 1;
@@ -17,7 +18,7 @@ SELECT
   metric_time,
   metric_value AS raw_count,
   status
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE metric_name = 'raw_count'
 ORDER BY metric_time DESC
 LIMIT 1;
@@ -27,7 +28,7 @@ SELECT
   metric_time,
   metric_value AS features_count,
   status
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE metric_name = 'features_count'
 ORDER BY metric_time DESC
 LIMIT 1;
@@ -37,7 +38,7 @@ SELECT
   metric_time,
   metric_value AS prediction_count,
   status
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE metric_name = 'prediction_count'
 ORDER BY metric_time DESC
 LIMIT 1;
@@ -48,7 +49,7 @@ SELECT
   feature_open_time,
   predicted_close,
   model_uri
-FROM btc_dev.predictions.btc_predictions
+FROM IDENTIFIER(:catalog || '.predictions.btc_predictions')
 ORDER BY prediction_time DESC
 LIMIT 50;
 
@@ -61,8 +62,8 @@ SELECT
   r.close AS actual_close,
   ABS(r.close - p.predicted_close) AS abs_error,
   ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error
-FROM btc_dev.predictions.btc_predictions p
-LEFT JOIN btc_dev.raw.btc_hourly r
+FROM IDENTIFIER(:catalog || '.predictions.btc_predictions') p
+LEFT JOIN IDENTIFIER(:catalog || '.raw.btc_hourly') r
   ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
 ORDER BY p.prediction_time DESC
 LIMIT 100;
@@ -74,8 +75,8 @@ SELECT
   r.close AS actual_close,
   ABS(r.close - p.predicted_close) AS abs_error,
   ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error
-FROM btc_dev.predictions.btc_predictions p
-JOIN btc_dev.raw.btc_hourly r
+FROM IDENTIFIER(:catalog || '.predictions.btc_predictions') p
+JOIN IDENTIFIER(:catalog || '.raw.btc_hourly') r
   ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
 ORDER BY p.feature_open_time;
 
@@ -88,7 +89,7 @@ SELECT
   raw_freshness_hours,
   alert_count,
   champion_exists
-FROM btc_dev.monitoring.model_refresh_decisions
+FROM IDENTIFIER(:catalog || '.monitoring.model_refresh_decisions')
 ORDER BY decision_time DESC
 LIMIT 50;
 
@@ -99,7 +100,7 @@ SELECT
   metric_value,
   status,
   details
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE status IN ('alert', 'warn')
 ORDER BY metric_time DESC
 LIMIT 100;
@@ -111,6 +112,6 @@ SELECT
   metric_value,
   status,
   details
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 ORDER BY metric_time DESC, metric_name
 LIMIT 500;

@@ -23,7 +23,15 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # COMMAND ----------
 
-catalog = "btc_dev"
+def get_widget(name, default):
+    try:
+        dbutils.widgets.text(name, str(default))
+        return dbutils.widgets.get(name)
+    except Exception:
+        return str(default)
+
+
+catalog = get_widget("catalog", "btc_dev")
 features_schema = "features"
 features_table = "btc_features"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
@@ -33,16 +41,12 @@ default_n_trials = 15
 default_timeout_seconds = 900
 
 
-def get_widget(name, default):
-    try:
-        dbutils.widgets.text(name, str(default))
-        return dbutils.widgets.get(name)
-    except Exception:
-        return str(default)
-
-
 n_trials = int(get_widget("n_trials", default_n_trials))
 timeout_seconds = int(get_widget("timeout_seconds", default_timeout_seconds))
+if n_trials < 1:
+    raise ValueError(f"n_trials must be >= 1, got {n_trials}")
+if timeout_seconds <= 0:
+    raise ValueError(f"timeout_seconds must be > 0, got {timeout_seconds}")
 
 print("RUNNING SELF-CONTAINED OPTUNA TRAINING NOTEBOOK")
 print(f"features_ref={features_ref}")
@@ -51,15 +55,20 @@ print(f"timeout_seconds={timeout_seconds}")
 
 # COMMAND ----------
 
+skip_reason = None
 try:
     latest_decision = spark.table(decisions_ref).orderBy(
         "decision_time", ascending=False
     ).limit(1).collect()
     if latest_decision and not latest_decision[0]["should_retrain"]:
-        print(f"SKIP_RETRAIN: {latest_decision[0]['reason']}")
-        dbutils.notebook.exit("SKIP_RETRAIN")
+        skip_reason = latest_decision[0]["reason"]
 except Exception as exc:
     print(f"No monitoring gate decision found, continuing training: {exc}")
+
+if skip_reason:
+    print(f"SKIP_RETRAIN: {skip_reason}")
+    dbutils.jobs.taskValues.set(key="training_status", value="skipped")
+    dbutils.notebook.exit("SKIP_RETRAIN")
 
 # COMMAND ----------
 
@@ -161,6 +170,9 @@ with mlflow.start_run(run_name="optuna_random_forest_parent") as parent_run:
     signature = infer_signature(X_train, best_model.predict(X_train))
     mlflow.sklearn.log_model(best_model, "model", signature=signature)
     run_id = parent_run.info.run_id
+
+dbutils.jobs.taskValues.set(key="training_status", value="trained")
+dbutils.jobs.taskValues.set(key="run_id", value=run_id)
 
 # COMMAND ----------
 

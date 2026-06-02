@@ -14,7 +14,15 @@ from mlflow.exceptions import MlflowException
 
 # COMMAND ----------
 
-catalog = "btc_dev"
+def get_widget(name, default):
+    try:
+        dbutils.widgets.text(name, str(default))
+        return dbutils.widgets.get(name)
+    except Exception:
+        return str(default)
+
+
+catalog = get_widget("catalog", "btc_dev")
 features_schema = "features"
 predictions_schema = "predictions"
 features_table = "btc_features"

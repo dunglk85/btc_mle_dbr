@@ -6,7 +6,7 @@
 |------------|-------------|
 | `btc_dev`  | Development  |
 | `btc_stg`  | Staging      |
-| `btc_prd`  | Production   |
+| `btc_prod` | Production   |
 
 ## Schema Structure (per catalog)
 

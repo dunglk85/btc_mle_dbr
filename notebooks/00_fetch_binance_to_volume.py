@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 
 # COMMAND ----------
 
-catalog = "btc_dev"
 raw_schema = "raw"
 volume_name = "landing"
 landing_subdir = "btc_hourly"
@@ -34,6 +33,7 @@ def get_widget(name, default):
         return str(default)
 
 
+catalog = get_widget("catalog", "btc_dev")
 limit = int(get_widget("limit", default_limit))
 start_date = get_widget("start_date", "")
 start_time = None
@@ -44,6 +44,8 @@ if start_date:
         .timestamp()
         * 1000
     )
+if limit > max_page_size and start_time is None:
+    raise ValueError("start_date is required when limit > 1000")
 
 landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{landing_subdir}"
 
@@ -94,6 +96,14 @@ while remaining > 0:
 print(f"fetched_rows={len(rows)}")
 if not rows:
     raise ValueError("No Binance klines fetched")
+
+now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+closed_rows = [row for row in rows if int(row[6]) < now_ms]
+filtered_count = len(rows) - len(closed_rows)
+print(f"filtered_open_candles={filtered_count}")
+rows = closed_rows
+if not rows:
+    raise ValueError("No closed Binance klines fetched")
 
 # COMMAND ----------
 

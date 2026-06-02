@@ -20,5 +20,8 @@ def load_config(env: str = "dev") -> dict[str, Any]:
     override_path = Path(f"configs/{env}.yaml")
     if override_path.exists():
         with open(override_path) as f:
-            config.update(yaml.safe_load(f))
+            override = yaml.safe_load(f) or {}
+            if not isinstance(override, dict):
+                raise TypeError(f"Expected mapping in {override_path}")
+            config.update(override)
     return config

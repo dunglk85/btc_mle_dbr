@@ -13,7 +13,7 @@
 | Environment | Unity Catalog | DABs Target |
 |-------------|---------------|-------------|
 | Dev         | `btc_dev`     | `dev`       |
-| Production  | `btc_prd`     | `prod`      |
+| Production  | `btc_prod`    | `prod`      |
 
 ## Schedules
 

@@ -30,7 +30,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 | Environment | Catalog   | DABs Target |
 |-------------|-----------|-------------|
 | Dev         | `btc_dev` | `dev`       |
-| Production  | `btc_prd` | `prod`      |
+| Production  | `btc_prod` | `prod`      |
 
 ## Quick Start
 

@@ -13,7 +13,15 @@ from pyspark.sql import functions as F
 
 # COMMAND ----------
 
-catalog = "btc_dev"
+def get_widget(name, default):
+    try:
+        dbutils.widgets.text(name, str(default))
+        return dbutils.widgets.get(name)
+    except Exception:
+        return str(default)
+
+
+catalog = get_widget("catalog", "btc_dev")
 raw_schema = "raw"
 features_schema = "features"
 predictions_schema = "predictions"
@@ -57,10 +65,13 @@ def table_exists(table_ref):
         return False
 
 
+metric_time = datetime.now(timezone.utc)
+
+
 def append_metric(metrics, name, value, status="ok", details=""):
     metrics.append(
         {
-            "metric_time": datetime.now(timezone.utc),
+            "metric_time": metric_time,
             "metric_name": name,
             "metric_value": float(value) if value is not None else None,
             "status": status,
@@ -118,7 +129,7 @@ append_metric(
     "features_target_close_1h_null_count",
     features_target_null_count,
     "ok" if features_target_null_count <= 1 else "alert",
-    "Expected last row target to be null because target_close_1h uses lead(close, 1).",
+    "Expected only rows without exact next-hour candles to have null target.",
 )
 append_metric(
     metrics,

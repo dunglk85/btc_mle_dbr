@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 
 pyspark = pytest.importorskip("pyspark.sql")
 SparkSession = pyspark.SparkSession
@@ -45,3 +46,23 @@ def test_compute_features_basic(spark):
     assert result_pd.loc[1, "close_lag_1h"] == 40000.0
     assert result_pd.loc[1, "return_1h"] == pytest.approx(1 / 40000.0)
     assert result_pd.loc[0, "target_close_1h"] == 40001.0
+
+
+def test_compute_features_target_requires_exact_next_hour(spark):
+    from src.data.features import compute_features
+    import datetime
+
+    start = datetime.datetime(2025, 1, 1, 0, 0)
+    data = [
+        (start, 39900.0, 40100.0, 39800.0, 40000.0, 100.0),
+        (start + datetime.timedelta(hours=2), 39902.0, 40102.0, 39802.0, 40002.0, 102.0),
+    ]
+    df = spark.createDataFrame(
+        data, ["open_time", "open", "high", "low", "close", "volume"]
+    )
+
+    result_pd = compute_features(df, ma_windows=[1], lag_hours=[1]).orderBy(
+        "open_time"
+    ).toPandas()
+
+    assert pd.isna(result_pd.loc[0, "target_close_1h"])

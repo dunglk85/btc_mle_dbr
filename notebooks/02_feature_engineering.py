@@ -11,7 +11,15 @@ from pyspark.sql import Window, functions as F
 
 # COMMAND ----------
 
-catalog = "btc_dev"
+def get_widget(name, default):
+    try:
+        dbutils.widgets.text(name, str(default))
+        return dbutils.widgets.get(name)
+    except Exception:
+        return str(default)
+
+
+catalog = get_widget("catalog", "btc_dev")
 raw_schema = "raw"
 features_schema = "features"
 raw_table = "btc_hourly"
@@ -59,7 +67,11 @@ features = features.withColumn("hl_spread", F.col("high") - F.col("low"))
 features = features.withColumn("oc_change", F.col("close") - F.col("open"))
 features = features.withColumn("hour", F.hour("open_time"))
 features = features.withColumn("day_of_week", F.dayofweek("open_time"))
-features = features.withColumn("target_close_1h", F.lead("close", 1).over(w))
+target = raw.select(
+    (F.col("open_time") - F.expr("INTERVAL 1 HOUR")).alias("open_time"),
+    F.col("close").alias("target_close_1h"),
+)
+features = features.join(target, on="open_time", how="left")
 
 feature_count = features.count()
 print(f"feature_count={feature_count}")

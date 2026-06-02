@@ -11,8 +11,11 @@ include:
 
 targets:
   dev:
+    mode: development
+    default: true
     variables:
       catalog: btc_dev
   prod:
+    mode: production
     variables:
-      catalog: btc_prd
+      catalog: btc_prod

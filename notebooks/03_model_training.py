@@ -14,7 +14,15 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # COMMAND ----------
 
-catalog = "btc_dev"
+def get_widget(name, default):
+    try:
+        dbutils.widgets.text(name, str(default))
+        return dbutils.widgets.get(name)
+    except Exception:
+        return str(default)
+
+
+catalog = get_widget("catalog", "btc_dev")
 features_schema = "features"
 features_table = "btc_features"
 features_ref = f"{catalog}.{features_schema}.{features_table}"

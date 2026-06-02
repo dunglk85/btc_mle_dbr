@@ -28,6 +28,8 @@ Use the SQL queries in:
 databricks/sql/dashboard_queries.sql
 ```
 
+Create a query/dashboard parameter named `catalog` and set it to `btc_dev` or `btc_prod`.
+
 Recommended dashboard tiles:
 - Data freshness: latest `raw_freshness_hours`.
 - Raw count: latest `raw_count`.
@@ -46,6 +48,8 @@ Use the SQL queries in:
 ```text
 databricks/sql/alert_queries.sql
 ```
+
+Create an alert query parameter named `catalog` and set it to `btc_dev` or `btc_prod`.
 
 Recommended alert conditions:
 - Raw data stale: `raw_freshness_hours > 3`.

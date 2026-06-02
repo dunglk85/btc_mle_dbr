@@ -25,7 +25,11 @@ def compute_features(
     df = df.withColumn("oc_change", F.col("close") - F.col("open"))
     df = df.withColumn("hour", F.hour("open_time"))
     df = df.withColumn("day_of_week", F.dayofweek("open_time"))
-    df = df.withColumn("target_close_1h", F.lead("close", 1).over(w))
+    target = df.select(
+        (F.col("open_time") - F.expr("INTERVAL 1 HOUR")).alias("open_time"),
+        F.col("close").alias("target_close_1h"),
+    )
+    df = df.join(target, on="open_time", how="left")
 
     return df
 
