@@ -1,12 +1,10 @@
-name: Hourly Trigger
+name: Manual Data Fetch
 
 on:
-  schedule:
-    - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
-  trigger-ingestion:
+  fetch-and-run-data-pipeline:
     runs-on: ubuntu-latest
     env:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -18,16 +16,10 @@ jobs:
           python-version: "3.11"
       - uses: databricks/setup-cli@main
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
       - name: Check required secrets
         run: |
           test -n "$DATABRICKS_HOST" || (echo "Missing DATABRICKS_HOST secret" && exit 1)
           test -n "$DATABRICKS_TOKEN" || (echo "Missing DATABRICKS_TOKEN secret" && exit 1)
 
-      - name: Fetch Binance data to UC Volume
-        run: python scripts/fetch_binance_to_volume.py --limit 24
-
-      - name: Run ingestion job
-        run: databricks bundle run btc_ingestion_job --target dev
+      - name: Run Databricks data prediction job
+        run: databricks bundle run btc_data_prediction_job --target dev

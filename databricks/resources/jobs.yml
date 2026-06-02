@@ -30,12 +30,22 @@ resources:
         git_provider: gitHub
         git_branch: main
       tasks:
+        - task_key: fetch_binance
+          notebook_task:
+            notebook_path: notebooks/00_fetch_binance_to_volume
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              limit: "24"
+
         - task_key: data_ingestion
           notebook_task:
             notebook_path: notebooks/01_data_ingestion
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+          depends_on:
+            - task_key: fetch_binance
 
         - task_key: feature_engineering
           notebook_task:
