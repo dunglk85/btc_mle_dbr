@@ -354,6 +354,308 @@ max_drawdown
 sharpe_ratio
 ```
 
+## Monitoring Metrics
+
+Monitoring metrics are written by:
+
+```text
+notebooks/06_monitoring.py
+```
+
+to:
+
+```text
+btc_dev.monitoring.pipeline_metrics
+```
+
+Each metric row has:
+
+```text
+metric_time
+metric_name
+metric_value
+status
+```
+
+Status values:
+- `ok`: metric is healthy.
+- `warn`: non-critical issue or missing optional object.
+- `alert`: critical issue; monitoring notebook raises an error so the Databricks Job can notify operators.
+
+### raw_count
+
+Meaning:
+- Number of rows in `btc_dev.raw.btc_hourly`.
+
+Purpose:
+- Confirms raw ingestion is producing data.
+- Used as a basic pipeline health check.
+
+Expected behavior:
+- Should be greater than zero.
+- Should grow over time as new hourly candles arrive.
+
+### raw_duplicate_open_time_count
+
+Meaning:
+- Count of duplicated `open_time` values in the raw table.
+
+Purpose:
+- Verifies ingestion idempotency.
+- Since raw ingestion merges on `open_time`, duplicates should not exist.
+
+Healthy threshold:
+
+```text
+raw_duplicate_open_time_count = 0
+```
+
+Alert condition:
+
+```text
+raw_duplicate_open_time_count > 0
+```
+
+### raw_null_open_time_count
+
+Meaning:
+- Count of rows where `open_time` is null in the raw table.
+
+Purpose:
+- Detects malformed candle data or timestamp parsing failures.
+- `open_time` is the natural key for merge and ordering, so null values are critical.
+
+Healthy threshold:
+
+```text
+raw_null_open_time_count = 0
+```
+
+Alert condition:
+
+```text
+raw_null_open_time_count > 0
+```
+
+### raw_freshness_hours
+
+Meaning:
+- Age in hours between current time and latest raw candle `open_time`.
+
+Purpose:
+- Detects stale ingestion.
+- Ensures the pipeline is receiving recent market data.
+
+Current threshold:
+
+```text
+raw_freshness_hours <= 3
+```
+
+Alert condition:
+
+```text
+raw_freshness_hours > 3
+```
+
+Why 3 hours:
+- Data is hourly.
+- A small delay is acceptable, but more than 3 hours suggests fetch, upload, or ingestion is broken.
+
+### features_count
+
+Meaning:
+- Number of rows in `btc_dev.features.btc_features`.
+
+Purpose:
+- Confirms feature engineering created the feature table.
+- Used to compare raw rows vs feature rows.
+
+Expected behavior:
+- Should be close to `raw_count`.
+- A small difference can occur depending on target/lag handling.
+
+### features_target_close_1h_null_count
+
+Meaning:
+- Number of rows where `target_close_1h` is null.
+
+Purpose:
+- Validates next-hour target generation.
+- Since `target_close_1h = lead(close, 1)`, the final row is expected to have no future target.
+
+Healthy threshold:
+
+```text
+features_target_close_1h_null_count <= 1
+```
+
+Alert condition:
+
+```text
+features_target_close_1h_null_count > 1
+```
+
+### raw_features_row_count_delta
+
+Meaning:
+- Difference between raw row count and feature row count.
+
+Formula:
+
+```text
+raw_count - features_count
+```
+
+Purpose:
+- Detects whether feature engineering lost rows unexpectedly.
+
+Healthy threshold:
+
+```text
+abs(raw_features_row_count_delta) <= 1
+```
+
+Alert condition:
+
+```text
+abs(raw_features_row_count_delta) > 1
+```
+
+### prediction_count
+
+Meaning:
+- Number of rows in `btc_dev.predictions.btc_predictions`.
+
+Purpose:
+- Confirms prediction output exists.
+- If no Champion model exists yet, prediction may be skipped, so this can be `warn` early in the project.
+
+Expected behavior:
+- Should increase over time after a Champion model is available.
+- Should not duplicate endlessly because prediction writes use merge semantics by `feature_open_time` and `model_uri`.
+
+### prediction_age_hours
+
+Meaning:
+- Age in hours since the latest prediction was written.
+
+Purpose:
+- Detects stale prediction output.
+- Ensures the serving path is producing predictions after new data arrives.
+
+Current threshold:
+
+```text
+prediction_age_hours <= 3
+```
+
+Alert condition:
+
+```text
+prediction_age_hours > 3
+```
+
+## Monitoring Gate Metrics
+
+The model refresh gate is implemented in:
+
+```text
+notebooks/07_monitoring_gate.py
+```
+
+It writes decisions to:
+
+```text
+btc_dev.monitoring.model_refresh_decisions
+```
+
+Decision columns:
+
+```text
+should_retrain
+reason
+trigger_mode
+raw_freshness_hours
+alert_count
+champion_exists
+```
+
+### should_retrain
+
+Meaning:
+- Boolean decision telling the model refresh job whether to train a new model.
+
+Usage:
+- `03_optuna_training.py` reads the latest decision.
+- If `should_retrain = false`, training exits with `SKIP_RETRAIN`.
+- If `should_retrain = true`, Optuna training proceeds.
+
+### reason
+
+Meaning:
+- Human-readable explanation for the decision.
+
+Examples:
+- `no Champion exists`
+- `trigger_mode=manual`
+- `latest monitoring has 2 alert metrics`
+- `raw data stale: 5.20h > 3.00h`
+
+Purpose:
+- Makes gate behavior auditable.
+- Helps explain why retraining did or did not happen.
+
+### trigger_mode
+
+Meaning:
+- Source or intent of the model refresh run.
+
+Current values:
+- `scheduled`: periodic refresh.
+- `manual`: operator-triggered refresh.
+- `drift`: future monitoring-triggered refresh.
+
+Purpose:
+- Allows different retraining policies depending on why the job was triggered.
+
+### alert_count
+
+Meaning:
+- Number of alert metrics in the latest monitoring snapshot.
+
+Usage:
+- If `alert_count > 0`, the gate currently skips retraining.
+- This avoids training on potentially bad or stale data.
+
+### champion_exists
+
+Meaning:
+- Whether `btc_dev.models.btc_price_model@Champion` exists.
+
+Usage:
+- If no Champion exists and monitoring is healthy, retraining is allowed so the project can create the first Champion.
+
+## Dashboard And Alert Artifacts
+
+Dashboard queries are stored in:
+
+```text
+databricks/sql/dashboard_queries.sql
+```
+
+SQL alert queries are stored in:
+
+```text
+databricks/sql/alert_queries.sql
+```
+
+Operational guide:
+
+```text
+docs/monitoring-dashboard.md
+```
+
 ## Important Leakage Warning
 
 The current feature table includes same-candle columns such as:
