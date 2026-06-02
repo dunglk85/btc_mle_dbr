@@ -1,12 +1,7 @@
 bundle:
   name: btc_mle_dbr
 
-workspace:
-  host: ${var.databricks_host}
-
 variables:
-  databricks_host:
-    description: Databricks workspace URL
   catalog:
     default: btc_dev
 
@@ -45,8 +40,6 @@ resources:
             spark_version: "13.3.x-scala2.12"
             node_type_id: "i3.xlarge"
             num_workers: 1
-            spark_conf:
-              spark.databricks.delta.preview.enabled: "true"
 
     btc_retrain_job:
       name: "[${bundle.target}] BTC Retrain Job"
@@ -69,8 +62,6 @@ resources:
             spark_version: "13.3.x-scala2.12"
             node_type_id: "i3.xlarge"
             num_workers: 2
-            spark_conf:
-              spark.databricks.delta.preview.enabled: "true"
 
         - task_key: model_training
           notebook_task:
