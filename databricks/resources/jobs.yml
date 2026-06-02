@@ -29,13 +29,8 @@ resources:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub
         git_branch: main
-      environments:
-        - environment_key: default
-          spec:
-            client: "1"
       tasks:
         - task_key: data_ingestion
-          environment_key: default
           notebook_task:
             notebook_path: notebooks/01_data_ingestion
             source: GIT
@@ -52,13 +47,8 @@ resources:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub
         git_branch: main
-      environments:
-        - environment_key: default
-          spec:
-            client: "1"
       tasks:
         - task_key: feature_engineering
-          environment_key: default
           notebook_task:
             notebook_path: notebooks/02_feature_engineering
             source: GIT
@@ -66,7 +56,6 @@ resources:
               catalog: ${var.catalog}
 
         - task_key: model_training
-          environment_key: default
           notebook_task:
             notebook_path: notebooks/03_model_training
             source: GIT
@@ -76,7 +65,6 @@ resources:
             - task_key: feature_engineering
 
         - task_key: champion_challenger
-          environment_key: default
           notebook_task:
             notebook_path: notebooks/04_champion_challenger
             source: GIT
@@ -86,7 +74,6 @@ resources:
             - task_key: model_training
 
         - task_key: prediction
-          environment_key: default
           notebook_task:
             notebook_path: notebooks/05_prediction
             source: GIT
