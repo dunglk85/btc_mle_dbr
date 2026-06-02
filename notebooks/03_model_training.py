@@ -81,6 +81,7 @@ with mlflow.start_run(run_name="baseline_random_forest") as run:
     mape = float((abs(y_test - preds) / y_test.abs()).mean())
 
     mlflow.log_param("model_type", "random_forest")
+    mlflow.log_param("training_mode", "baseline")
     mlflow.log_param("n_estimators", 100)
     mlflow.log_param("max_depth", 10)
     mlflow.log_metric("rmse", rmse)

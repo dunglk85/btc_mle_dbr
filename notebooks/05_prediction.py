@@ -110,6 +110,15 @@ pred_df.select(
     "feature_open_time",
     "predicted_close",
     "model_uri",
-).write.mode("append").saveAsTable(predictions_ref)
+).createOrReplaceTempView("_btc_prediction")
+
+spark.sql(f"""
+    MERGE INTO {predictions_ref} AS target
+    USING _btc_prediction AS source
+    ON target.feature_open_time = source.feature_open_time
+       AND target.model_uri = source.model_uri
+    WHEN MATCHED THEN UPDATE SET *
+    WHEN NOT MATCHED THEN INSERT *
+""")
 
 display(pred_df)

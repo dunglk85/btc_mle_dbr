@@ -30,19 +30,29 @@ client = MlflowClient()
 
 runs = mlflow.search_runs(
     experiment_names=[experiment_name],
+    filter_string="params.model_type = 'random_forest'",
     order_by=["metrics.rmse ASC"],
-    max_results=1,
+    max_results=20,
 )
 if runs.empty:
-    raise ValueError(f"No MLflow runs found in {experiment_name}")
+    raise ValueError(f"No eligible MLflow runs found in {experiment_name}")
 
-best_run = runs.iloc[0]
+eligible_runs = runs[runs["params.training_mode"].isin(["baseline", "optuna"])]
+if eligible_runs.empty:
+    raise ValueError(
+        "No parent training runs found. Expected params.training_mode in "
+        "('baseline', 'optuna')."
+    )
+
+best_run = eligible_runs.iloc[0]
 challenger_run_id = best_run["run_id"]
 challenger_rmse = float(best_run["metrics.rmse"])
 challenger_uri = f"runs:/{challenger_run_id}/model"
+training_mode = best_run["params.training_mode"]
 
 print(f"challenger_run_id={challenger_run_id}")
 print(f"challenger_rmse={challenger_rmse}")
+print(f"training_mode={training_mode}")
 
 # COMMAND ----------
 
@@ -76,6 +86,7 @@ display(
                 "registered_version": str(registered.version),
                 "challenger_run_id": challenger_run_id,
                 "challenger_rmse": challenger_rmse,
+                "training_mode": training_mode,
                 "promoted": bool(promote),
             }
         ]
