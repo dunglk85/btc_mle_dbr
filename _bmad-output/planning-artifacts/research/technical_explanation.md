@@ -730,7 +730,20 @@ model_drift_mape_24h
 model_drift_direction_accuracy_24h
 ```
 
-The monitoring gate uses these metrics to set `should_retrain = true` when drift is detected and data quality is otherwise healthy. Blocking schema/quality alerts still stop retraining.
+The monitoring gate uses these metrics as retraining candidates. A drift alert does not approve retraining by itself.
+
+Retraining decision flow:
+
+```text
+Data drift / prediction drift / feature drift alert
+        ↓
+Validate data quality + schema quality + feature quality
+        ↓
+If validation passes: should_retrain = true
+If validation fails: should_retrain = false
+```
+
+Blocking schema/quality/feature alerts stop retraining because training on broken data can promote a bad model.
 
 ## Dashboard And Alert Artifacts
 

@@ -52,5 +52,18 @@ Implemented drift monitoring:
 - Concept drift proxy: rolling signed error bias.
 
 Drift alerts influence retraining:
-- Blocking quality/schema alerts stop retraining.
-- Drift alerts can trigger retraining when data quality is otherwise healthy.
+- Drift alerts are retraining candidates, not automatic retraining approval.
+- The gate validates data quality, schema quality, and feature quality before retraining.
+- Blocking quality/schema/feature alerts stop retraining.
+- Drift alerts trigger retraining only when validation passes.
+
+Retraining decision flow:
+
+```text
+Data drift / prediction drift / feature drift alert
+        ↓
+Validate data quality + schema quality + feature quality
+        ↓
+If validation passes: retrain
+If validation fails: block retrain and alert operator
+```

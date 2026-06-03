@@ -121,7 +121,10 @@ if raw_freshness_hours is not None and raw_freshness_hours > max_raw_freshness_h
 
 if drift_alert_count > 0 and blocking_alert_count == 0:
     should_retrain = True
-    reasons.append(f"drift detected: {drift_alert_count} alert metrics")
+    reasons.append(
+        f"drift detected: {drift_alert_count} alert metrics; "
+        "data/schema/feature quality validation passed"
+    )
 
 if not champion_exists and blocking_alert_count == 0:
     should_retrain = True

@@ -254,6 +254,16 @@ flowchart TD
 | 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Ingestion -> Feature Engineering -> Prediction -> Monitoring<br/>- **Model Refresh Job** (chạy 12h/lần, đang paused mặc định): Monitoring Gate -> Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
+
+Drift-triggered retraining rule:
+
+```text
+Data drift / prediction drift / feature drift alert
+        ↓
+Validate data quality + schema quality + feature quality
+        ↓
+Retrain only if validation passes
+```
 | 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, duration<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
 | 4.6 | Thiết lập Alerts | - Email/Slack notification khi job fail, data quality issue hoặc model performance drop | Databricks Alerts |
