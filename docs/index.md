@@ -42,6 +42,8 @@
 - `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
+- `databricks/resources/dashboards.yml`: CI/CD-managed AI/BI dashboard resource.
+- `databricks/dashboards/BTC MLOps Monitoring Dashboard.lvdash.json`: exported dashboard layout.
 
 ## Validation Commands
 

@@ -82,13 +82,22 @@ AI/BI Dashboard resources are supported by Databricks Asset Bundles, but they re
 Current repository status:
 - SQL alert resources are deployable by CI/CD.
 - Dashboard SQL templates are versioned in `databricks/sql/dashboard_queries.sql`.
-- Dashboard UI layout is not yet stored as `.lvdash.json`, so dashboard layout creation is still manual until an exported/generated dashboard JSON is added.
+- Dashboard layout is stored in `databricks/dashboards/BTC MLOps Monitoring Dashboard.lvdash.json`.
+- Dashboard resource is defined in `databricks/resources/dashboards.yml`.
 
-To move dashboard layout to CI/CD:
-- Create the dashboard once in Databricks UI.
-- Export the dashboard `.lvdash.json`.
-- Add it to the repo.
-- Add a `resources.dashboards` entry pointing to that file.
+Deploy dashboard and alerts:
+
+```bash
+databricks bundle deploy --var="sql_warehouse_id=632f18779c3b51ec"
+```
+
+Current SQL warehouse:
+
+```text
+632f18779c3b51ec  Serverless Starter Warehouse
+```
+
+Note: the exported dashboard currently contains `btc_dev` table references. It is suitable for dev deployment. For prod, export a prod dashboard or parameterize the dashboard JSON before deploying to `prod`.
 
 Recommended alert conditions:
 - Raw data stale: `raw_freshness_hours > 3`.

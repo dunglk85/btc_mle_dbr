@@ -1,0 +1,3495 @@
+{
+  "datasets": [
+    {
+      "name": "monitoring_alerts",
+      "displayName": "Monitoring Alerts",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  status IN ('alert', 'warn')\n",
+        "  AND (\n",
+        "    CARDINALITY(:status_filter) = 0\n",
+        "    OR array_contains(:status_filter, status)\n",
+        "  )\n",
+        "  AND (\n",
+        "    CARDINALITY(:metric_name_filter) = 0\n",
+        "    OR array_contains(:metric_name_filter, metric_name)\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  metric_time DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "Status Filter",
+          "keyword": "status_filter",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Metric Name Filter",
+          "keyword": "metric_name_filter",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
+    },
+    {
+      "name": "prediction_count",
+      "displayName": "Prediction Count",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_value AS prediction_count,\n",
+        "  status\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name = 'prediction_count'\n",
+        "ORDER BY\n",
+        "  metric_time DESC\n",
+        "LIMIT 1"
+      ]
+    },
+    {
+      "name": "data_freshness",
+      "displayName": "Data Freshness",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_value AS raw_freshness_hours,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name = 'raw_freshness_hours'\n",
+        "ORDER BY\n",
+        "  metric_time DESC\n",
+        "LIMIT 1"
+      ]
+    },
+    {
+      "name": "actual_vs_predicted",
+      "displayName": "Actual vs Predicted",
+      "queryLines": [
+        "SELECT\n",
+        "  p.prediction_time,\n",
+        "  p.feature_open_time,\n",
+        "  p.predicted_close,\n",
+        "  r.open_time AS actual_open_time,\n",
+        "  r.close AS actual_close,\n",
+        "  ABS(r.close - p.predicted_close) AS abs_error,\n",
+        "  ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error\n",
+        "FROM\n",
+        "  btc_dev.predictions.btc_predictions p\n",
+        "    LEFT JOIN btc_dev.raw.btc_hourly r\n",
+        "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
+        "WHERE\n",
+        "  p.prediction_time >= :date_range.min\n",
+        "  AND p.prediction_time <= :date_range.max\n",
+        "ORDER BY\n",
+        "  p.prediction_time DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "predictions"
+    },
+    {
+      "name": "features_count",
+      "displayName": "Feature Table Count",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_value AS features_count,\n",
+        "  status\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name = 'features_count'\n",
+        "ORDER BY\n",
+        "  metric_time DESC\n",
+        "LIMIT 1"
+      ]
+    },
+    {
+      "name": "metrics_timeline",
+      "displayName": "Monitoring Metrics Timeline",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  (\n",
+        "    CARDINALITY(:status_filter) = 0\n",
+        "    OR array_contains(:status_filter, status)\n",
+        "  )\n",
+        "  AND (\n",
+        "    CARDINALITY(:metric_name_filter) = 0\n",
+        "    OR array_contains(:metric_name_filter, metric_name)\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  metric_time DESC,\n",
+        "  metric_name\n",
+        "LIMIT 500"
+      ],
+      "parameters": [
+        {
+          "displayName": "Status Filter",
+          "keyword": "status_filter",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        },
+        {
+          "displayName": "Metric Name Filter",
+          "keyword": "metric_name_filter",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
+    },
+    {
+      "name": "raw_data_count",
+      "displayName": "Raw Data Count",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_value AS raw_count,\n",
+        "  status\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name = 'raw_count'\n",
+        "ORDER BY\n",
+        "  metric_time DESC\n",
+        "LIMIT 1"
+      ]
+    },
+    {
+      "name": "latest_predictions",
+      "displayName": "Latest Predictions",
+      "queryLines": [
+        "SELECT\n",
+        "  prediction_time,\n",
+        "  feature_open_time,\n",
+        "  predicted_close,\n",
+        "  model_uri\n",
+        "FROM\n",
+        "  btc_dev.predictions.btc_predictions\n",
+        "WHERE\n",
+        "  (\n",
+        "    CARDINALITY(:model_uri_filter) = 0\n",
+        "    OR array_contains(:model_uri_filter, model_uri)\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  prediction_time DESC\n",
+        "LIMIT 50"
+      ],
+      "parameters": [
+        {
+          "displayName": "Model URI Filter",
+          "keyword": "model_uri_filter",
+          "dataType": "STRING",
+          "complexType": "MULTI",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING"
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "predictions"
+    },
+    {
+      "name": "prediction_error_trend",
+      "displayName": "Prediction Error Trend",
+      "queryLines": [
+        "SELECT\n",
+        "  p.feature_open_time,\n",
+        "  p.predicted_close,\n",
+        "  r.close AS actual_close,\n",
+        "  ABS(r.close - p.predicted_close) AS abs_error,\n",
+        "  ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error\n",
+        "FROM\n",
+        "  btc_dev.predictions.btc_predictions p\n",
+        "    JOIN btc_dev.raw.btc_hourly r\n",
+        "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
+        "WHERE\n",
+        "  p.feature_open_time >= :date_range.min\n",
+        "  AND p.feature_open_time <= :date_range.max\n",
+        "ORDER BY\n",
+        "  p.feature_open_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "predictions"
+    },
+    {
+      "name": "error_stats",
+      "displayName": "Model Error Statistics",
+      "queryLines": [
+        "SELECT\n",
+        "  AVG(abs_error) AS avg_abs_error,\n",
+        "  AVG(pct_error) AS avg_pct_error,\n",
+        "  MAX(abs_error) AS max_abs_error,\n",
+        "  MAX(pct_error) AS max_pct_error,\n",
+        "  MIN(abs_error) AS min_abs_error,\n",
+        "  MIN(pct_error) AS min_pct_error,\n",
+        "  COUNT(*) AS total_predictions\n",
+        "FROM\n",
+        "  (\n",
+        "    SELECT\n",
+        "      ABS(r.close - p.predicted_close) AS abs_error,\n",
+        "      ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error\n",
+        "    FROM\n",
+        "      btc_dev.predictions.btc_predictions p\n",
+        "        JOIN btc_dev.raw.btc_hourly r\n",
+        "          ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
+        "    WHERE\n",
+        "      p.feature_open_time >= :date_range.min\n",
+        "      AND p.feature_open_time <= :date_range.max\n",
+        "  )"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "predictions"
+    },
+    {
+      "name": "prediction_data_quality",
+      "displayName": "Prediction Data Quality",
+      "queryLines": [
+        "SELECT\n",
+        "  COUNT(*) AS total_predictions,\n",
+        "  COUNT(predicted_close) AS predicted_close_count,\n",
+        "  COUNT(model_uri) AS model_uri_count,\n",
+        "  (COUNT(predicted_close) * 100.0 / COUNT(*)) AS predicted_completeness_pct,\n",
+        "  (COUNT(model_uri) * 100.0 / COUNT(*)) AS model_uri_completeness_pct\n",
+        "FROM\n",
+        "  btc_predictions"
+      ],
+      "catalog": "btc_dev",
+      "schema": "predictions"
+    },
+    {
+      "name": "outlier_detection",
+      "displayName": "Outlier Detection",
+      "queryLines": [
+        "WITH stats AS (\n",
+        "  SELECT\n",
+        "    PERCENTILE(close, 0.25) AS q1,\n",
+        "    PERCENTILE(close, 0.75) AS q3,\n",
+        "    PERCENTILE(close, 0.75) - PERCENTILE(close, 0.25) AS iqr\n",
+        "  FROM\n",
+        "    btc_hourly\n",
+        ")\n",
+        "SELECT\n",
+        "  open_time,\n",
+        "  close,\n",
+        "  CASE\n",
+        "    WHEN\n",
+        "      close < (q1 - 1.5 * iqr)\n",
+        "      OR close > (q3 + 1.5 * iqr)\n",
+        "    THEN\n",
+        "      'Outlier'\n",
+        "    ELSE 'Normal'\n",
+        "  END AS outlier_status\n",
+        "FROM\n",
+        "  btc_hourly,\n",
+        "  stats\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max\n",
+        "  AND (\n",
+        "    close < (q1 - 1.5 * iqr)\n",
+        "    OR close > (q3 + 1.5 * iqr)\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  open_time DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "data_volume_trend",
+      "displayName": "Data Volume Trend",
+      "queryLines": [
+        "SELECT\n",
+        "  DATE_TRUNC('day', open_time) AS date,\n",
+        "  COUNT(*) AS record_count\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max\n",
+        "GROUP BY\n",
+        "  DATE_TRUNC('day', open_time)\n",
+        "ORDER BY\n",
+        "  date"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "data_quality_score",
+      "displayName": "Data Quality Score",
+      "queryLines": [
+        "WITH completeness AS (\n",
+        "  SELECT\n",
+        "    (COUNT(open) + COUNT(high) + COUNT(low) + COUNT(close) + COUNT(volume))\n",
+        "      * 100.0\n",
+        "      / (COUNT(*) * 5) AS completeness_score\n",
+        "  FROM\n",
+        "    btc_hourly\n",
+        ")\n",
+        "SELECT\n",
+        "  ROUND(completeness_score, 2) AS quality_score\n",
+        "FROM\n",
+        "  completeness"
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "missing_values",
+      "displayName": "Missing Values Analysis",
+      "queryLines": [
+        "SELECT\n",
+        "  'open' AS field_name,\n",
+        "  COUNT(*) - COUNT(open) AS missing_count,\n",
+        "  COUNT(*) AS total_count\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  'high' AS field_name,\n",
+        "  COUNT(*) - COUNT(high) AS missing_count,\n",
+        "  COUNT(*) AS total_count\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  'low' AS field_name,\n",
+        "  COUNT(*) - COUNT(low) AS missing_count,\n",
+        "  COUNT(*) AS total_count\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  'close' AS field_name,\n",
+        "  COUNT(*) - COUNT(close) AS missing_count,\n",
+        "  COUNT(*) AS total_count\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "UNION ALL\n",
+        "SELECT\n",
+        "  'volume' AS field_name,\n",
+        "  COUNT(*) - COUNT(volume) AS missing_count,\n",
+        "  COUNT(*) AS total_count\n",
+        "FROM\n",
+        "  btc_hourly"
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "data_completeness",
+      "displayName": "Data Completeness",
+      "queryLines": [
+        "SELECT\n",
+        "  COUNT(*) AS total_records,\n",
+        "  COUNT(open) AS open_count,\n",
+        "  COUNT(high) AS high_count,\n",
+        "  COUNT(low) AS low_count,\n",
+        "  COUNT(close) AS close_count,\n",
+        "  COUNT(volume) AS volume_count,\n",
+        "  (COUNT(open) * 100.0 / COUNT(*)) AS open_completeness_pct,\n",
+        "  (COUNT(high) * 100.0 / COUNT(*)) AS high_completeness_pct,\n",
+        "  (COUNT(low) * 100.0 / COUNT(*)) AS low_completeness_pct,\n",
+        "  (COUNT(close) * 100.0 / COUNT(*)) AS close_completeness_pct,\n",
+        "  (COUNT(volume) * 100.0 / COUNT(*)) AS volume_completeness_pct\n",
+        "FROM\n",
+        "  btc_hourly"
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "time_gaps",
+      "displayName": "Time Gap Analysis",
+      "queryLines": [
+        "WITH time_diffs AS (\n",
+        "  SELECT\n",
+        "    open_time,\n",
+        "    LEAD(open_time) OVER (ORDER BY open_time) AS next_time,\n",
+        "    TIMESTAMPDIFF(HOUR, open_time, LEAD(open_time) OVER (ORDER BY open_time)) AS hours_gap\n",
+        "  FROM\n",
+        "    btc_hourly\n",
+        "  WHERE\n",
+        "    open_time >= :date_range.min\n",
+        "    AND open_time <= :date_range.max\n",
+        ")\n",
+        "SELECT\n",
+        "  open_time,\n",
+        "  next_time,\n",
+        "  hours_gap\n",
+        "FROM\n",
+        "  time_diffs\n",
+        "WHERE\n",
+        "  hours_gap > 1\n",
+        "ORDER BY\n",
+        "  hours_gap DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "price_validation",
+      "displayName": "Price Range Validation",
+      "queryLines": [
+        "SELECT\n",
+        "  COUNT(*) AS total_records,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN open <= 0 THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS invalid_open,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN high <= 0 THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS invalid_high,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN low <= 0 THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS invalid_low,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN close <= 0 THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS invalid_close,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN volume < 0 THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS invalid_volume,\n",
+        "  (\n",
+        "    SUM(\n",
+        "      CASE\n",
+        "        WHEN\n",
+        "          open > 0\n",
+        "          AND high > 0\n",
+        "          AND low > 0\n",
+        "          AND close > 0\n",
+        "          AND volume >= 0\n",
+        "        THEN\n",
+        "          1\n",
+        "        ELSE 0\n",
+        "      END\n",
+        "    )\n",
+        "      * 100.0\n",
+        "      / COUNT(*)\n",
+        "  ) AS valid_price_pct\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "duplicate_records",
+      "displayName": "Duplicate Records Check",
+      "queryLines": [
+        "SELECT\n",
+        "  open_time,\n",
+        "  COUNT(*) AS duplicate_count\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max\n",
+        "GROUP BY\n",
+        "  open_time\n",
+        "HAVING\n",
+        "  COUNT(*) > 1\n",
+        "ORDER BY\n",
+        "  duplicate_count DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "data_consistency",
+      "displayName": "Data Consistency Check",
+      "queryLines": [
+        "SELECT\n",
+        "  COUNT(*) AS total_records,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN high < low THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS high_low_violations,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN high < close THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS high_close_violations,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN low > close THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS low_close_violations,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN high < open THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS high_open_violations,\n",
+        "  SUM(\n",
+        "    CASE\n",
+        "      WHEN low > open THEN 1\n",
+        "      ELSE 0\n",
+        "    END\n",
+        "  ) AS low_open_violations,\n",
+        "  (\n",
+        "    SUM(\n",
+        "      CASE\n",
+        "        WHEN\n",
+        "          high >= low\n",
+        "          AND high >= close\n",
+        "          AND low <= close\n",
+        "          AND high >= open\n",
+        "          AND low <= open\n",
+        "        THEN\n",
+        "          1\n",
+        "        ELSE 0\n",
+        "      END\n",
+        "    )\n",
+        "      * 100.0\n",
+        "      / COUNT(*)\n",
+        "  ) AS consistency_score\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "null_rate_trend",
+      "displayName": "Null Rate Trend",
+      "queryLines": [
+        "SELECT\n",
+        "  DATE_TRUNC('day', open_time) AS date,\n",
+        "  COUNT(*) AS total_records,\n",
+        "  (COUNT(*) - COUNT(open)) * 100.0 / COUNT(*) AS open_null_pct,\n",
+        "  (COUNT(*) - COUNT(high)) * 100.0 / COUNT(*) AS high_null_pct,\n",
+        "  (COUNT(*) - COUNT(low)) * 100.0 / COUNT(*) AS low_null_pct,\n",
+        "  (COUNT(*) - COUNT(close)) * 100.0 / COUNT(*) AS close_null_pct,\n",
+        "  (COUNT(*) - COUNT(volume)) * 100.0 / COUNT(*) AS volume_null_pct\n",
+        "FROM\n",
+        "  btc_hourly\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max\n",
+        "GROUP BY\n",
+        "  DATE_TRUNC('day', open_time)\n",
+        "ORDER BY\n",
+        "  date"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
+      "name": "prediction_latency",
+      "displayName": "Prediction Latency",
+      "queryLines": [
+        "SELECT\n",
+        "  prediction_time,\n",
+        "  feature_open_time,\n",
+        "  TIMESTAMPDIFF(MINUTE, feature_open_time, prediction_time) AS latency_minutes\n",
+        "FROM\n",
+        "  btc_predictions\n",
+        "WHERE\n",
+        "  prediction_time >= :date_range.min\n",
+        "  AND prediction_time <= :date_range.max\n",
+        "ORDER BY\n",
+        "  prediction_time DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "predictions"
+    },
+    {
+      "name": "r_squared_metric",
+      "displayName": "R² Metric",
+      "queryLines": [
+        "WITH predictions AS (\n",
+        "  SELECT\n",
+        "    r.close AS actual,\n",
+        "    p.predicted_close AS predicted\n",
+        "  FROM\n",
+        "    btc_dev.predictions.btc_predictions p\n",
+        "      JOIN btc_dev.raw.btc_hourly r\n",
+        "        ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
+        "  WHERE\n",
+        "    p.feature_open_time >= :date_range.min\n",
+        "    AND p.feature_open_time <= :date_range.max\n",
+        "),\n",
+        "stats AS (\n",
+        "  SELECT\n",
+        "    AVG(actual) AS mean_actual,\n",
+        "    SUM(POWER(actual - predicted, 2)) AS ss_res,\n",
+        "    SUM(\n",
+        "      POWER(\n",
+        "        actual\n",
+        "          - (\n",
+        "            SELECT\n",
+        "              AVG(actual)\n",
+        "            FROM\n",
+        "              predictions\n",
+        "          ),\n",
+        "        2\n",
+        "      )\n",
+        "    ) AS ss_tot\n",
+        "  FROM\n",
+        "    predictions\n",
+        ")\n",
+        "SELECT\n",
+        "  1 - (ss_res / NULLIF(ss_tot, 0)) AS r_squared\n",
+        "FROM\n",
+        "  stats"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "latest_training_run",
+      "displayName": "Latest Training Run",
+      "queryLines": [
+        "SELECT\n",
+        "  run_id,\n",
+        "  run_timestamp,\n",
+        "  model_type,\n",
+        "  training_time_seconds,\n",
+        "  n_trials,\n",
+        "  n_early_stopped,\n",
+        "  rmse,\n",
+        "  mae,\n",
+        "  mape,\n",
+        "  r_squared\n",
+        "FROM\n",
+        "  btc_dev.monitoring.model_training_runs\n",
+        "ORDER BY\n",
+        "  run_timestamp DESC\n",
+        "LIMIT 1"
+      ]
+    },
+    {
+      "name": "rmse_metric",
+      "displayName": "RMSE Metric",
+      "queryLines": [
+        "SELECT\n",
+        "  SQRT(AVG(POWER(r.close - p.predicted_close, 2))) AS rmse\n",
+        "FROM\n",
+        "  btc_dev.predictions.btc_predictions p\n",
+        "    JOIN btc_dev.raw.btc_hourly r\n",
+        "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
+        "WHERE\n",
+        "  p.feature_open_time >= :date_range.min\n",
+        "  AND p.feature_open_time <= :date_range.max"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "training_runs_history",
+      "displayName": "Training Runs History",
+      "queryLines": [
+        "SELECT\n",
+        "  run_timestamp,\n",
+        "  model_type,\n",
+        "  training_time_seconds,\n",
+        "  n_trials,\n",
+        "  n_early_stopped,\n",
+        "  rmse,\n",
+        "  mae,\n",
+        "  mape,\n",
+        "  r_squared,\n",
+        "  best_trial_number\n",
+        "FROM\n",
+        "  btc_dev.monitoring.model_training_runs\n",
+        "ORDER BY\n",
+        "  run_timestamp DESC\n",
+        "LIMIT 10"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "7f23c158",
+      "displayName": "Pipeline Monitoring",
+      "layout": [
+        {
+          "widget": {
+            "name": "data_freshness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_freshness",
+                  "fields": [
+                    {
+                      "name": "raw_freshness_hours",
+                      "expression": "`raw_freshness_hours`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Data Freshness (Hours)",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "raw_freshness_hours"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "raw_count",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "raw_data_count",
+                  "fields": [
+                    {
+                      "name": "raw_count",
+                      "expression": "`raw_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Raw Data Count",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "raw_count"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "features_count",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "features_count",
+                  "fields": [
+                    {
+                      "name": "features_count",
+                      "expression": "`features_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Feature Table Count",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "features_count"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "prediction_count",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_count",
+                  "fields": [
+                    {
+                      "name": "prediction_count",
+                      "expression": "`prediction_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Prediction Count",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "prediction_count"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "latest_predictions",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "latest_predictions",
+                  "fields": [
+                    {
+                      "name": "prediction_time",
+                      "expression": "`prediction_time`"
+                    },
+                    {
+                      "name": "feature_open_time",
+                      "expression": "`feature_open_time`"
+                    },
+                    {
+                      "name": "predicted_close",
+                      "expression": "`predicted_close`"
+                    },
+                    {
+                      "name": "model_uri",
+                      "expression": "`model_uri`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Latest Predictions",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "prediction_time"
+                  },
+                  {
+                    "fieldName": "feature_open_time"
+                  },
+                  {
+                    "fieldName": "predicted_close"
+                  },
+                  {
+                    "fieldName": "model_uri"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "actual_vs_predicted",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "actual_vs_predicted",
+                  "fields": [
+                    {
+                      "name": "prediction_time",
+                      "expression": "`prediction_time`"
+                    },
+                    {
+                      "name": "predicted_close",
+                      "expression": "`predicted_close`"
+                    },
+                    {
+                      "name": "actual_close",
+                      "expression": "`actual_close`"
+                    },
+                    {
+                      "name": "abs_error",
+                      "expression": "`abs_error`"
+                    },
+                    {
+                      "name": "pct_error",
+                      "expression": "`pct_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Actual vs Predicted",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "prediction_time"
+                  },
+                  {
+                    "fieldName": "predicted_close"
+                  },
+                  {
+                    "fieldName": "actual_close"
+                  },
+                  {
+                    "fieldName": "abs_error"
+                  },
+                  {
+                    "fieldName": "pct_error",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "error_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_error_trend",
+                  "fields": [
+                    {
+                      "name": "feature_open_time",
+                      "expression": "`feature_open_time`"
+                    },
+                    {
+                      "name": "abs_error",
+                      "expression": "`abs_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Prediction Error Trend",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "feature_open_time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "abs_error",
+                  "displayName": "Absolute Error",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "monitoring_alerts",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "monitoring_alerts",
+                  "fields": [
+                    {
+                      "name": "metric_time",
+                      "expression": "`metric_time`"
+                    },
+                    {
+                      "name": "metric_name",
+                      "expression": "`metric_name`"
+                    },
+                    {
+                      "name": "metric_value",
+                      "expression": "`metric_value`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "details",
+                      "expression": "`details`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Monitoring Alerts",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "metric_time"
+                  },
+                  {
+                    "fieldName": "metric_name"
+                  },
+                  {
+                    "fieldName": "metric_value"
+                  },
+                  {
+                    "fieldName": "status"
+                  },
+                  {
+                    "fieldName": "details"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 34,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "metrics_timeline",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "metrics_timeline",
+                  "fields": [
+                    {
+                      "name": "metric_time",
+                      "expression": "`metric_time`"
+                    },
+                    {
+                      "name": "metric_name",
+                      "expression": "`metric_name`"
+                    },
+                    {
+                      "name": "metric_value",
+                      "expression": "`metric_value`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Monitoring Metrics Timeline",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "metric_time"
+                  },
+                  {
+                    "fieldName": "metric_name"
+                  },
+                  {
+                    "fieldName": "metric_value"
+                  },
+                  {
+                    "fieldName": "status"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 40,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "pct_error_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_error_trend",
+                  "fields": [
+                    {
+                      "name": "feature_open_time",
+                      "expression": "`feature_open_time`"
+                    },
+                    {
+                      "name": "pct_error",
+                      "expression": "`pct_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Percentage Error Trend",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "feature_open_time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "pct_error",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    }
+                  },
+                  "displayName": "Percentage Error",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "model_performance",
+      "displayName": "Model Performance",
+      "layout": [
+        {
+          "widget": {
+            "name": "avg_abs_error",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "avg_abs_error",
+                      "expression": "`avg_abs_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Average Absolute Error",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_abs_error"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "avg_pct_error",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "avg_pct_error",
+                      "expression": "`avg_pct_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.00%"
+                }
+              },
+              "frame": {
+                "title": "Average % Error",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_pct_error"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "max_abs_error",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "max_abs_error",
+                      "expression": "`max_abs_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Max Absolute Error",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max_abs_error"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "total_predictions",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "total_predictions",
+                      "expression": "`total_predictions`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Predictions",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_predictions"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "predicted_vs_actual",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_error_trend",
+                  "fields": [
+                    {
+                      "name": "feature_open_time",
+                      "expression": "`feature_open_time`"
+                    },
+                    {
+                      "name": "predicted_close",
+                      "expression": "`predicted_close`"
+                    },
+                    {
+                      "name": "actual_close",
+                      "expression": "`actual_close`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Predicted vs Actual Prices",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "feature_open_time",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "predicted_close",
+                      "displayName": "Predicted"
+                    },
+                    {
+                      "fieldName": "actual_close",
+                      "displayName": "Actual"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "error_stats_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "avg_abs_error",
+                      "expression": "`avg_abs_error`"
+                    },
+                    {
+                      "name": "avg_pct_error",
+                      "expression": "`avg_pct_error`"
+                    },
+                    {
+                      "name": "max_abs_error",
+                      "expression": "`max_abs_error`"
+                    },
+                    {
+                      "name": "max_pct_error",
+                      "expression": "`max_pct_error`"
+                    },
+                    {
+                      "name": "min_abs_error",
+                      "expression": "`min_abs_error`"
+                    },
+                    {
+                      "name": "min_pct_error",
+                      "expression": "`min_pct_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Error Statistics Summary",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "avg_abs_error",
+                    "displayName": "Avg Abs Error"
+                  },
+                  {
+                    "fieldName": "avg_pct_error",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Avg % Error"
+                  },
+                  {
+                    "fieldName": "max_abs_error",
+                    "displayName": "Max Abs Error"
+                  },
+                  {
+                    "fieldName": "max_pct_error",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Max % Error"
+                  },
+                  {
+                    "fieldName": "min_abs_error",
+                    "displayName": "Min Abs Error"
+                  },
+                  {
+                    "fieldName": "min_pct_error",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Min % Error"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "rmse_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "rmse_metric",
+                  "fields": [
+                    {
+                      "name": "rmse",
+                      "expression": "`rmse`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "RMSE",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "rmse"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "r_squared_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "r_squared_metric",
+                  "fields": [
+                    {
+                      "name": "r_squared",
+                      "expression": "`r_squared`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "R² Score",
+                "showTitle": true
+              },
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.0000"
+                }
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "r_squared"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 18,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "n_trials_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "latest_training_run",
+                  "fields": [
+                    {
+                      "name": "n_trials",
+                      "expression": "`n_trials`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Trials",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "n_trials"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 18,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "early_stopped_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "latest_training_run",
+                  "fields": [
+                    {
+                      "name": "n_early_stopped",
+                      "expression": "`n_early_stopped`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Early Stopped",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "n_early_stopped"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 18,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "training_time_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "latest_training_run",
+                  "fields": [
+                    {
+                      "name": "training_time_seconds",
+                      "expression": "`training_time_seconds`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Training Time (s)",
+                "showTitle": true
+              },
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0,0"
+                }
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "training_time_seconds"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 18,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "training_runs_comparison",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "training_runs_history",
+                  "fields": [
+                    {
+                      "name": "run_timestamp",
+                      "expression": "`run_timestamp`"
+                    },
+                    {
+                      "name": "model_type",
+                      "expression": "`model_type`"
+                    },
+                    {
+                      "name": "training_time_seconds",
+                      "expression": "`training_time_seconds`"
+                    },
+                    {
+                      "name": "n_trials",
+                      "expression": "`n_trials`"
+                    },
+                    {
+                      "name": "n_early_stopped",
+                      "expression": "`n_early_stopped`"
+                    },
+                    {
+                      "name": "best_trial_number",
+                      "expression": "`best_trial_number`"
+                    },
+                    {
+                      "name": "rmse",
+                      "expression": "`rmse`"
+                    },
+                    {
+                      "name": "mae",
+                      "expression": "`mae`"
+                    },
+                    {
+                      "name": "mape",
+                      "expression": "`mape`"
+                    },
+                    {
+                      "name": "r_squared",
+                      "expression": "`r_squared`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Training Runs Comparison",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_timestamp",
+                    "displayName": "Run Time"
+                  },
+                  {
+                    "fieldName": "model_type",
+                    "displayName": "Model"
+                  },
+                  {
+                    "fieldName": "training_time_seconds",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 1
+                      }
+                    },
+                    "displayName": "Time (s)"
+                  },
+                  {
+                    "fieldName": "n_trials",
+                    "displayName": "Trials"
+                  },
+                  {
+                    "fieldName": "n_early_stopped",
+                    "displayName": "Early Stop"
+                  },
+                  {
+                    "fieldName": "best_trial_number",
+                    "displayName": "Best Trial"
+                  },
+                  {
+                    "fieldName": "rmse",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "RMSE"
+                  },
+                  {
+                    "fieldName": "mae",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "MAE"
+                  },
+                  {
+                    "fieldName": "mape",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "MAPE"
+                  },
+                  {
+                    "fieldName": "r_squared",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 4
+                      }
+                    },
+                    "displayName": "R²"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "global_filters",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "date_range_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e626c0918d2a96e85ef82694ca1_prediction_time",
+                "query": {
+                  "datasetName": "actual_vs_predicted",
+                  "fields": [
+                    {
+                      "name": "prediction_time",
+                      "expression": "`prediction_time`"
+                    },
+                    {
+                      "name": "prediction_time_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Date Range Filter",
+                "showTitle": true
+              },
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "prediction_time",
+                    "queryName": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e626c0918d2a96e85ef82694ca1_prediction_time"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "status_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e62505b137c9ea33ae5cac2fa16_status",
+                "query": {
+                  "datasetName": "monitoring_alerts",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "status_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Status Filter",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "status",
+                    "queryName": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e62505b137c9ea33ae5cac2fa16_status"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "metric_name_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e62505b137c9ea33ae5cac2fa16_metric_name",
+                "query": {
+                  "datasetName": "monitoring_alerts",
+                  "fields": [
+                    {
+                      "name": "metric_name",
+                      "expression": "`metric_name`"
+                    },
+                    {
+                      "name": "metric_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Metric Name Filter",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "metric_name",
+                    "queryName": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e62505b137c9ea33ae5cac2fa16_metric_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "model_uri_filter",
+            "queries": [
+              {
+                "name": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e6278d210eba1edffe02550e816_model_uri",
+                "query": {
+                  "datasetName": "latest_predictions",
+                  "fields": [
+                    {
+                      "name": "model_uri",
+                      "expression": "`model_uri`"
+                    },
+                    {
+                      "name": "model_uri_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Model URI Filter",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "model_uri",
+                    "queryName": "dashboards/01f15e6210371b8cb14745aa7d0cd272/datasets/01f15e6278d210eba1edffe02550e816_model_uri"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "data_quality",
+      "displayName": "Data Quality",
+      "layout": [
+        {
+          "widget": {
+            "name": "quality_score",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_quality_score",
+                  "fields": [
+                    {
+                      "name": "quality_score",
+                      "expression": "`quality_score`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Overall Data Quality Score",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "quality_score"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "total_records",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_completeness",
+                  "fields": [
+                    {
+                      "name": "total_records",
+                      "expression": "`total_records`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Records",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_records"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "pred_completeness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_data_quality",
+                  "fields": [
+                    {
+                      "name": "predicted_completeness_pct",
+                      "expression": "`predicted_completeness_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.00%"
+                }
+              },
+              "frame": {
+                "title": "Prediction Completeness",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "predicted_completeness_pct"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "model_uri_completeness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_data_quality",
+                  "fields": [
+                    {
+                      "name": "model_uri_completeness_pct",
+                      "expression": "`model_uri_completeness_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.00%"
+                }
+              },
+              "frame": {
+                "title": "Model URI Completeness",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "model_uri_completeness_pct"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "missing_values_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "missing_values",
+                  "fields": [
+                    {
+                      "name": "field_name",
+                      "expression": "`field_name`"
+                    },
+                    {
+                      "name": "missing_count",
+                      "expression": "`missing_count`"
+                    },
+                    {
+                      "name": "total_count",
+                      "expression": "`total_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Missing Values Analysis",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "field_name"
+                  },
+                  {
+                    "fieldName": "missing_count"
+                  },
+                  {
+                    "fieldName": "total_count"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "completeness_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_completeness",
+                  "fields": [
+                    {
+                      "name": "open_completeness_pct",
+                      "expression": "`open_completeness_pct`"
+                    },
+                    {
+                      "name": "high_completeness_pct",
+                      "expression": "`high_completeness_pct`"
+                    },
+                    {
+                      "name": "low_completeness_pct",
+                      "expression": "`low_completeness_pct`"
+                    },
+                    {
+                      "name": "close_completeness_pct",
+                      "expression": "`close_completeness_pct`"
+                    },
+                    {
+                      "name": "volume_completeness_pct",
+                      "expression": "`volume_completeness_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Data Completeness Details",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "open_completeness_pct",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Open %",
+                    "formatTemplate": "{{ @formatted }}%"
+                  },
+                  {
+                    "fieldName": "high_completeness_pct",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "High %",
+                    "formatTemplate": "{{ @formatted }}%"
+                  },
+                  {
+                    "fieldName": "low_completeness_pct",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Low %",
+                    "formatTemplate": "{{ @formatted }}%"
+                  },
+                  {
+                    "fieldName": "close_completeness_pct",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Close %",
+                    "formatTemplate": "{{ @formatted }}%"
+                  },
+                  {
+                    "fieldName": "volume_completeness_pct",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      }
+                    },
+                    "displayName": "Volume %",
+                    "formatTemplate": "{{ @formatted }}%"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "volume_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_volume_trend",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "record_count",
+                      "expression": "`record_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Daily Record Volume Trend",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "record_count",
+                  "displayName": "Record Count",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "outliers_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "outlier_detection",
+                  "fields": [
+                    {
+                      "name": "open_time",
+                      "expression": "`open_time`"
+                    },
+                    {
+                      "name": "close",
+                      "expression": "`close`"
+                    },
+                    {
+                      "name": "outlier_status",
+                      "expression": "`outlier_status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Detected Outliers",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "open_time"
+                  },
+                  {
+                    "fieldName": "close"
+                  },
+                  {
+                    "fieldName": "outlier_status"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "consistency_score_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_consistency",
+                  "fields": [
+                    {
+                      "name": "consistency_score",
+                      "expression": "`consistency_score`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Data Consistency Score",
+                "showTitle": true
+              },
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.00%"
+                }
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "consistency_score"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "valid_price_pct_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "price_validation",
+                  "fields": [
+                    {
+                      "name": "valid_price_pct",
+                      "expression": "`valid_price_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Valid Price %",
+                "showTitle": true
+              },
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.00%"
+                }
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "valid_price_pct"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 22,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "high_low_violations_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_consistency",
+                  "fields": [
+                    {
+                      "name": "high_low_violations",
+                      "expression": "`high_low_violations`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "High-Low Violations",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "high_low_violations"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 22,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "total_invalid_prices_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "price_validation",
+                  "fields": [
+                    {
+                      "name": "invalid_open",
+                      "expression": "`invalid_open`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Invalid Prices",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "invalid_open"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 22,
+            "width": 3,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "consistency_violations_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "data_consistency",
+                  "fields": [
+                    {
+                      "name": "high_low_violations",
+                      "expression": "`high_low_violations`"
+                    },
+                    {
+                      "name": "high_close_violations",
+                      "expression": "`high_close_violations`"
+                    },
+                    {
+                      "name": "low_close_violations",
+                      "expression": "`low_close_violations`"
+                    },
+                    {
+                      "name": "high_open_violations",
+                      "expression": "`high_open_violations`"
+                    },
+                    {
+                      "name": "low_open_violations",
+                      "expression": "`low_open_violations`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Consistency Violations Details",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "high_low_violations",
+                    "displayName": "High < Low"
+                  },
+                  {
+                    "fieldName": "high_close_violations",
+                    "displayName": "High < Close"
+                  },
+                  {
+                    "fieldName": "low_close_violations",
+                    "displayName": "Low > Close"
+                  },
+                  {
+                    "fieldName": "high_open_violations",
+                    "displayName": "High < Open"
+                  },
+                  {
+                    "fieldName": "low_open_violations",
+                    "displayName": "Low > Open"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 26,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "price_validation_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "price_validation",
+                  "fields": [
+                    {
+                      "name": "invalid_open",
+                      "expression": "`invalid_open`"
+                    },
+                    {
+                      "name": "invalid_high",
+                      "expression": "`invalid_high`"
+                    },
+                    {
+                      "name": "invalid_low",
+                      "expression": "`invalid_low`"
+                    },
+                    {
+                      "name": "invalid_close",
+                      "expression": "`invalid_close`"
+                    },
+                    {
+                      "name": "invalid_volume",
+                      "expression": "`invalid_volume`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Price Validation Details",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "invalid_open",
+                    "displayName": "Invalid Open"
+                  },
+                  {
+                    "fieldName": "invalid_high",
+                    "displayName": "Invalid High"
+                  },
+                  {
+                    "fieldName": "invalid_low",
+                    "displayName": "Invalid Low"
+                  },
+                  {
+                    "fieldName": "invalid_close",
+                    "displayName": "Invalid Close"
+                  },
+                  {
+                    "fieldName": "invalid_volume",
+                    "displayName": "Invalid Volume"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 26,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "time_gaps_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "time_gaps",
+                  "fields": [
+                    {
+                      "name": "open_time",
+                      "expression": "`open_time`"
+                    },
+                    {
+                      "name": "next_time",
+                      "expression": "`next_time`"
+                    },
+                    {
+                      "name": "hours_gap",
+                      "expression": "`hours_gap`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Time Gaps Detected",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "open_time",
+                    "displayName": "Start Time"
+                  },
+                  {
+                    "fieldName": "next_time",
+                    "displayName": "Next Time"
+                  },
+                  {
+                    "fieldName": "hours_gap",
+                    "displayName": "Gap (Hours)"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "duplicates_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "duplicate_records",
+                  "fields": [
+                    {
+                      "name": "open_time",
+                      "expression": "`open_time`"
+                    },
+                    {
+                      "name": "duplicate_count",
+                      "expression": "`duplicate_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Duplicate Records Detected",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "open_time",
+                    "displayName": "Timestamp"
+                  },
+                  {
+                    "fieldName": "duplicate_count",
+                    "displayName": "Duplicate Count"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 32,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "null_rate_trend_chart",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "null_rate_trend",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "open_null_pct",
+                      "expression": "`open_null_pct`"
+                    },
+                    {
+                      "name": "high_null_pct",
+                      "expression": "`high_null_pct`"
+                    },
+                    {
+                      "name": "low_null_pct",
+                      "expression": "`low_null_pct`"
+                    },
+                    {
+                      "name": "close_null_pct",
+                      "expression": "`close_null_pct`"
+                    },
+                    {
+                      "name": "volume_null_pct",
+                      "expression": "`volume_null_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "Null Rate Trend by Field",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "open_null_pct",
+                      "displayName": "Open"
+                    },
+                    {
+                      "fieldName": "high_null_pct",
+                      "displayName": "High"
+                    },
+                    {
+                      "fieldName": "low_null_pct",
+                      "displayName": "Low"
+                    },
+                    {
+                      "fieldName": "close_null_pct",
+                      "displayName": "Close"
+                    },
+                    {
+                      "fieldName": "volume_null_pct",
+                      "displayName": "Volume"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 38,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "prediction_latency_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "prediction_latency",
+                  "fields": [
+                    {
+                      "name": "prediction_time",
+                      "expression": "`prediction_time`"
+                    },
+                    {
+                      "name": "feature_open_time",
+                      "expression": "`feature_open_time`"
+                    },
+                    {
+                      "name": "latency_minutes",
+                      "expression": "`latency_minutes`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Prediction Latency Analysis",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "prediction_time",
+                    "displayName": "Prediction Time"
+                  },
+                  {
+                    "fieldName": "feature_open_time",
+                    "displayName": "Feature Time"
+                  },
+                  {
+                    "fieldName": "latency_minutes",
+                    "displayName": "Latency (Minutes)"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 44,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

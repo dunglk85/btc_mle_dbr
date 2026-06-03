@@ -54,6 +54,8 @@ SQL alerts are managed by DAB in `databricks/resources/alerts.yml`. Deploy them 
 databricks bundle deploy --var="sql_warehouse_id=<warehouse-id>"
 ```
 
+The monitoring dashboard is managed by DAB in `databricks/resources/dashboards.yml` using the exported layout in `databricks/dashboards/`.
+
 ## License
 
 MIT
