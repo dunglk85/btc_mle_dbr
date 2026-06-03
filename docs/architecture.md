@@ -42,6 +42,7 @@ Implemented now:
 - Feature row count and target null checks.
 - Prediction availability and age.
 - Actual-vs-predicted SQL queries for dashboard/alerts.
+- Job quality metrics, including success rate, failed runs, failed tasks, and latest run duration.
 
 Implemented drift monitoring:
 - `notebooks/08_drift_monitoring.py` writes drift metrics into `<catalog>.monitoring.pipeline_metrics`.
@@ -70,6 +71,7 @@ If validation fails: block retrain and alert operator
 
 Immediate drift-triggered retraining:
 - `btc_data_prediction_job` runs `drift_monitoring` after regular monitoring.
+- It also runs `job_quality_monitoring` to record Databricks job health metrics.
 - It then runs `monitoring_gate_drift` with `trigger_mode=drift`.
 - If drift exists and validation passes, `model_training_drift` runs immediately.
 - If no drift exists, `model_training_drift` exits with `SKIP_RETRAIN`.

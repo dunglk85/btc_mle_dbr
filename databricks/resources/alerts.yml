@@ -131,3 +131,24 @@ resources:
         quartz_cron_schedule: "0 0 * * * ?"
         timezone_id: UTC
         pause_status: UNPAUSED
+
+    job_quality_alert:
+      display_name: "[${bundle.target}] BTC Job Quality Alert"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT COUNT(*) AS job_quality_alert_count
+        FROM ${var.catalog}.monitoring.pipeline_metrics
+        WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+          AND status = 'alert'
+          AND metric_name RLIKE '^job_quality_'
+      evaluation:
+        source:
+          name: job_quality_alert_count
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0.0
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED

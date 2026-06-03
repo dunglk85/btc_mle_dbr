@@ -98,6 +98,20 @@ resources:
           depends_on:
             - task_key: model_training_drift
 
+        - task_key: job_quality_monitoring
+          notebook_task:
+            notebook_path: notebooks/09_job_quality_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              job_name_filter: "BTC"
+              lookback_runs: "20"
+              max_duration_minutes: "60"
+              min_success_rate: "0.8"
+              fail_on_alert: "false"
+          depends_on:
+            - task_key: champion_challenger_drift
+
     btc_model_refresh_job:
       name: "[${bundle.target}] BTC Model Refresh Job"
       schedule:

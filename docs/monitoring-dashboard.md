@@ -42,6 +42,7 @@ Recommended dashboard tiles:
 - Prediction error trend chart.
 - Model refresh decisions table.
 - Monitoring alerts table.
+- Job quality metrics and alerts.
 
 Drift tiles:
 - Data drift PSI/KS by feature.
@@ -50,6 +51,13 @@ Drift tiles:
 - Prediction error p95.
 - Label drift for `target_close_1h`.
 - Prediction drift for `predicted_close`.
+
+Job quality tiles:
+- Job success rate.
+- Latest run duration.
+- Failed run count.
+- Failed task count.
+- Job quality alerts and warnings.
 
 ## SQL Alerts
 
@@ -105,6 +113,7 @@ Recommended alert conditions:
 - No recent prediction: `prediction_age_hours > 3`.
 - High prediction error: `avg_pct_error > 0.02`.
 - Feature target nulls beyond expected last row: `target_null_count > 1`.
+- Job quality alert count: `job_quality_alert_count > 0`.
 
 Drift alert conditions:
 - Data drift PSI exceeds threshold, for example `psi > 0.2`.

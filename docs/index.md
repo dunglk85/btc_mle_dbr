@@ -40,6 +40,7 @@
 - `notebooks/06_monitoring.py`: pipeline metrics.
 - `notebooks/07_monitoring_gate.py`: model refresh decisions.
 - `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
+- `notebooks/09_job_quality_monitoring.py`: Databricks job quality metrics.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
 - `databricks/resources/dashboards.yml`: CI/CD-managed AI/BI dashboard resource.

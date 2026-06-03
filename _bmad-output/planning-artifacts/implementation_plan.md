@@ -269,7 +269,7 @@ Implementation detail:
 - `btc_data_prediction_job` includes a drift retraining branch after `drift_monitoring`.
 - The branch runs gate -> training -> Champion/Challenger immediately when drift is detected and validation passes.
 - If no drift is detected, the branch exits through `SKIP_RETRAIN`.
-| 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, duration<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs, Alerts |
+| 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, failed runs, failed tasks, latest run duration<br/>- Ghi metrics vào `monitoring.pipeline_metrics` qua `notebooks/09_job_quality_monitoring.py`<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs API, Delta metrics tables, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
 | 4.6 | Thiết lập Alerts | - SQL alerts được quản lý bằng DAB trong `databricks/resources/alerts.yml`<br/>- Cần truyền `sql_warehouse_id` khi deploy<br/>- Email/Slack notification khi job fail, data quality issue hoặc model performance drop | Databricks Alerts |
 

@@ -140,3 +140,28 @@ WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|c
   AND status IN ('alert', 'warn')
 ORDER BY metric_time DESC, metric_name
 LIMIT 100;
+
+-- 13. Job Quality Metrics
+SELECT
+  metric_time,
+  metric_name,
+  metric_value,
+  status,
+  details
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_name RLIKE '^job_quality_'
+ORDER BY metric_time DESC, metric_name
+LIMIT 300;
+
+-- 14. Job Quality Alerts And Warnings
+SELECT
+  metric_time,
+  metric_name,
+  metric_value,
+  status,
+  details
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_name RLIKE '^job_quality_'
+  AND status IN ('alert', 'warn')
+ORDER BY metric_time DESC, metric_name
+LIMIT 100;

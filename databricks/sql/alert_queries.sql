@@ -62,3 +62,11 @@ FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
   AND status = 'alert'
   AND metric_name RLIKE '^(feature_quality|schema_drift)_';
+
+-- Alert 8: Job Quality Alert
+-- Condition: job_quality_alert_count > 0
+SELECT COUNT(*) AS job_quality_alert_count
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+  AND status = 'alert'
+  AND metric_name RLIKE '^job_quality_';

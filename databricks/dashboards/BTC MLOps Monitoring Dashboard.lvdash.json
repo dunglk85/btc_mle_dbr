@@ -1017,6 +1017,124 @@
         "  run_timestamp DESC\n",
         "LIMIT 10"
       ]
+    },
+    {
+      "name": "drift_metrics_latest",
+      "displayName": "Latest Drift Metrics",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'\n",
+        "ORDER BY\n",
+        "  metric_time DESC,\n",
+        "  metric_name\n",
+        "LIMIT 300"
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
+    },
+    {
+      "name": "drift_alerts_warnings",
+      "displayName": "Drift Alerts and Warnings",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'\n",
+        "  AND status IN ('alert', 'warn')\n",
+        "ORDER BY\n",
+        "  metric_time DESC,\n",
+        "  metric_name\n",
+        "LIMIT 100"
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
+    },
+    {
+      "name": "drift_performance_trend",
+      "displayName": "Drift Performance Trend",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name IN (\n",
+        "    'model_drift_rmse_24h',\n",
+        "    'model_drift_mae_24h',\n",
+        "    'model_drift_mape_24h',\n",
+        "    'model_drift_direction_accuracy_24h',\n",
+        "    'model_drift_p95_abs_error_24h',\n",
+        "    'concept_drift_mean_error_bias_24h'\n",
+        "  )\n",
+        "ORDER BY\n",
+        "  metric_time DESC,\n",
+        "  metric_name\n",
+        "LIMIT 300"
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
+    },
+    {
+      "name": "job_quality_metrics",
+      "displayName": "Job Quality Metrics",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name RLIKE '^job_quality_'\n",
+        "ORDER BY\n",
+        "  metric_time DESC,\n",
+        "  metric_name\n",
+        "LIMIT 300"
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
+    },
+    {
+      "name": "job_quality_alerts_warnings",
+      "displayName": "Job Quality Alerts and Warnings",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_time,\n",
+        "  metric_name,\n",
+        "  metric_value,\n",
+        "  status,\n",
+        "  details\n",
+        "FROM\n",
+        "  btc_dev.monitoring.pipeline_metrics\n",
+        "WHERE\n",
+        "  metric_name RLIKE '^job_quality_'\n",
+        "  AND status IN ('alert', 'warn')\n",
+        "ORDER BY\n",
+        "  metric_time DESC,\n",
+        "  metric_name\n",
+        "LIMIT 100"
+      ],
+      "catalog": "btc_dev",
+      "schema": "monitoring"
     }
   ],
   "pages": [
@@ -3480,6 +3598,200 @@
             "width": 12,
             "height": 6
           }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "drift_monitoring",
+      "displayName": "Drift Monitoring",
+      "layout": [
+        {
+          "widget": {
+            "name": "drift_alerts_warnings_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "drift_alerts_warnings",
+                  "fields": [
+                    { "name": "metric_time", "expression": "`metric_time`" },
+                    { "name": "metric_name", "expression": "`metric_name`" },
+                    { "name": "metric_value", "expression": "`metric_value`" },
+                    { "name": "status", "expression": "`status`" },
+                    { "name": "details", "expression": "`details`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": { "title": "Drift Alerts and Warnings", "showTitle": true },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "metric_time" },
+                  { "fieldName": "metric_name" },
+                  { "fieldName": "metric_value" },
+                  { "fieldName": "status" },
+                  { "fieldName": "details" }
+                ]
+              }
+            }
+          },
+          "position": { "x": 0, "y": 0, "width": 12, "height": 6 }
+        },
+        {
+          "widget": {
+            "name": "drift_metrics_latest_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "drift_metrics_latest",
+                  "fields": [
+                    { "name": "metric_time", "expression": "`metric_time`" },
+                    { "name": "metric_name", "expression": "`metric_name`" },
+                    { "name": "metric_value", "expression": "`metric_value`" },
+                    { "name": "status", "expression": "`status`" },
+                    { "name": "details", "expression": "`details`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": { "title": "Latest Drift Metrics", "showTitle": true },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "metric_time" },
+                  { "fieldName": "metric_name" },
+                  { "fieldName": "metric_value" },
+                  { "fieldName": "status" },
+                  { "fieldName": "details" }
+                ]
+              }
+            }
+          },
+          "position": { "x": 0, "y": 6, "width": 12, "height": 8 }
+        },
+        {
+          "widget": {
+            "name": "drift_performance_trend_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "drift_performance_trend",
+                  "fields": [
+                    { "name": "metric_time", "expression": "`metric_time`" },
+                    { "name": "metric_name", "expression": "`metric_name`" },
+                    { "name": "metric_value", "expression": "`metric_value`" },
+                    { "name": "status", "expression": "`status`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": { "title": "Model and Concept Drift Performance Metrics", "showTitle": true },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "metric_time" },
+                  { "fieldName": "metric_name" },
+                  { "fieldName": "metric_value" },
+                  { "fieldName": "status" }
+                ]
+              }
+            }
+          },
+          "position": { "x": 0, "y": 14, "width": 12, "height": 6 }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "job_quality_monitoring",
+      "displayName": "Job Quality Monitoring",
+      "layout": [
+        {
+          "widget": {
+            "name": "job_quality_alerts_warnings_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "job_quality_alerts_warnings",
+                  "fields": [
+                    { "name": "metric_time", "expression": "`metric_time`" },
+                    { "name": "metric_name", "expression": "`metric_name`" },
+                    { "name": "metric_value", "expression": "`metric_value`" },
+                    { "name": "status", "expression": "`status`" },
+                    { "name": "details", "expression": "`details`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": { "title": "Job Quality Alerts and Warnings", "showTitle": true },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "metric_time" },
+                  { "fieldName": "metric_name" },
+                  { "fieldName": "metric_value" },
+                  { "fieldName": "status" },
+                  { "fieldName": "details" }
+                ]
+              }
+            }
+          },
+          "position": { "x": 0, "y": 0, "width": 12, "height": 6 }
+        },
+        {
+          "widget": {
+            "name": "job_quality_metrics_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "job_quality_metrics",
+                  "fields": [
+                    { "name": "metric_time", "expression": "`metric_time`" },
+                    { "name": "metric_name", "expression": "`metric_name`" },
+                    { "name": "metric_value", "expression": "`metric_value`" },
+                    { "name": "status", "expression": "`status`" },
+                    { "name": "details", "expression": "`details`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": { "title": "Latest Job Quality Metrics", "showTitle": true },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "metric_time" },
+                  { "fieldName": "metric_name" },
+                  { "fieldName": "metric_value" },
+                  { "fieldName": "status" },
+                  { "fieldName": "details" }
+                ]
+              }
+            }
+          },
+          "position": { "x": 0, "y": 6, "width": 12, "height": 8 }
         }
       ],
       "pageType": "PAGE_TYPE_CANVAS",
