@@ -53,13 +53,42 @@ Drift tiles:
 
 ## SQL Alerts
 
+SQL Alerts are managed by Databricks Asset Bundles in:
+
+```text
+databricks/resources/alerts.yml
+```
+
+Set `sql_warehouse_id` before deploying the bundle:
+
+```bash
+databricks bundle deploy --var="sql_warehouse_id=<warehouse-id>"
+```
+
+The SQL templates below remain useful for manual inspection or dashboard query creation.
+
 Use the SQL queries in:
 
 ```text
 databricks/sql/alert_queries.sql
 ```
 
-Create an alert query parameter named `catalog` and set it to `btc_dev` or `btc_prod`.
+For manual alert creation, create an alert query parameter named `catalog` and set it to `btc_dev` or `btc_prod`.
+
+## Dashboard CI/CD
+
+AI/BI Dashboard resources are supported by Databricks Asset Bundles, but they require a Lakeview dashboard JSON asset, usually exported as `.lvdash.json` from Databricks.
+
+Current repository status:
+- SQL alert resources are deployable by CI/CD.
+- Dashboard SQL templates are versioned in `databricks/sql/dashboard_queries.sql`.
+- Dashboard UI layout is not yet stored as `.lvdash.json`, so dashboard layout creation is still manual until an exported/generated dashboard JSON is added.
+
+To move dashboard layout to CI/CD:
+- Create the dashboard once in Databricks UI.
+- Export the dashboard `.lvdash.json`.
+- Add it to the repo.
+- Add a `resources.dashboards` entry pointing to that file.
 
 Recommended alert conditions:
 - Raw data stale: `raw_freshness_hours > 3`.

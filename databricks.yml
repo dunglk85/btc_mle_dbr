@@ -5,6 +5,9 @@ variables:
   catalog:
     description: Unity Catalog name for the selected environment
     default: btc_dev
+  sql_warehouse_id:
+    description: Databricks SQL warehouse ID used by SQL alerts
+    default: ""
 
 include:
   - databricks/resources/*.yml

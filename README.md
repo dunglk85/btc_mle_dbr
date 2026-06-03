@@ -46,7 +46,13 @@ databricks bundle validate
 - `btc_data_prediction_job`: hourly fetch, ingestion, feature engineering, prediction, monitoring.
 - `btc_model_refresh_job`: monitoring gate, Optuna training, Champion/Challenger registration. Scheduled every 12 hours and currently paused by default.
 
-Dashboard and alert SQL are in `databricks/sql/` and use a `catalog` parameter such as `btc_dev` or `btc_prod`.
+Dashboard SQL templates are in `databricks/sql/` and use a `catalog` parameter such as `btc_dev` or `btc_prod`.
+
+SQL alerts are managed by DAB in `databricks/resources/alerts.yml`. Deploy them with `sql_warehouse_id` set:
+
+```bash
+databricks bundle deploy --var="sql_warehouse_id=<warehouse-id>"
+```
 
 ## License
 

@@ -1,0 +1,133 @@
+resources:
+  alerts:
+    raw_data_stale:
+      display_name: "[${bundle.target}] BTC Raw Data Stale"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT
+          metric_value AS raw_freshness_hours
+        FROM ${var.catalog}.monitoring.pipeline_metrics
+        WHERE metric_name = 'raw_freshness_hours'
+        ORDER BY metric_time DESC
+        LIMIT 1
+      evaluation:
+        source:
+          name: raw_freshness_hours
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 3.0
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+
+    monitoring_has_alerts:
+      display_name: "[${bundle.target}] BTC Monitoring Has Alerts"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT COUNT(*) AS alert_count
+        FROM ${var.catalog}.monitoring.pipeline_metrics
+        WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+          AND status = 'alert'
+      evaluation:
+        source:
+          name: alert_count
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0.0
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+
+    no_recent_prediction:
+      display_name: "[${bundle.target}] BTC No Recent Prediction"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT
+          CASE
+            WHEN MAX(prediction_time) IS NULL THEN 999999
+            ELSE TIMESTAMPDIFF(
+              HOUR,
+              MAX(prediction_time),
+              current_timestamp()
+            )
+          END AS prediction_age_hours
+        FROM ${var.catalog}.predictions.btc_predictions
+      evaluation:
+        source:
+          name: prediction_age_hours
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 3.0
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+
+    high_prediction_error:
+      display_name: "[${bundle.target}] BTC High Prediction Error"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT
+          COALESCE(AVG(ABS(r.close - p.predicted_close) / ABS(r.close)), 0.0) AS avg_pct_error
+        FROM ${var.catalog}.predictions.btc_predictions p
+        JOIN ${var.catalog}.raw.btc_hourly r
+          ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
+        WHERE p.prediction_time >= current_timestamp() - INTERVAL 24 HOURS
+      evaluation:
+        source:
+          name: avg_pct_error
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0.02
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+
+    any_drift_alert:
+      display_name: "[${bundle.target}] BTC Any Drift Alert"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT COUNT(*) AS drift_alert_count
+        FROM ${var.catalog}.monitoring.pipeline_metrics
+        WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+          AND status = 'alert'
+          AND metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_'
+      evaluation:
+        source:
+          name: drift_alert_count
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0.0
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+
+    feature_quality_or_schema_alert:
+      display_name: "[${bundle.target}] BTC Feature Quality Or Schema Alert"
+      warehouse_id: ${var.sql_warehouse_id}
+      query_text: |
+        SELECT COUNT(*) AS quality_alert_count
+        FROM ${var.catalog}.monitoring.pipeline_metrics
+        WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+          AND status = 'alert'
+          AND metric_name RLIKE '^(feature_quality|schema_drift)_'
+      evaluation:
+        source:
+          name: quality_alert_count
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0.0
+      schedule:
+        quartz_cron_schedule: "0 0 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED

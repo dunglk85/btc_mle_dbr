@@ -41,6 +41,7 @@
 - `notebooks/07_monitoring_gate.py`: model refresh decisions.
 - `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
 - `databricks/sql/`: dashboard and alert SQL templates.
+- `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
 
 ## Validation Commands
 

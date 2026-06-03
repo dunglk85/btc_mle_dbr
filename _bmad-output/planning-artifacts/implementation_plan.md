@@ -271,7 +271,7 @@ Implementation detail:
 - If no drift is detected, the branch exits through `SKIP_RETRAIN`.
 | 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, duration<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
-| 4.6 | Thiết lập Alerts | - Email/Slack notification khi job fail, data quality issue hoặc model performance drop | Databricks Alerts |
+| 4.6 | Thiết lập Alerts | - SQL alerts được quản lý bằng DAB trong `databricks/resources/alerts.yml`<br/>- Cần truyền `sql_warehouse_id` khi deploy<br/>- Email/Slack notification khi job fail, data quality issue hoặc model performance drop | Databricks Alerts |
 
 #### Dashboard mockup
 
