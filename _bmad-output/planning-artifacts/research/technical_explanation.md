@@ -2,7 +2,7 @@
 
 ## Feature Set
 
-Features are generated from `btc_dev.raw.btc_hourly` in `notebooks/02_feature_engineering.py` and written to `btc_dev.features.btc_features`.
+Features are generated from `<catalog>.raw.btc_hourly` in `notebooks/02_feature_engineering.py` and written to `<catalog>.features.btc_features`. Databricks jobs pass the `catalog` widget, defaulting to `btc_dev` in development and `btc_prod` in production.
 
 ### OHLCV Base Columns
 
@@ -159,7 +159,7 @@ random_state = 42
 ```
 
 Training process:
-- Reads `btc_dev.features.btc_features`.
+- Reads `<catalog>.features.btc_features`.
 - Drops rows with null values caused by lag and moving-average features.
 - Uses temporal split, not random split.
 - First 80% of time-ordered data is used for training.
@@ -365,7 +365,7 @@ notebooks/06_monitoring.py
 to:
 
 ```text
-btc_dev.monitoring.pipeline_metrics
+<catalog>.monitoring.pipeline_metrics
 ```
 
 Each metric row has:
@@ -385,7 +385,7 @@ Status values:
 ### raw_count
 
 Meaning:
-- Number of rows in `btc_dev.raw.btc_hourly`.
+- Number of rows in `<catalog>.raw.btc_hourly`.
 
 Purpose:
 - Confirms raw ingestion is producing data.
@@ -465,7 +465,7 @@ Why 3 hours:
 ### features_count
 
 Meaning:
-- Number of rows in `btc_dev.features.btc_features`.
+- Number of rows in `<catalog>.features.btc_features`.
 
 Purpose:
 - Confirms feature engineering created the feature table.
@@ -482,12 +482,13 @@ Meaning:
 
 Purpose:
 - Validates next-hour target generation.
-- Since `target_close_1h = lead(close, 1)`, the final row is expected to have no future target.
+- `target_close_1h` is populated only when an exact candle exists at `open_time + 1 hour`.
+- Rows without an exact next-hour candle have null target values.
 
 Healthy threshold:
 
 ```text
-features_target_close_1h_null_count <= 1
+features_target_close_1h_null_count <= 1 under normal no-gap data
 ```
 
 Alert condition:
@@ -525,7 +526,7 @@ abs(raw_features_row_count_delta) > 1
 ### prediction_count
 
 Meaning:
-- Number of rows in `btc_dev.predictions.btc_predictions`.
+- Number of rows in `<catalog>.predictions.btc_predictions`.
 
 Purpose:
 - Confirms prediction output exists.
@@ -567,7 +568,7 @@ notebooks/07_monitoring_gate.py
 It writes decisions to:
 
 ```text
-btc_dev.monitoring.model_refresh_decisions
+<catalog>.monitoring.model_refresh_decisions
 ```
 
 Decision columns:
@@ -631,7 +632,7 @@ Usage:
 ### champion_exists
 
 Meaning:
-- Whether `btc_dev.models.btc_price_model@Champion` exists.
+- Whether `<catalog>.models.btc_price_model@Champion` exists.
 
 Usage:
 - If no Champion exists and monitoring is healthy, retraining is allowed so the project can create the first Champion.
@@ -669,13 +670,14 @@ If the target is also the same row's `close`, the model may learn a leaky or tri
 For a true next-hour prediction task, the target is shifted forward:
 
 ```text
-target_close_1h = lead(close, 1)
+target_close_1h = close where target.open_time = current.open_time + 1 hour
 ```
 
 Then the model should train on current/past features to predict the next candle's close.
 
 Current adjustment:
 - `target_close_1h` is added in feature engineering.
+- Target generation uses an exact next-hour self-join rather than next-row `lead`, so missing hourly candles do not silently create mislabeled targets.
 - Training notebooks use `target_close_1h` as the target.
 - Prediction output represents expected close for the next hour.
 

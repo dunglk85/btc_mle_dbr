@@ -11,14 +11,16 @@ btc_data_prediction_job
 Confirm monitoring data exists:
 
 ```sql
-SELECT COUNT(*) FROM btc_dev.monitoring.pipeline_metrics;
+SELECT COUNT(*) FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics');
 ```
 
 Confirm prediction table exists after a Champion model is available:
 
 ```sql
-SELECT COUNT(*) FROM btc_dev.predictions.btc_predictions;
+SELECT COUNT(*) FROM IDENTIFIER(:catalog || '.predictions.btc_predictions');
 ```
+
+Set query parameter `catalog` to `btc_dev` or `btc_prod`.
 
 ## Dashboard Queries
 
@@ -88,7 +90,7 @@ Latest monitoring metrics:
 
 ```sql
 SELECT *
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 ORDER BY metric_time DESC
 LIMIT 50;
 ```
@@ -97,7 +99,7 @@ Latest alert/warn metrics:
 
 ```sql
 SELECT *
-FROM btc_dev.monitoring.pipeline_metrics
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE status IN ('alert', 'warn')
 ORDER BY metric_time DESC;
 ```
@@ -106,7 +108,7 @@ Latest model refresh decisions:
 
 ```sql
 SELECT *
-FROM btc_dev.monitoring.model_refresh_decisions
+FROM IDENTIFIER(:catalog || '.monitoring.model_refresh_decisions')
 ORDER BY decision_time DESC
 LIMIT 20;
 ```

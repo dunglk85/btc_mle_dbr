@@ -4,7 +4,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 
 ## Architecture
 
-- **Data**: Binance API → Delta Lake (Unity Catalog)
+- **Data**: Binance Vision API -> UC Volume -> Delta Lake (Unity Catalog)
 - **ML**: Optuna hyperparameter tuning + MLflow tracking
 - **CI/CD**: GitHub Actions + Databricks Asset Bundles (DABs)
 - **Monitoring**: Data quality, model performance, job health
@@ -36,7 +36,17 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 
 ```bash
 pip install -r requirements.txt
+pytest
+ruff check src/ tests/ scripts/
+databricks bundle validate
 ```
+
+## Databricks Jobs
+
+- `btc_data_prediction_job`: hourly fetch, ingestion, feature engineering, prediction, monitoring.
+- `btc_model_refresh_job`: monitoring gate, Optuna training, Champion/Challenger registration. Scheduled every 12 hours and currently paused by default.
+
+Dashboard and alert SQL are in `databricks/sql/` and use a `catalog` parameter such as `btc_dev` or `btc_prod`.
 
 ## License
 
