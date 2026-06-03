@@ -46,3 +46,19 @@ SELECT
   COUNT(*) AS target_null_count
 FROM IDENTIFIER(:catalog || '.features.btc_features')
 WHERE target_close_1h IS NULL;
+
+-- Alert 6: Any Drift Alert
+-- Condition: drift_alert_count > 0
+SELECT COUNT(*) AS drift_alert_count
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+  AND status = 'alert'
+  AND metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_';
+
+-- Alert 7: Feature Quality Or Schema Drift Alert
+-- Condition: quality_alert_count > 0
+SELECT COUNT(*) AS quality_alert_count
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+  AND status = 'alert'
+  AND metric_name RLIKE '^(feature_quality|schema_drift)_';

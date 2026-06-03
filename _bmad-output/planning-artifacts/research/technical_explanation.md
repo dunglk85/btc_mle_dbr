@@ -362,6 +362,8 @@ Monitoring metrics are written by:
 notebooks/06_monitoring.py
 ```
 
+Current monitoring is an operational fallback based on Delta tables. It checks pipeline health, freshness, row counts, duplicates, target nulls, prediction availability, and prediction age. It does not yet implement full statistical drift detection.
+
 to:
 
 ```text
@@ -636,6 +638,99 @@ Meaning:
 
 Usage:
 - If no Champion exists and monitoring is healthy, retraining is allowed so the project can create the first Champion.
+
+## Data Drift And Model Drift
+
+### Data Drift
+
+Data drift means the input data distribution changes compared with the data used to train the Champion model.
+
+For this project, examples include:
+- BTC hourly volume distribution changes sharply.
+- Return distribution becomes more volatile than the training window.
+- Feature ranges shift, such as `close`, `volume`, `quote_volume`, `return_1h`, or moving averages.
+- Missing hourly candles become more frequent.
+
+Recommended data drift metrics:
+
+```text
+feature_mean_delta
+feature_std_delta
+feature_null_rate_delta
+feature_quantile_delta
+population_stability_index
+ks_statistic
+missing_hour_count
+```
+
+Suggested baseline:
+- Use the training dataset statistics logged with the Champion model.
+- Compare recent production feature windows, such as last 24h / 7d, against that baseline.
+
+Current implementation status:
+- Implemented in `notebooks/08_drift_monitoring.py` for selected features using PSI and approximate KS statistics.
+- Metrics are written to `<catalog>.monitoring.pipeline_metrics` with names like `data_drift_psi_close` and `data_drift_ks_return_1h`.
+
+### Model Drift / Performance Drift
+
+Model drift means the Champion model becomes less accurate because the relationship between features and target changes over time.
+
+For this project, performance drift can be measured once actual next-hour closes are available.
+
+Prediction-vs-actual join:
+
+```sql
+predictions.feature_open_time + INTERVAL 1 HOUR = raw.open_time
+```
+
+Recommended model drift metrics:
+
+```text
+rolling_rmse_24h
+rolling_mae_24h
+rolling_mape_24h
+rolling_direction_accuracy_24h
+error_quantile_p95
+champion_vs_challenger_rmse_delta
+```
+
+Suggested alert conditions:
+- Rolling RMSE exceeds Champion validation RMSE by a configured multiplier.
+- Rolling MAPE exceeds a fixed threshold.
+- Direction accuracy drops below a minimum threshold.
+- Prediction error p95 spikes sharply.
+
+Current implementation status:
+- Actual-vs-predicted SQL is available in `databricks/sql/dashboard_queries.sql`.
+- High average prediction error SQL alert is available in `databricks/sql/alert_queries.sql`.
+- Rolling performance metrics are persisted by `notebooks/08_drift_monitoring.py`.
+
+### Recommended Next Implementation
+
+Dedicated notebook:
+
+```text
+notebooks/08_drift_monitoring.py
+```
+
+It writes drift metrics to:
+
+```text
+<catalog>.monitoring.pipeline_metrics
+```
+
+Recommended metric names:
+
+```text
+data_drift_psi_close
+data_drift_psi_volume
+data_drift_ks_return_1h
+model_drift_rmse_24h
+model_drift_mape_24h
+model_drift_direction_accuracy_24h
+```
+
+The monitoring gate uses these metrics to set `should_retrain = true` when drift is detected and data quality is otherwise healthy. Blocking schema/quality alerts still stop retraining.
 
 ## Dashboard And Alert Artifacts
 

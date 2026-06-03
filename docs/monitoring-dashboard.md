@@ -43,6 +43,14 @@ Recommended dashboard tiles:
 - Model refresh decisions table.
 - Monitoring alerts table.
 
+Drift tiles:
+- Data drift PSI/KS by feature.
+- Rolling RMSE/MAE/MAPE.
+- Direction accuracy.
+- Prediction error p95.
+- Label drift for `target_close_1h`.
+- Prediction drift for `predicted_close`.
+
 ## SQL Alerts
 
 Use the SQL queries in:
@@ -59,6 +67,19 @@ Recommended alert conditions:
 - No recent prediction: `prediction_age_hours > 3`.
 - High prediction error: `avg_pct_error > 0.02`.
 - Feature target nulls beyond expected last row: `target_null_count > 1`.
+
+Drift alert conditions:
+- Data drift PSI exceeds threshold, for example `psi > 0.2`.
+- Rolling RMSE exceeds Champion validation RMSE by configured multiplier.
+- Direction accuracy drops below configured threshold.
+
+Drift metrics are written by:
+
+```text
+notebooks/08_drift_monitoring.py
+```
+
+The data prediction job runs drift monitoring after regular monitoring.
 
 ## Fallback If SQL Alerts Are Not Available
 

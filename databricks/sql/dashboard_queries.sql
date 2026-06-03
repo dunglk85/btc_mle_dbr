@@ -115,3 +115,28 @@ SELECT
 FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 ORDER BY metric_time DESC, metric_name
 LIMIT 500;
+
+-- 11. Latest Drift Metrics
+SELECT
+  metric_time,
+  metric_name,
+  metric_value,
+  status,
+  details
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'
+ORDER BY metric_time DESC, metric_name
+LIMIT 300;
+
+-- 12. Drift Alerts And Warnings
+SELECT
+  metric_time,
+  metric_name,
+  metric_value,
+  status,
+  details
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'
+  AND status IN ('alert', 'warn')
+ORDER BY metric_time DESC, metric_name
+LIMIT 100;

@@ -31,3 +31,26 @@ Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundle
 - Fetch excludes currently open candles by requiring Binance `close_time` to be before current UTC time.
 - Feature target is an exact one-hour lookup, not just the next available row.
 - Ingestion deduplicates overlapping landing files deterministically using Unity Catalog `_metadata.file_path`.
+
+## Drift Monitoring Status
+
+Current monitoring is operational fallback monitoring, not full statistical drift detection.
+
+Implemented now:
+- Raw freshness.
+- Raw duplicate/null timestamp checks.
+- Feature row count and target null checks.
+- Prediction availability and age.
+- Actual-vs-predicted SQL queries for dashboard/alerts.
+
+Implemented drift monitoring:
+- `notebooks/08_drift_monitoring.py` writes drift metrics into `<catalog>.monitoring.pipeline_metrics`.
+- Data drift: PSI and approximate KS for selected features.
+- Label drift: PSI/KS for `target_close_1h`.
+- Prediction drift: PSI/KS for `predicted_close`.
+- Model/performance drift: rolling RMSE, MAE, MAPE, p95 absolute error, direction accuracy.
+- Concept drift proxy: rolling signed error bias.
+
+Drift alerts influence retraining:
+- Blocking quality/schema alerts stop retraining.
+- Drift alerts can trigger retraining when data quality is otherwise healthy.

@@ -39,6 +39,7 @@
 - `notebooks/05_prediction.py`: Champion prediction writes.
 - `notebooks/06_monitoring.py`: pipeline metrics.
 - `notebooks/07_monitoring_gate.py`: model refresh decisions.
+- `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
 - `databricks/sql/`: dashboard and alert SQL templates.
 
 ## Validation Commands

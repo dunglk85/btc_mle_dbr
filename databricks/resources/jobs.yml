@@ -55,6 +55,17 @@ resources:
           depends_on:
             - task_key: prediction
 
+        - task_key: drift_monitoring
+          notebook_task:
+            notebook_path: notebooks/08_drift_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              recent_hours: "24"
+              reference_hours: "168"
+          depends_on:
+            - task_key: monitoring
+
     btc_model_refresh_job:
       name: "[${bundle.target}] BTC Model Refresh Job"
       schedule:
