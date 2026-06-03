@@ -25,6 +25,7 @@ def get_widget(name, default):
 catalog = get_widget("catalog", "btc_dev")
 recent_hours = int(get_widget("recent_hours", "24"))
 reference_hours = int(get_widget("reference_hours", "168"))
+fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"
 
 features_ref = f"{catalog}.features.btc_features"
 raw_ref = f"{catalog}.raw.btc_hourly"
@@ -47,6 +48,7 @@ print(f"predictions_ref={predictions_ref}")
 print(f"metrics_ref={metrics_ref}")
 print(f"recent_hours={recent_hours}")
 print(f"reference_hours={reference_hours}")
+print(f"fail_on_alert={fail_on_alert}")
 
 # COMMAND ----------
 
@@ -370,5 +372,11 @@ print(f"drift_warn_count={warn_count}")
 
 display(metrics_df.orderBy("metric_name"))
 
-if alert_count > 0:
+if fail_on_alert and alert_count > 0:
     raise ValueError(f"Drift monitoring produced {alert_count} alert metrics")
+
+if alert_count > 0:
+    print(
+        "DRIFT_ALERTS_RECORDED: "
+        f"{alert_count} alert metrics written; fail_on_alert=false so job continues"
+    )

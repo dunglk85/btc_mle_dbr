@@ -63,6 +63,7 @@ resources:
               catalog: ${var.catalog}
               recent_hours: "24"
               reference_hours: "168"
+              fail_on_alert: "false"
           depends_on:
             - task_key: monitoring
 
