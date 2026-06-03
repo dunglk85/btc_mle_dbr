@@ -639,98 +639,334 @@ Meaning:
 Usage:
 - If no Champion exists and monitoring is healthy, retraining is allowed so the project can create the first Champion.
 
-## Data Drift And Model Drift
+## Drift Metrics
 
-### Data Drift
-
-Data drift means the input data distribution changes compared with the data used to train the Champion model.
-
-For this project, examples include:
-- BTC hourly volume distribution changes sharply.
-- Return distribution becomes more volatile than the training window.
-- Feature ranges shift, such as `close`, `volume`, `quote_volume`, `return_1h`, or moving averages.
-- Missing hourly candles become more frequent.
-
-Recommended data drift metrics:
-
-```text
-feature_mean_delta
-feature_std_delta
-feature_null_rate_delta
-feature_quantile_delta
-population_stability_index
-ks_statistic
-missing_hour_count
-```
-
-Suggested baseline:
-- Use the training dataset statistics logged with the Champion model.
-- Compare recent production feature windows, such as last 24h / 7d, against that baseline.
-
-Current implementation status:
-- Implemented in `notebooks/08_drift_monitoring.py` for selected features using PSI and approximate KS statistics.
-- Metrics are written to `<catalog>.monitoring.pipeline_metrics` with names like `data_drift_psi_close` and `data_drift_ks_return_1h`.
-
-### Model Drift / Performance Drift
-
-Model drift means the Champion model becomes less accurate because the relationship between features and target changes over time.
-
-For this project, performance drift can be measured once actual next-hour closes are available.
-
-Prediction-vs-actual join:
-
-```sql
-predictions.feature_open_time + INTERVAL 1 HOUR = raw.open_time
-```
-
-Recommended model drift metrics:
-
-```text
-rolling_rmse_24h
-rolling_mae_24h
-rolling_mape_24h
-rolling_direction_accuracy_24h
-error_quantile_p95
-champion_vs_challenger_rmse_delta
-```
-
-Suggested alert conditions:
-- Rolling RMSE exceeds Champion validation RMSE by a configured multiplier.
-- Rolling MAPE exceeds a fixed threshold.
-- Direction accuracy drops below a minimum threshold.
-- Prediction error p95 spikes sharply.
-
-Current implementation status:
-- Actual-vs-predicted SQL is available in `databricks/sql/dashboard_queries.sql`.
-- High average prediction error SQL alert is available in `databricks/sql/alert_queries.sql`.
-- Rolling performance metrics are persisted by `notebooks/08_drift_monitoring.py`.
-
-### Recommended Next Implementation
-
-Dedicated notebook:
+Drift metrics are written by:
 
 ```text
 notebooks/08_drift_monitoring.py
 ```
 
-It writes drift metrics to:
+to:
 
 ```text
 <catalog>.monitoring.pipeline_metrics
 ```
 
-Recommended metric names:
+The notebook compares two time windows:
+- **Recent window:** latest `recent_hours`, default `24` hours.
+- **Reference window:** previous `reference_hours`, default `168` hours.
+
+This makes drift monitoring self-contained and independent of Databricks Lakehouse Monitoring. It is a practical fallback for Databricks Free Edition/serverless.
+
+### Data Drift Metrics
+
+Data drift means the input feature distribution changed compared with the reference window.
+
+Current feature columns monitored:
+
+```text
+close
+volume
+quote_volume
+trades
+return_1h
+ma_24
+```
+
+Metrics:
+
+```text
+data_drift_psi_<feature>
+data_drift_ks_<feature>
+```
+
+Examples:
 
 ```text
 data_drift_psi_close
-data_drift_psi_volume
 data_drift_ks_return_1h
+data_drift_psi_volume
+```
+
+#### PSI
+
+PSI means Population Stability Index.
+
+How it is calculated:
+- Build quantile buckets from the reference window.
+- Count the percentage of reference rows in each bucket.
+- Count the percentage of recent rows in each bucket.
+- Sum the bucket-level distribution difference.
+
+Interpretation:
+- `PSI < 0.1`: usually stable.
+- `0.1 <= PSI < 0.2`: warning drift.
+- `PSI >= 0.2`: alert drift.
+
+Current thresholds:
+
+```text
+psi_warn_threshold = 0.1
+psi_alert_threshold = 0.2
+```
+
+Why useful:
+- Captures distribution shift across the whole feature, not only mean/std.
+- Good for detecting regime changes in BTC volume, returns, or price range.
+
+#### Approximate KS
+
+KS means Kolmogorov-Smirnov statistic.
+
+How it is calculated here:
+- Compute reference quantiles at 10%, 20%, ..., 90%.
+- Estimate CDF difference between reference and recent windows at those quantiles.
+- Use the maximum CDF difference as approximate KS.
+
+Interpretation:
+- Higher value means stronger distribution difference.
+- The implementation is approximate because it avoids expensive full empirical CDF computation.
+
+Current thresholds:
+
+```text
+ks_warn_threshold = 0.15
+ks_alert_threshold = 0.25
+```
+
+### Label Drift Metrics
+
+Label drift means the target distribution changed.
+
+Metrics:
+
+```text
+label_drift_psi_target_close_1h
+label_drift_ks_target_close_1h
+```
+
+Meaning:
+- These are the same PSI/KS checks applied specifically to `target_close_1h`.
+- They detect whether actual next-hour close values are moving into a different regime.
+
+Important caveat:
+- `target_close_1h` is null when the exact next-hour candle is missing.
+- Rows with null target are excluded from drift distribution calculations.
+
+### Prediction Drift Metrics
+
+Prediction drift means the model output distribution changed, even before accuracy is evaluated.
+
+Metrics:
+
+```text
+prediction_drift_psi_predicted_close
+prediction_drift_ks_predicted_close
+```
+
+Meaning:
+- Compares recent `predicted_close` distribution against previous prediction distribution.
+- Useful when predictions start moving to unusual ranges.
+
+Why separate from model drift:
+- Prediction drift can happen even before actual labels are available.
+- Model drift requires actual next-hour close to compute error.
+
+### Model / Performance Drift Metrics
+
+Model drift means model quality degraded over time.
+
+Actual-vs-predicted join:
+
+```sql
+predictions.feature_open_time + INTERVAL 1 HOUR = raw.open_time
+```
+
+Metrics:
+
+```text
+model_drift_joined_prediction_count
 model_drift_rmse_24h
+model_drift_mae_24h
 model_drift_mape_24h
+model_drift_p95_abs_error_24h
 model_drift_direction_accuracy_24h
 ```
 
-The monitoring gate uses these metrics as retraining candidates. A drift alert does not approve retraining by itself.
+#### model_drift_joined_prediction_count
+
+Meaning:
+- Number of predictions that can be joined with actual next-hour close.
+
+Why useful:
+- If this is `0`, actuals are not available yet or prediction/raw timestamps are misaligned.
+- Other performance drift metrics are unreliable when join count is too low.
+
+#### model_drift_rmse_24h
+
+Meaning:
+- Root Mean Squared Error over recent predictions with actuals.
+
+Formula:
+
+```text
+sqrt(avg((actual_close - predicted_close)^2))
+```
+
+Why useful:
+- Penalizes large BTC forecast misses heavily.
+- Good primary performance drift metric for regression.
+
+#### model_drift_mae_24h
+
+Meaning:
+- Mean Absolute Error over recent predictions with actuals.
+
+Formula:
+
+```text
+avg(abs(actual_close - predicted_close))
+```
+
+Why useful:
+- Easier to interpret than RMSE because it is average absolute dollars of error.
+
+#### model_drift_mape_24h
+
+Meaning:
+- Mean Absolute Percentage Error.
+
+Formula:
+
+```text
+avg(abs(actual_close - predicted_close) / abs(actual_close))
+```
+
+Current thresholds:
+
+```text
+mape_warn_threshold = 0.02
+mape_alert_threshold = 0.05
+```
+
+Interpretation:
+- `MAPE >= 2%`: warning.
+- `MAPE >= 5%`: alert.
+
+#### model_drift_p95_abs_error_24h
+
+Meaning:
+- Approximate 95th percentile of absolute error.
+
+Why useful:
+- Captures tail-risk forecast misses.
+- A model can have acceptable average error but still produce dangerous outlier misses.
+
+#### model_drift_direction_accuracy_24h
+
+Meaning:
+- How often predicted direction matches actual direction.
+
+Approximation:
+- Actual direction: sign of change in actual close between consecutive actuals.
+- Predicted direction: sign of change in predicted close between consecutive predictions.
+
+Current thresholds:
+
+```text
+direction_warn_threshold = 0.45
+direction_alert_threshold = 0.40
+```
+
+Interpretation:
+- `<= 45%`: warning.
+- `<= 40%`: alert.
+
+Trading caveat:
+- Direction accuracy alone is not a trading strategy metric.
+- It does not include fees, slippage, sizing, or drawdown.
+
+### Concept Drift Proxy Metric
+
+Concept drift means the relationship between features and target changed.
+
+Metric:
+
+```text
+concept_drift_mean_error_bias_24h
+```
+
+Meaning:
+- Average signed error over recent predictions.
+
+Formula:
+
+```text
+avg(actual_close - predicted_close)
+```
+
+Interpretation:
+- Positive persistent bias means the model tends to underpredict.
+- Negative persistent bias means the model tends to overpredict.
+- This is a proxy metric, not a full causal concept drift test.
+
+Why useful:
+- A stable signed bias can indicate that the model relationship learned during training no longer matches the current market regime.
+
+### Feature Quality Metrics
+
+Feature quality drift means feature data quality degraded, regardless of whether the market distribution changed naturally.
+
+Metrics:
+
+```text
+feature_quality_null_rate_<feature>
+schema_drift_missing_<feature>
+```
+
+Examples:
+
+```text
+feature_quality_null_rate_close
+feature_quality_null_rate_target_close_1h
+schema_drift_missing_return_1h
+```
+
+#### feature_quality_null_rate_<feature>
+
+Meaning:
+- Percentage of recent rows where the feature is null.
+
+Current thresholds:
+
+```text
+null_rate_warn_threshold = 0.05
+null_rate_alert_threshold = 0.20
+```
+
+Interpretation:
+- `>= 5%`: warning.
+- `>= 20%`: alert.
+
+Why useful:
+- Stops retraining on broken feature tables.
+- Detects upstream ingestion or feature engineering issues.
+
+#### schema_drift_missing_<feature>
+
+Meaning:
+- Expected feature column is missing from the feature table.
+
+Status:
+- Always `alert` when emitted.
+
+Why useful:
+- Missing columns will break training or silently change model inputs.
+
+### Drift Gate Behavior
+
+The monitoring gate treats drift alerts as retraining candidates, not automatic retraining approval.
 
 Retraining decision flow:
 
@@ -743,7 +979,27 @@ If validation passes: should_retrain = true
 If validation fails: should_retrain = false
 ```
 
-Blocking schema/quality/feature alerts stop retraining because training on broken data can promote a bad model.
+Blocking alert types:
+
+```text
+raw_freshness_hours
+raw_duplicate_open_time_count
+raw_null_open_time_count
+features_target_close_1h_null_count
+raw_features_row_count_delta
+feature_quality_*
+schema_drift_*
+```
+
+Retraining trigger alert types:
+
+```text
+data_drift_*
+label_drift_*
+prediction_drift_*
+model_drift_*
+concept_drift_*
+```
 
 Immediate drift-triggered retraining is wired into `btc_data_prediction_job`:
 - `drift_monitoring`
@@ -752,6 +1008,223 @@ Immediate drift-triggered retraining is wired into `btc_data_prediction_job`:
 - `champion_challenger_drift`
 
 If no drift alert exists, `monitoring_gate_drift` records `should_retrain=false` and training exits with `SKIP_RETRAIN`.
+
+## Job Quality Metrics
+
+Job quality metrics are written by:
+
+```text
+notebooks/09_job_quality_monitoring.py
+```
+
+to:
+
+```text
+<catalog>.monitoring.pipeline_metrics
+```
+
+These metrics monitor Databricks Jobs health using the Databricks Jobs API. They are shown in the dashboard page:
+
+```text
+Job Quality Monitoring
+```
+
+The notebook looks for jobs whose name contains the configured `job_name_filter`, default:
+
+```text
+BTC
+```
+
+It inspects the latest `lookback_runs`, default:
+
+```text
+20
+```
+
+### job_quality_matching_job_count
+
+Meaning:
+- Number of Databricks Jobs whose name matches `job_name_filter`.
+
+Purpose:
+- Confirms the monitoring notebook can discover the target jobs.
+- Helps catch naming changes or permission/API visibility issues.
+
+Expected behavior:
+- Should be greater than zero.
+- In this project, it should normally find the data prediction job and model refresh job.
+
+### job_quality_success_rate_<job_id>
+
+Meaning:
+- Percentage of recent terminal runs for a job that ended in `SUCCESS`.
+
+Formula:
+
+```text
+successful_terminal_runs / terminal_runs
+```
+
+Purpose:
+- Measures reliability of each Databricks Job over recent runs.
+- Detects repeated job failures even if the latest run happens to succeed.
+
+Current threshold:
+
+```text
+min_success_rate = 0.8
+```
+
+Status behavior:
+- `ok` when success rate is at least `0.8`.
+- `alert` when success rate is below `0.8`.
+- `warn` when there are no terminal runs to evaluate.
+
+Interpretation:
+- `1.0`: all recent terminal runs succeeded.
+- `0.5`: only half of recent terminal runs succeeded.
+- `null`: no terminal run exists in the lookback window.
+
+### job_quality_failed_run_count_<job_id>
+
+Meaning:
+- Number of recent terminal runs for a job where `result_state != SUCCESS`.
+
+Purpose:
+- Gives an absolute count of failures in the lookback window.
+- Easier to inspect than success rate when debugging incidents.
+
+Status behavior:
+- `ok` when failed run count is `0`.
+- `alert` when failed run count is greater than `0`.
+
+Interpretation:
+- A non-zero value means at least one recent run failed and should be inspected in Databricks Jobs UI.
+
+### job_quality_latest_duration_minutes_<job_id>
+
+Meaning:
+- Duration in minutes of the latest terminal run for a job.
+
+Purpose:
+- Detects jobs that are still succeeding but taking too long.
+- Useful for catching slow API calls, slow Delta scans, slow Optuna training, or serverless cold-start/resource issues.
+
+Current threshold:
+
+```text
+max_duration_minutes = 60
+```
+
+Status behavior:
+- `ok` when latest duration is at most `60` minutes.
+- `alert` when latest duration is greater than `60` minutes.
+- `warn` when duration is missing.
+
+Interpretation:
+- For the hourly data prediction job, duration should be comfortably below one hour.
+- If duration approaches the hourly schedule interval, runs can overlap or create delayed monitoring/prediction output.
+
+### job_quality_latest_success_<job_id>
+
+Meaning:
+- Whether the latest terminal run succeeded.
+
+Values:
+
+```text
+1 = latest terminal run succeeded
+0 = latest terminal run failed
+null = latest run is not terminal yet
+```
+
+Purpose:
+- Fast, simple latest-run health signal.
+- Complements success rate, which summarizes multiple runs.
+
+Status behavior:
+- `ok` when value is `1`.
+- `alert` when value is `0` and the run is terminal.
+- `warn` when the latest observed run is not terminal yet.
+
+Why latest terminal run is used:
+- The monitoring notebook can run while the current Databricks Job is still active.
+- Treating the currently running job as failed would create false alerts.
+- Therefore the notebook prefers the latest terminal run when available.
+
+### job_quality_latest_failed_task_count_<job_id>
+
+Meaning:
+- Number of failed tasks in the latest terminal run.
+
+Purpose:
+- Identifies whether a job-level failure was caused by one or more failed tasks.
+- Helps locate the broken stage in multi-task workflows.
+
+Status behavior:
+- `ok` when failed task count is `0`.
+- `alert` when failed task count is greater than `0`.
+
+Examples of tasks that can fail:
+- `fetch_binance`
+- `data_ingestion`
+- `feature_engineering`
+- `prediction`
+- `monitoring`
+- `drift_monitoring`
+- `model_training_drift`
+- `champion_challenger_drift`
+- `job_quality_monitoring`
+
+### Job Quality Alert
+
+The SQL alert resource is defined in:
+
+```text
+databricks/resources/alerts.yml
+```
+
+Alert query:
+
+```text
+job_quality_alert
+```
+
+Alert condition:
+
+```text
+job_quality_alert_count > 0
+```
+
+It triggers when any recent metric with prefix `job_quality_` has status `alert`.
+
+### How To Use The Dashboard Page
+
+The dashboard page:
+
+```text
+Job Quality Monitoring
+```
+
+contains two tables:
+- `Job Quality Alerts and Warnings`: only metrics with `alert` or `warn`.
+- `Latest Job Quality Metrics`: all recent job quality metrics.
+
+Recommended triage order:
+- Check `job_quality_latest_success_<job_id>` to see whether the latest terminal run failed.
+- Check `job_quality_latest_failed_task_count_<job_id>` to see if task-level failures exist.
+- Check `job_quality_failed_run_count_<job_id>` and `job_quality_success_rate_<job_id>` to understand whether this is isolated or recurring.
+- Check `job_quality_latest_duration_minutes_<job_id>` to detect slow jobs.
+
+### Operational Notes
+
+Job quality monitoring is not a model retraining trigger by itself.
+
+Reason:
+- Job quality alerts indicate orchestration or runtime reliability issues.
+- Retraining on failure conditions may make the system worse if upstream tasks are broken.
+
+Job quality alerts should trigger operator investigation, not automatic retraining.
 
 ## Dashboard And Alert Artifacts
 
