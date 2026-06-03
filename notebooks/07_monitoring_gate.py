@@ -71,6 +71,7 @@ raw_freshness_hours = None
 alert_count = 0
 blocking_alert_count = 0
 drift_alert_count = 0
+validation_metric_count = 0
 if metrics_exists:
     latest_window = Window.partitionBy("metric_name").orderBy(F.col("metric_time").desc())
     latest_metrics = metrics.withColumn("_rn", F.row_number().over(latest_window)).filter(
@@ -79,6 +80,11 @@ if metrics_exists:
     drift_metric = F.col("metric_name").rlike(
         "^(data_drift|model_drift|prediction_drift|label_drift|concept_drift)_"
     )
+    validation_metric = F.col("metric_name").rlike(
+        "^(raw_count|raw_duplicate_open_time_count|raw_null_open_time_count|"
+        "raw_freshness_hours|features_count|features_target_close_1h_null_count|"
+        "raw_features_row_count_delta|feature_quality_|schema_drift_)"
+    )
     alert_count = latest_metrics.filter(F.col("status") == "alert").count()
     drift_alert_count = latest_metrics.filter(
         (F.col("status") == "alert") & drift_metric
@@ -86,6 +92,7 @@ if metrics_exists:
     blocking_alert_count = latest_metrics.filter(
         (F.col("status") == "alert") & (~drift_metric)
     ).count()
+    validation_metric_count = latest_metrics.filter(validation_metric).count()
     raw_freshness = latest_metrics.filter(
         F.col("metric_name") == "raw_freshness_hours"
     ).select("metric_value").collect()
@@ -107,11 +114,15 @@ except Exception as exc:
 # COMMAND ----------
 
 reasons = []
-should_retrain = True
+should_retrain = trigger_mode == "scheduled"
 
 if blocking_alert_count > 0:
     should_retrain = False
     reasons.append(f"latest monitoring has {blocking_alert_count} blocking alert metrics")
+
+if trigger_mode == "drift" and validation_metric_count == 0:
+    should_retrain = False
+    reasons.append("missing data/schema/feature quality validation metrics")
 
 if raw_freshness_hours is not None and raw_freshness_hours > max_raw_freshness_hours:
     should_retrain = False
@@ -119,7 +130,7 @@ if raw_freshness_hours is not None and raw_freshness_hours > max_raw_freshness_h
         f"raw data stale: {raw_freshness_hours:.2f}h > {max_raw_freshness_hours:.2f}h"
     )
 
-if drift_alert_count > 0 and blocking_alert_count == 0:
+if drift_alert_count > 0 and blocking_alert_count == 0 and validation_metric_count > 0:
     should_retrain = True
     reasons.append(
         f"drift detected: {drift_alert_count} alert metrics; "
@@ -130,9 +141,12 @@ if not champion_exists and blocking_alert_count == 0:
     should_retrain = True
     reasons.append("no Champion exists")
 
-if trigger_mode in ("manual", "drift") and blocking_alert_count == 0:
+if trigger_mode == "manual" and blocking_alert_count == 0:
     should_retrain = True
     reasons.append(f"trigger_mode={trigger_mode}")
+
+if trigger_mode == "drift" and not reasons:
+    reasons.append("no drift trigger detected")
 
 if not reasons:
     reasons.append("scheduled refresh allowed")

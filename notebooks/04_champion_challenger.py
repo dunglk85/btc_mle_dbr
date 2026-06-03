@@ -21,6 +21,7 @@ def get_widget(name, default):
 
 
 catalog = get_widget("catalog", "btc_dev")
+training_task_key = get_widget("training_task_key", "model_training")
 model_schema = "models"
 model_name = "btc_price_model"
 full_model_name = f"{catalog}.{model_schema}.{model_name}"
@@ -31,7 +32,7 @@ print(f"full_model_name={full_model_name}")
 print(f"experiment_name={experiment_name}")
 
 training_status = dbutils.jobs.taskValues.get(
-    taskKey="model_training",
+    taskKey=training_task_key,
     key="training_status",
     default="unknown",
 )
@@ -40,7 +41,7 @@ if training_status != "trained":
     dbutils.notebook.exit("SKIP_REGISTRY")
 
 challenger_run_id = dbutils.jobs.taskValues.get(
-    taskKey="model_training",
+    taskKey=training_task_key,
     key="run_id",
     default="",
 )

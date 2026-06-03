@@ -745,6 +745,14 @@ If validation fails: should_retrain = false
 
 Blocking schema/quality/feature alerts stop retraining because training on broken data can promote a bad model.
 
+Immediate drift-triggered retraining is wired into `btc_data_prediction_job`:
+- `drift_monitoring`
+- `monitoring_gate_drift` with `trigger_mode=drift`
+- `model_training_drift`
+- `champion_challenger_drift`
+
+If no drift alert exists, `monitoring_gate_drift` records `should_retrain=false` and training exits with `SKIP_RETRAIN`.
+
 ## Dashboard And Alert Artifacts
 
 Dashboard queries are stored in:

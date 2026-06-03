@@ -67,12 +67,43 @@ resources:
           depends_on:
             - task_key: monitoring
 
+        - task_key: monitoring_gate_drift
+          notebook_task:
+            notebook_path: notebooks/07_monitoring_gate
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              trigger_mode: "drift"
+          depends_on:
+            - task_key: drift_monitoring
+
+        - task_key: model_training_drift
+          notebook_task:
+            notebook_path: notebooks/03_optuna_training
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              n_trials: "15"
+              timeout_seconds: "900"
+          depends_on:
+            - task_key: monitoring_gate_drift
+
+        - task_key: champion_challenger_drift
+          notebook_task:
+            notebook_path: notebooks/04_champion_challenger
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              training_task_key: "model_training_drift"
+          depends_on:
+            - task_key: model_training_drift
+
     btc_model_refresh_job:
       name: "[${bundle.target}] BTC Model Refresh Job"
       schedule:
         quartz_cron_expression: "0 0 */12 * * ?"
         timezone_id: UTC
-        pause_status: PAUSED
+        pause_status: UNPAUSED
       git_source:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub
@@ -103,5 +134,6 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+              training_task_key: "model_training"
           depends_on:
             - task_key: model_training

@@ -67,3 +67,9 @@ Validate data quality + schema quality + feature quality
 If validation passes: retrain
 If validation fails: block retrain and alert operator
 ```
+
+Immediate drift-triggered retraining:
+- `btc_data_prediction_job` runs `drift_monitoring` after regular monitoring.
+- It then runs `monitoring_gate_drift` with `trigger_mode=drift`.
+- If drift exists and validation passes, `model_training_drift` runs immediately.
+- If no drift exists, `model_training_drift` exits with `SKIP_RETRAIN`.
