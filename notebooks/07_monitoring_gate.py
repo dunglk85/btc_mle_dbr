@@ -80,6 +80,7 @@ if metrics_exists:
     drift_metric = F.col("metric_name").rlike(
         "^(data_drift|model_drift|prediction_drift|label_drift|concept_drift)_"
     )
+    retrain_drift_metric = F.col("metric_name").rlike("^(model_drift|concept_drift)_")
     validation_metric = F.col("metric_name").rlike(
         "^(raw_count|raw_duplicate_open_time_count|raw_null_open_time_count|"
         "raw_freshness_hours|features_count|features_target_close_1h_null_count|"
@@ -87,7 +88,7 @@ if metrics_exists:
     )
     alert_count = latest_metrics.filter(F.col("status") == "alert").count()
     drift_alert_count = latest_metrics.filter(
-        (F.col("status") == "alert") & drift_metric
+        (F.col("status") == "alert") & retrain_drift_metric
     ).count()
     blocking_alert_count = latest_metrics.filter(
         (F.col("status") == "alert") & (~drift_metric)

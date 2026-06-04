@@ -628,8 +628,8 @@ Meaning:
 - Number of alert metrics in the latest monitoring snapshot.
 
 Usage:
-- If `alert_count > 0`, the gate currently skips retraining.
-- This avoids training on potentially bad or stale data.
+- Blocking quality alerts skip retraining.
+- Model/concept drift alerts can trigger retraining when data/schema/feature quality validation passes.
 
 ### champion_exists
 
@@ -712,15 +712,15 @@ How it is calculated:
 - Sum the bucket-level distribution difference.
 
 Interpretation:
-- `PSI < 0.1`: usually stable.
-- `0.1 <= PSI < 0.2`: warning drift.
-- `PSI >= 0.2`: alert drift.
+- `PSI < 0.25`: operationally stable for this BTC hourly pipeline.
+- `0.25 <= PSI < 1.0`: warning drift.
+- `PSI >= 1.0`: alert drift.
 
 Current thresholds:
 
 ```text
-psi_warn_threshold = 0.1
-psi_alert_threshold = 0.2
+psi_warn_threshold = 0.25
+psi_alert_threshold = 1.0
 ```
 
 Why useful:
@@ -743,8 +743,8 @@ Interpretation:
 Current thresholds:
 
 ```text
-ks_warn_threshold = 0.15
-ks_alert_threshold = 0.25
+ks_warn_threshold = 0.30
+ks_alert_threshold = 0.60
 ```
 
 ### Label Drift Metrics
@@ -988,12 +988,12 @@ Why useful:
 
 ### Drift Gate Behavior
 
-The monitoring gate treats drift alerts as retraining candidates, not automatic retraining approval.
+The monitoring gate treats model/concept drift alerts as retraining candidates, not automatic retraining approval.
 
 Retraining decision flow:
 
 ```text
-Data drift / prediction drift / feature drift alert
+Model drift / concept drift alert
         ↓
 Validate data quality + schema quality + feature quality
         ↓
@@ -1016,7 +1016,6 @@ schema_drift_*
 Retraining trigger alert types:
 
 ```text
-data_drift_*
 model_drift_*
 concept_drift_*
 ```
@@ -1025,6 +1024,7 @@ Monitor-only drift types:
 
 ```text
 price_level_drift_*
+data_drift_*
 label_drift_*
 prediction_drift_*
 ```

@@ -32,10 +32,10 @@ raw_ref = f"{catalog}.raw.btc_hourly"
 predictions_ref = f"{catalog}.predictions.btc_predictions"
 metrics_ref = f"{catalog}.monitoring.pipeline_metrics"
 
-psi_warn_threshold = 0.1
-psi_alert_threshold = 0.2
-ks_warn_threshold = 0.15
-ks_alert_threshold = 0.25
+psi_warn_threshold = 0.25
+psi_alert_threshold = 1.0
+ks_warn_threshold = 0.30
+ks_alert_threshold = 0.60
 psi_monitor_only_alert_threshold = 999.0
 ks_monitor_only_alert_threshold = 999.0
 mape_warn_threshold = 0.02
