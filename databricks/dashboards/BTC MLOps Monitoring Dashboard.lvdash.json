@@ -461,6 +461,47 @@
       "schema": "raw"
     },
     {
+      "name": "btc_trading_volume_trend",
+      "displayName": "BTC Trading Volume Trend",
+      "queryLines": [
+        "SELECT\n",
+        "  DATE_TRUNC('day', open_time) AS bucket_date,\n",
+        "  SUM(volume) AS btc_volume,\n",
+        "  SUM(quote_volume) AS quote_volume_usdt,\n",
+        "  COUNT(*) AS candle_count\n",
+        "FROM\n",
+        "  btc_dev.raw.btc_hourly\n",
+        "WHERE\n",
+        "  open_time >= :date_range.min\n",
+        "  AND open_time <= :date_range.max\n",
+        "GROUP BY\n",
+        "  DATE_TRUNC('day', open_time)\n",
+        "ORDER BY\n",
+        "  bucket_date"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date Range",
+          "keyword": "date_range",
+          "dataType": "DATETIME",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATETIME",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ],
+      "catalog": "btc_dev",
+      "schema": "raw"
+    },
+    {
       "name": "data_quality_score",
       "displayName": "Data Quality Score",
       "queryLines": [
@@ -1676,6 +1717,59 @@
           "position": {
             "x": 0,
             "y": 22,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "btc_trading_volume_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "btc_trading_volume_trend",
+                  "fields": [
+                    {
+                      "name": "bucket_date",
+                      "expression": "`bucket_date`"
+                    },
+                    {
+                      "name": "btc_volume",
+                      "expression": "`btc_volume`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "BTC Trading Volume (Daily)",
+                "showTitle": true
+              },
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "bucket_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "btc_volume",
+                  "displayName": "BTC Volume",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 28,
             "width": 12,
             "height": 6
           }

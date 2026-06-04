@@ -165,3 +165,15 @@ WHERE metric_name RLIKE '^job_quality_'
   AND status IN ('alert', 'warn')
 ORDER BY metric_time DESC, metric_name
 LIMIT 100;
+
+-- 15. BTC Trading Volume Trend
+SELECT
+  DATE_TRUNC('day', open_time) AS bucket_date,
+  SUM(volume) AS btc_volume,
+  SUM(quote_volume) AS quote_volume_usdt,
+  COUNT(*) AS candle_count
+FROM IDENTIFIER(:catalog || '.raw.btc_hourly')
+WHERE open_time >= :date_range.min
+  AND open_time <= :date_range.max
+GROUP BY DATE_TRUNC('day', open_time)
+ORDER BY bucket_date;
