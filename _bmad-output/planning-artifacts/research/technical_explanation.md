@@ -654,8 +654,8 @@ to:
 ```
 
 The notebook compares two time windows:
-- **Recent window:** latest `recent_hours`, default `24` hours.
-- **Reference window:** previous `reference_hours`, default `168` hours.
+- **Recent window:** latest `recent_hours`, default `168` hours.
+- **Reference window:** previous `reference_hours`, default `720` hours.
 
 This makes drift monitoring self-contained and independent of Databricks Lakehouse Monitoring. It is a practical fallback for Databricks Free Edition/serverless.
 
@@ -670,19 +670,21 @@ volume
 quote_volume
 trades
 return_1h
-ma_24
 ```
 
-Price-level columns are tracked separately as monitor-only drift metrics:
+Price-level and price-derived columns are tracked separately as monitor-only drift metrics:
 
 ```text
 close
+ma_24
+target_close_1h
 predicted_close
 ```
 
 Reason:
 - BTC price-level distributions naturally shift when the market trends.
-- Comparing recent 24h price levels against the previous 168h can produce constant PSI/KS alerts.
+- `ma_24` is derived from price level and can create the same false positives during trends.
+- Comparing short recent windows against prior windows can produce constant PSI/KS alerts.
 - These metrics are useful on the dashboard, but should not trigger retraining by themselves.
 
 Metrics:

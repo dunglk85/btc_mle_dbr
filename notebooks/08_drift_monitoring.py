@@ -23,8 +23,8 @@ def get_widget(name, default):
 
 
 catalog = get_widget("catalog", "btc_dev")
-recent_hours = int(get_widget("recent_hours", "24"))
-reference_hours = int(get_widget("reference_hours", "168"))
+recent_hours = int(get_widget("recent_hours", "168"))
+reference_hours = int(get_widget("reference_hours", "720"))
 fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"
 
 features_ref = f"{catalog}.features.btc_features"
@@ -185,7 +185,6 @@ else:
             "quote_volume",
             "trades",
             "return_1h",
-            "ma_24",
         ]
         for col_name in drift_features:
             if col_name not in features.columns:
@@ -221,7 +220,7 @@ else:
                 f"reference_hours={reference_hours}; recent_hours={recent_hours}",
             )
 
-        monitor_only_features = ["close", "target_close_1h"]
+        monitor_only_features = ["close", "ma_24", "target_close_1h"]
         for col_name in monitor_only_features:
             if col_name not in features.columns:
                 append_metric(f"schema_drift_missing_{col_name}", 1, "alert", "Missing feature")
