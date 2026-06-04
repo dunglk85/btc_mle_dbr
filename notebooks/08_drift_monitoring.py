@@ -36,6 +36,8 @@ psi_warn_threshold = 0.1
 psi_alert_threshold = 0.2
 ks_warn_threshold = 0.15
 ks_alert_threshold = 0.25
+psi_monitor_only_alert_threshold = 999.0
+ks_monitor_only_alert_threshold = 999.0
 mape_warn_threshold = 0.02
 mape_alert_threshold = 0.05
 direction_warn_threshold = 0.45
@@ -179,13 +181,11 @@ else:
         append_metric("drift_reference_feature_count", reference_count, "ok")
 
         drift_features = [
-            "close",
             "volume",
             "quote_volume",
             "trades",
             "return_1h",
             "ma_24",
-            "target_close_1h",
         ]
         for col_name in drift_features:
             if col_name not in features.columns:
@@ -221,20 +221,38 @@ else:
                 f"reference_hours={reference_hours}; recent_hours={recent_hours}",
             )
 
-            if col_name == "target_close_1h":
-                append_metric(
-                    "label_drift_psi_target_close_1h",
+        monitor_only_features = ["close", "target_close_1h"]
+        for col_name in monitor_only_features:
+            if col_name not in features.columns:
+                append_metric(f"schema_drift_missing_{col_name}", 1, "alert", "Missing feature")
+                continue
+            non_null_reference = reference.filter(F.col(col_name).isNotNull())
+            non_null_recent = recent.filter(F.col(col_name).isNotNull())
+            if non_null_reference.count() == 0 or non_null_recent.count() == 0:
+                continue
+            psi_value = psi(non_null_reference, non_null_recent, col_name)
+            ks_value = approx_ks(non_null_reference, non_null_recent, col_name)
+            metric_prefix = "label_drift" if col_name == "target_close_1h" else "price_level_drift"
+            append_metric(
+                f"{metric_prefix}_psi_{col_name}",
+                psi_value,
+                status_by_threshold(
                     psi_value,
-                    status_by_threshold(psi_value, psi_warn_threshold, psi_alert_threshold),
-                    "Target distribution drift",
-                )
-                append_metric(
-                    "label_drift_ks_target_close_1h",
+                    psi_warn_threshold,
+                    psi_monitor_only_alert_threshold,
+                ),
+                "Monitor-only price/label level drift; not a retrain trigger",
+            )
+            append_metric(
+                f"{metric_prefix}_ks_{col_name}",
+                ks_value,
+                status_by_threshold(
                     ks_value,
-                    status_by_threshold(ks_value, ks_warn_threshold, ks_alert_threshold),
-                    "Target distribution drift",
-                )
-
+                    ks_warn_threshold,
+                    ks_monitor_only_alert_threshold,
+                ),
+                "Monitor-only price/label level drift; not a retrain trigger",
+            )
 # COMMAND ----------
 
 if table_exists(predictions_ref) and table_exists(raw_ref):
@@ -280,12 +298,22 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
             append_metric(
                 "prediction_drift_psi_predicted_close",
                 prediction_psi,
-                status_by_threshold(prediction_psi, psi_warn_threshold, psi_alert_threshold),
+                status_by_threshold(
+                    prediction_psi,
+                    psi_warn_threshold,
+                    psi_monitor_only_alert_threshold,
+                ),
+                "Monitor-only prediction level drift; not a retrain trigger",
             )
             append_metric(
                 "prediction_drift_ks_predicted_close",
                 prediction_ks,
-                status_by_threshold(prediction_ks, ks_warn_threshold, ks_alert_threshold),
+                status_by_threshold(
+                    prediction_ks,
+                    ks_warn_threshold,
+                    ks_monitor_only_alert_threshold,
+                ),
+                "Monitor-only prediction level drift; not a retrain trigger",
             )
 
         scored = recent_predictions.select(

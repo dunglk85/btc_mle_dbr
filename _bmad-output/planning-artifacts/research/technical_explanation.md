@@ -666,13 +666,24 @@ Data drift means the input feature distribution changed compared with the refere
 Current feature columns monitored:
 
 ```text
-close
 volume
 quote_volume
 trades
 return_1h
 ma_24
 ```
+
+Price-level columns are tracked separately as monitor-only drift metrics:
+
+```text
+close
+predicted_close
+```
+
+Reason:
+- BTC price-level distributions naturally shift when the market trends.
+- Comparing recent 24h price levels against the previous 168h can produce constant PSI/KS alerts.
+- These metrics are useful on the dashboard, but should not trigger retraining by themselves.
 
 Metrics:
 
@@ -684,7 +695,6 @@ data_drift_ks_<feature>
 Examples:
 
 ```text
-data_drift_psi_close
 data_drift_ks_return_1h
 data_drift_psi_volume
 ```
@@ -754,6 +764,11 @@ Important caveat:
 - `target_close_1h` is null when the exact next-hour candle is missing.
 - Rows with null target are excluded from drift distribution calculations.
 
+Current behavior:
+- Label drift is monitor-only.
+- It can produce `warn`, but does not produce retraining `alert` under the current thresholds.
+- This avoids retraining every time BTC price level naturally trends upward or downward.
+
 ### Prediction Drift Metrics
 
 Prediction drift means the model output distribution changed, even before accuracy is evaluated.
@@ -772,6 +787,11 @@ Meaning:
 Why separate from model drift:
 - Prediction drift can happen even before actual labels are available.
 - Model drift requires actual next-hour close to compute error.
+
+Current behavior:
+- Prediction drift is monitor-only.
+- It can produce `warn`, but does not produce retraining `alert` under the current thresholds.
+- Retraining should be triggered by performance degradation or non-price feature drift, not merely by BTC price level moving.
 
 ### Model / Performance Drift Metrics
 
@@ -995,11 +1015,19 @@ Retraining trigger alert types:
 
 ```text
 data_drift_*
-label_drift_*
-prediction_drift_*
 model_drift_*
 concept_drift_*
 ```
+
+Monitor-only drift types:
+
+```text
+price_level_drift_*
+label_drift_*
+prediction_drift_*
+```
+
+These are shown in the dashboard but should not trigger retraining by themselves.
 
 Immediate drift-triggered retraining is wired into `btc_data_prediction_job`:
 - `drift_monitoring`
