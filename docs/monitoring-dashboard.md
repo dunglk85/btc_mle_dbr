@@ -59,6 +59,22 @@ Job quality tiles:
 - Failed task count.
 - Job quality alerts and warnings.
 
+Job quality alert trace query:
+
+```sql
+SELECT
+  metric_time,
+  metric_name,
+  metric_value,
+  status,
+  from_json(details, 'job_id BIGINT, job_name STRING, job_url STRING, run_id BIGINT, run_url STRING, state STRUCT<life_cycle_state:STRING,result_state:STRING,state_message:STRING>, failed_tasks ARRAY<STRUCT<task_key:STRING,run_id:BIGINT,state:STRUCT<life_cycle_state:STRING,result_state:STRING,state_message:STRING>>>>') AS trace
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+  AND status = 'alert'
+  AND metric_name RLIKE '^job_quality_'
+ORDER BY metric_time DESC;
+```
+
 ## SQL Alerts
 
 SQL Alerts are managed by Databricks Asset Bundles in:

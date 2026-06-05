@@ -8,6 +8,7 @@
 # COMMAND ----------
 
 from datetime import datetime, timezone
+import json
 
 import requests
 
@@ -83,6 +84,47 @@ def api_get(path, params=None):
     return response.json()
 
 
+def run_url(job_id, run_id):
+    if not run_id:
+        return None
+    return f"{workspace_url}/#job/{job_id}/run/{run_id}"
+
+
+def job_url(job_id):
+    return f"{workspace_url}/#job/{job_id}"
+
+
+def state_summary(state):
+    return {
+        "life_cycle_state": state.get("life_cycle_state"),
+        "result_state": state.get("result_state"),
+        "state_message": state.get("state_message"),
+    }
+
+
+def trace_details(job_id, job_name, run=None, **extra):
+    run_id = run.get("run_id") if run else None
+    state = run.get("state", {}) if run else {}
+    details = {
+        "job_id": job_id,
+        "job_name": job_name,
+        "job_url": job_url(job_id),
+        "run_id": run_id,
+        "run_url": run_url(job_id, run_id),
+        "state": state_summary(state),
+    }
+    details.update(extra)
+    return json.dumps(details, default=str)
+
+
+def task_trace(task):
+    return {
+        "task_key": task.get("task_key"),
+        "run_id": task.get("run_id"),
+        "state": state_summary(task.get("state", {})),
+    }
+
+
 # COMMAND ----------
 
 jobs_payload = api_get("/api/2.1/jobs/list", {"limit": 100})
@@ -108,7 +150,7 @@ for job in matching_jobs:
             f"job_quality_run_count_{job_id}",
             0,
             "warn",
-            f"job_name={job_name}; no recent runs",
+            trace_details(job_id, job_name, reason="no recent runs"),
         )
         continue
 
@@ -129,13 +171,25 @@ for job in matching_jobs:
         f"job_quality_success_rate_{job_id}",
         success_rate,
         status,
-        f"job_name={job_name}; terminal_runs={len(terminal_runs)}",
+        trace_details(
+            job_id,
+            job_name,
+            terminal_runs=len(terminal_runs),
+            successful_runs=len(successful_runs),
+            failed_runs=len(failed_runs),
+            min_success_rate=min_success_rate,
+        ),
     )
     append_metric(
         f"job_quality_failed_run_count_{job_id}",
         len(failed_runs),
         "alert" if failed_runs else "ok",
-        f"job_name={job_name}; lookback_runs={lookback_runs}",
+        trace_details(
+            job_id,
+            job_name,
+            failed_run_ids=[run.get("run_id") for run in failed_runs],
+            lookback_runs=lookback_runs,
+        ),
     )
 
     latest_run = terminal_runs[0] if terminal_runs else runs[0]
@@ -153,7 +207,13 @@ for job in matching_jobs:
         f"job_quality_latest_duration_minutes_{job_id}",
         latest_duration_minutes,
         duration_status,
-        f"job_name={job_name}; run_id={latest_run.get('run_id')}",
+        trace_details(
+            job_id,
+            job_name,
+            latest_run,
+            max_duration_minutes=max_duration_minutes,
+            execution_duration_ms=latest_duration_ms,
+        ),
     )
 
     latest_is_terminal = latest_state.get("life_cycle_state") == "TERMINATED"
@@ -162,7 +222,7 @@ for job in matching_jobs:
         f"job_quality_latest_success_{job_id}",
         latest_success if latest_is_terminal else None,
         "ok" if latest_success else ("alert" if latest_is_terminal else "warn"),
-        f"job_name={job_name}; run_id={latest_run.get('run_id')}; state={latest_state}",
+        trace_details(job_id, job_name, latest_run),
     )
 
     task_runs = latest_run.get("tasks", [])
@@ -173,7 +233,13 @@ for job in matching_jobs:
         f"job_quality_latest_failed_task_count_{job_id}",
         len(failed_tasks),
         "alert" if failed_tasks else "ok",
-        f"job_name={job_name}; run_id={latest_run.get('run_id')}",
+        trace_details(
+            job_id,
+            job_name,
+            latest_run,
+            failed_tasks=[task_trace(task) for task in failed_tasks],
+            task_count=len(task_runs),
+        ),
     )
 
 # COMMAND ----------
