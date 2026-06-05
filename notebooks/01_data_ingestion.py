@@ -28,11 +28,13 @@ landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/btc_hourly"
 checkpoint_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_checkpoints/btc_hourly"
 schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_schemas/btc_hourly"
 table_ref = f"{catalog}.{raw_schema}.{table_name}"
+staging_table_ref = f"{catalog}.{raw_schema}.{table_name}_landing_autoloader"
 
 print("RUNNING SELF-CONTAINED AUTO LOADER INGESTION NOTEBOOK")
 print(f"landing_path={landing_path}")
 print(f"checkpoint_path={checkpoint_path}")
 print(f"table_ref={table_ref}")
+print(f"staging_table_ref={staging_table_ref}")
 
 # COMMAND ----------
 
@@ -54,6 +56,23 @@ spark.sql(f"""
     )
     USING DELTA
 """)
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {staging_table_ref} (
+        open_time STRING,
+        open DOUBLE,
+        high DOUBLE,
+        low DOUBLE,
+        close DOUBLE,
+        volume DOUBLE,
+        close_time STRING,
+        quote_volume DOUBLE,
+        trades BIGINT,
+        source STRING,
+        _source_file STRING,
+        _loaded_at TIMESTAMP
+    )
+    USING DELTA
+""")
 
 landing_schema = StructType(
     [
@@ -72,16 +91,13 @@ landing_schema = StructType(
 
 # COMMAND ----------
 
-def merge_landing_batch(batch_df, batch_id):
-    batch_spark = batch_df.sparkSession
-    raw_count = batch_df.count()
-    print(f"batch_id={batch_id}")
-    print(f"raw_landing_count={raw_count}")
+def parse_and_merge_staging():
+    raw = spark.table(staging_table_ref)
+    raw_count = raw.count()
+    print(f"staging_landing_count={raw_count}")
     if raw_count == 0:
-        print("empty Auto Loader batch; skipping merge")
+        print("empty Auto Loader staging table; skipping merge")
         return
-
-    raw = batch_df.withColumn("_source_file", F.col("_metadata.file_path"))
 
     # Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
     parsed = raw.select(
@@ -126,7 +142,7 @@ def merge_landing_batch(batch_df, batch_id):
 
     deduped.createOrReplaceTempView("_btc_hourly_landing")
 
-    batch_spark.sql(f"""
+    spark.sql(f"""
         MERGE INTO {table_ref} AS target
         USING _btc_hourly_landing AS source
         ON target.open_time = source.open_time
@@ -143,17 +159,33 @@ stream_df = (
     .option("header", True)
     .schema(landing_schema)
     .load(landing_path)
+    .select(
+        "open_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "close_time",
+        "quote_volume",
+        "trades",
+        "source",
+        F.col("_metadata.file_path").alias("_source_file"),
+        F.current_timestamp().alias("_loaded_at"),
+    )
 )
 
 # COMMAND ----------
 
 query = (
     stream_df.writeStream.option("checkpointLocation", checkpoint_path)
-    .foreachBatch(merge_landing_batch)
+    .outputMode("append")
     .trigger(availableNow=True)
-    .start()
+    .toTable(staging_table_ref)
 )
 query.awaitTermination()
+
+parse_and_merge_staging()
 
 result = spark.table(table_ref)
 print(f"table_count_after_merge={result.count()}")

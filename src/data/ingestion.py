@@ -217,6 +217,7 @@ def load_landing_to_raw(
     schema_subdir: str = "_schemas/btc_hourly",
 ) -> DataFrame:
     table_ref = f"{catalog}.{raw_schema}.{table}"
+    staging_table_ref = f"{catalog}.{raw_schema}.{table}_landing_autoloader"
     landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{landing_subdir}"
     checkpoint_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{checkpoint_subdir}"
     schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{schema_subdir}"
@@ -238,6 +239,23 @@ def load_landing_to_raw(
         )
         USING DELTA
     """)
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {staging_table_ref} (
+            open_time STRING,
+            open DOUBLE,
+            high DOUBLE,
+            low DOUBLE,
+            close DOUBLE,
+            volume DOUBLE,
+            close_time STRING,
+            quote_volume DOUBLE,
+            trades BIGINT,
+            source STRING,
+            _source_file STRING,
+            _loaded_at TIMESTAMP
+        )
+        USING DELTA
+    """)
 
     print(f"load_landing_to_raw: landing_path={landing_path}")
     print(f"load_landing_to_raw: checkpoint_path={checkpoint_path}")
@@ -248,41 +266,47 @@ def load_landing_to_raw(
         .option("header", True)
         .schema(LANDING_SCHEMA)
         .load(landing_path)
+        .select(
+            "open_time",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "close_time",
+            "quote_volume",
+            "trades",
+            "source",
+            F.col("_metadata.file_path").alias("_source_file"),
+            F.current_timestamp().alias("_loaded_at"),
+        )
     )
 
     query = (
         stream_df.writeStream.option("checkpointLocation", checkpoint_path)
-        .foreachBatch(
-            lambda batch_df, batch_id: merge_landing_batch_to_raw(
-                batch_df,
-                table_ref,
-                landing_path,
-                batch_id,
-            )
-        )
+        .outputMode("append")
         .trigger(availableNow=True)
-        .start()
+        .toTable(staging_table_ref)
     )
     query.awaitTermination()
+    merge_landing_staging_to_raw(spark, staging_table_ref, table_ref, landing_path)
     return spark.table(table_ref)
 
 
-def merge_landing_batch_to_raw(
-    batch_df: DataFrame,
+def merge_landing_staging_to_raw(
+    spark: SparkSession,
+    staging_table_ref: str,
     table_ref: str,
     landing_path: str,
-    batch_id: int | None = None,
 ) -> None:
-    spark = batch_df.sparkSession
-    raw_landing_count = batch_df.count()
-    print(f"merge_landing_batch_to_raw: batch_id={batch_id}")
-    print(f"merge_landing_batch_to_raw: raw_landing_count={raw_landing_count}")
+    raw_landing_count = spark.table(staging_table_ref).count()
+    print(f"merge_landing_staging_to_raw: raw_landing_count={raw_landing_count}")
     if raw_landing_count == 0:
-        print("merge_landing_batch_to_raw: empty batch, skipping merge")
+        print("merge_landing_staging_to_raw: empty staging table, skipping merge")
         return
 
-    df = batch_df.withColumn("_source_file", F.col("_metadata.file_path"))
-    df = df.select(
+    raw = spark.table(staging_table_ref)
+    df = raw.select(
         F.coalesce(
             F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
             F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
@@ -305,7 +329,7 @@ def merge_landing_batch_to_raw(
         F.col("_source_file"),
     )
     null_open_time_count = df.filter(F.col("open_time").isNull()).count()
-    print(f"merge_landing_batch_to_raw: null_open_time_count={null_open_time_count}")
+    print(f"merge_landing_staging_to_raw: null_open_time_count={null_open_time_count}")
     if null_open_time_count > 0:
         raise ValueError(
             f"Found {null_open_time_count} landing rows with unparseable open_time "
@@ -319,7 +343,7 @@ def merge_landing_batch_to_raw(
         .drop("_row_number", "_source_file")
     )
     landing_count = df.count()
-    print(f"merge_landing_batch_to_raw: parsed_distinct_landing_count={landing_count}")
+    print(f"merge_landing_staging_to_raw: parsed_distinct_landing_count={landing_count}")
     if landing_count == 0:
         raise ValueError(
             f"No parsed landing rows found at {landing_path}; "

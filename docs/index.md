@@ -32,7 +32,7 @@
 - `databricks.yml`: bundle targets and catalog variables.
 - `databricks/resources/jobs.yml`: Databricks job definitions.
 - `notebooks/00_fetch_binance_to_volume.py`: fetch closed Binance hourly candles into UC Volume.
-- `notebooks/01_data_ingestion.py`: Auto Loader landing CSV ingestion to raw Delta MERGE.
+- `notebooks/01_data_ingestion.py`: Auto Loader landing CSV ingestion to staging Delta, then raw Delta MERGE.
 - `notebooks/02_feature_engineering.py`: features and exact next-hour target.
 - `notebooks/03_optuna_training.py`: Optuna training and MLflow logging.
 - `notebooks/04_champion_challenger.py`: UC model registration and alias promotion.

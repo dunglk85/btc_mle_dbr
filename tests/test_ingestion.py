@@ -114,8 +114,14 @@ def test_load_landing_to_raw_merges_volume_files(monkeypatch):
     assert spark.write_stream.options["checkpointLocation"] == (
         "/Volumes/btc_dev/raw/landing/_checkpoints/btc_hourly"
     )
+    assert spark.write_stream.output_mode == "append"
     assert spark.write_stream.trigger_kwargs == {"availableNow": True}
+    assert spark.write_stream.target_table == "btc_dev.raw.btc_hourly_landing_autoloader"
     assert any("CREATE VOLUME IF NOT EXISTS btc_dev.raw.landing" in sql for sql in spark.sql_calls)
+    assert any(
+        "CREATE TABLE IF NOT EXISTS btc_dev.raw.btc_hourly_landing_autoloader" in sql
+        for sql in spark.sql_calls
+    )
     assert any("MERGE INTO btc_dev.raw.btc_hourly" in sql for sql in spark.sql_calls)
     assert spark.temp_view == "_btc_hourly_landing"
     assert result == "table:btc_dev.raw.btc_hourly"
@@ -209,6 +215,8 @@ class FakeLandingSpark:
         self.sql_calls.append(query)
 
     def table(self, table_name):
+        if table_name.endswith("_landing_autoloader"):
+            return FakeLandingDataFrame(self)
         return FakeTable(table_name)
 
 
@@ -267,24 +275,25 @@ class FakeWriteStream:
         self.spark = spark
         self.batch_df = batch_df
         self.options = {}
-        self.callback = None
+        self.output_mode = None
         self.trigger_kwargs = None
+        self.target_table = None
 
     def option(self, key, value):
         self.options[key] = value
         return self
 
-    def foreachBatch(self, callback):
-        self.callback = callback
+    def outputMode(self, mode):
+        self.output_mode = mode
         return self
 
     def trigger(self, **kwargs):
         self.trigger_kwargs = kwargs
         return self
 
-    def start(self):
+    def toTable(self, table_name):
         self.spark.write_stream = self
-        self.callback(self.batch_df, 0)
+        self.target_table = table_name
         return FakeQuery()
 
 

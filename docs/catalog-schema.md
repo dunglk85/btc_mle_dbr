@@ -14,6 +14,7 @@
 <catalog>/
 ├── raw/
 │   ├── landing           # UC Volume for landing CSV files plus Auto Loader checkpoints/schemas
+│   ├── btc_hourly_landing_autoloader # Auto Loader staging Delta table
 │   └── btc_hourly        # Raw OHLCV Delta table from Binance
 ├── features/
 │   └── btc_features      # Engineered features
