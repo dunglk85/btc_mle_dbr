@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-Run the data prediction job at least once:
+Run the data prediction job at least once for operational and prediction metrics:
 
 ```text
 btc_data_prediction_job
@@ -126,7 +126,7 @@ Drift metrics are written by:
 notebooks/08_drift_monitoring.py
 ```
 
-The data prediction job runs drift monitoring after regular monitoring.
+Drift metrics are produced by `btc_drift_monitoring_job`, which runs separately from the hourly prediction job.
 
 ## Fallback If SQL Alerts Are Not Available
 

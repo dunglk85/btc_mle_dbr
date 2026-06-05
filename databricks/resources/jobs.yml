@@ -50,45 +50,6 @@ resources:
               catalog: ${var.catalog}
           depends_on:
             - task_key: prediction
-        - task_key: drift_monitoring
-          notebook_task:
-            notebook_path: notebooks/08_drift_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              recent_hours: "168"
-              reference_hours: "720"
-              fail_on_alert: "false"
-          depends_on:
-            - task_key: monitoring
-        - task_key: monitoring_gate_drift
-          notebook_task:
-            notebook_path: notebooks/07_monitoring_gate
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              trigger_mode: "drift"
-          depends_on:
-            - task_key: drift_monitoring
-        - task_key: model_training_drift
-          notebook_task:
-            notebook_path: notebooks/03_optuna_training
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              n_trials: "15"
-              timeout_seconds: "900"
-          depends_on:
-            - task_key: monitoring_gate_drift
-        - task_key: champion_challenger_drift
-          notebook_task:
-            notebook_path: notebooks/04_champion_challenger
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              training_task_key: "model_training_drift"
-          depends_on:
-            - task_key: model_training_drift
         - task_key: job_quality_monitoring
           notebook_task:
             notebook_path: notebooks/09_job_quality_monitoring
@@ -101,7 +62,36 @@ resources:
               min_success_rate: "0.8"
               fail_on_alert: "false"
           depends_on:
-            - task_key: champion_challenger_drift
+            - task_key: monitoring
+    btc_drift_monitoring_job:
+      name: "[${bundle.target}] BTC Drift Monitoring Job"
+      schedule:
+        quartz_cron_expression: "0 0 */6 * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      git_source:
+        git_url: https://github.com/dunglk85/btc_mle_dbr
+        git_provider: gitHub
+        git_branch: main
+      tasks:
+        - task_key: drift_monitoring
+          notebook_task:
+            notebook_path: notebooks/08_drift_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              recent_hours: "168"
+              reference_hours: "720"
+              fail_on_alert: "false"
+        - task_key: monitoring_gate_drift
+          notebook_task:
+            notebook_path: notebooks/07_monitoring_gate
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              trigger_mode: "drift"
+          depends_on:
+            - task_key: drift_monitoring
     btc_model_refresh_job:
       name: "[${bundle.target}] BTC Model Refresh Job"
       schedule:

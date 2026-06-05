@@ -44,7 +44,8 @@ databricks bundle validate
 ## Databricks Jobs
 
 - `btc_data_prediction_job`: hourly fetch, ingestion, feature engineering, prediction, monitoring.
-- `btc_model_refresh_job`: monitoring gate, Optuna training, Champion/Challenger registration. Scheduled every 12 hours and currently paused by default.
+- `btc_drift_monitoring_job`: drift metrics and drift gate checks every 6 hours.
+- `btc_model_refresh_job`: monitoring gate, Optuna training, Champion/Challenger registration every 12 hours.
 
 Dashboard SQL templates are in `databricks/sql/` and use a `catalog` parameter such as `btc_dev` or `btc_prod`.
 

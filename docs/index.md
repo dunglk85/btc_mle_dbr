@@ -12,7 +12,8 @@
 - **Dev catalog:** `btc_dev`
 - **Prod catalog:** `btc_prod`
 - **Data job:** `btc_data_prediction_job`, hourly
-- **Model refresh job:** `btc_model_refresh_job`, every 12 hours, paused by default
+- **Drift monitoring job:** `btc_drift_monitoring_job`, every 6 hours
+- **Model refresh job:** `btc_model_refresh_job`, every 12 hours
 - **Registered model:** `<catalog>.models.btc_price_model`
 - **Champion alias:** `@Champion`
 - **Challenger alias:** `@Challenger`
