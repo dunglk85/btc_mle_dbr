@@ -5,7 +5,7 @@
 1. **Binance Vision API** -> `00_fetch_binance_to_volume` -> UC Volume landing CSV.
 2. **Auto Loader ingestion** -> `01_data_ingestion` incrementally reads new landing files into `<catalog>.raw.btc_hourly_landing_autoloader`, then batch MERGEs into `<catalog>.raw.btc_hourly`.
 3. **Feature Engineering** -> `<catalog>.features.btc_features` with exact next-hour target `target_close_1h`.
-4. **Model Training** -> Optuna RandomForest + MLflow tracking.
+4. **Model Training** -> Regression-only Optuna training + MLflow tracking.
 5. **Champion vs Challenger** -> Register current training run as Challenger, compare RMSE, promote winner.
 6. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`.
 7. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics` and model refresh gate decisions.

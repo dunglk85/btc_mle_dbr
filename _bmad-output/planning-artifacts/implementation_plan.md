@@ -84,7 +84,7 @@ graph TB
 Ghi chú kiến trúc hiện tại:
 - Job hourly chính do Databricks quản lý: `btc_data_prediction_job` chạy fetch -> Auto Loader ingestion -> feature engineering -> prediction -> monitoring -> job quality monitoring.
 - Job drift riêng: `btc_drift_monitoring_job` chạy drift metrics -> drift gate mỗi 6 giờ.
-- Job refresh model: `btc_model_refresh_job` chạy monitoring gate -> Optuna training -> Champion/Challenger mỗi 12 giờ.
+- Job refresh model: `btc_model_refresh_job` chạy monitoring gate -> regression-only Optuna training -> Champion/Challenger mỗi 12 giờ.
 - GitHub Actions không còn là hourly scheduler chính; workflow hourly chỉ còn manual trigger nếu cần.
 - Tất cả notebooks nhận `catalog` từ Databricks widget do DAB truyền vào: `btc_dev` cho dev, `btc_prod` cho prod.
 - `target_close_1h` là exact next-hour close bằng self-join theo `open_time + 1 hour`, không dùng next-row `lead`.
@@ -131,7 +131,7 @@ Ghi chú kiến trúc hiện tại:
 
 #### Mục tiêu
 - Xây dựng feature engineering pipeline và đăng ký vào Feature Registry.
-- Xây dựng model training pipeline với Optuna hyperparameter tuning (single-node).
+- Xây dựng model training pipeline regression-only với Optuna hyperparameter tuning (single-node).
 
 #### Tasks
 
@@ -141,7 +141,7 @@ Ghi chú kiến trúc hiện tại:
 | 2.2 | Đăng ký Feature Table | - Register features vào Feature Registry<br/>- Tạo lookup keys và metadata | Feature Store / Feature Registry |
 | 2.3 | Data validation | - Kiểm tra null, duplicate, outlier<br/>- Đảm bảo tính liên tục của time series | Data Quality |
 | 2.4 | Time Series Data Split | - Temporal split: 80% train, 10% validation, 10% test<br/>- Không random shuffle<br/>- Đảm bảo không data leakage | Python/Spark |
-| 2.5 | Training pipeline với Optuna Tuning | - Thuật toán candidates: XGBoost, LightGBM, Random Forest, Linear Regression<br/>- Dùng **Optuna** với TPE Bayesian optimization<br/>- Chạy single-node (phù hợp Free Edition serverless)<br/>- `MedianPruner` early stopping cho trials không triển vọng<br/>- Log tất cả trials vào MLflow (child runs) | MLflow + Optuna |
+| 2.5 | Training pipeline regression với Optuna Tuning | - Target: `target_close_1h` regression<br/>- Thuật toán candidates trong job refresh hiện tại: LightGBM và XGBoost<br/>- Dùng **Optuna** với TPE Bayesian optimization<br/>- Chạy single-node (phù hợp Free Edition serverless)<br/>- `MedianPruner` early stopping cho trials không triển vọng<br/>- Log tất cả trials vào MLflow (child runs) | MLflow + Optuna |
 
 > [!NOTE]
 > **Optuna trên Free Edition**: Free Edition dùng serverless compute, không có PySpark executors thật sự để chạy parallel trials. Dùng `optuna.create_study()` thông thường (single-node) kết hợp MLflow logging thủ công là đủ để demo và hoạt động ổn định.
@@ -169,7 +169,7 @@ Ghi chú kiến trúc hiện tại:
 
 #### Deliverables
 - [ ] Feature engineering pipeline & Feature table registered
-- [ ] Training pipeline notebook với Optuna tuning hoạt động ổn định
+- [ ] Regression training pipeline notebook với Optuna tuning hoạt động ổn định
 
 ---
 
@@ -259,7 +259,7 @@ flowchart TD
 
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
-| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Drift Gate<br/>- **Model Refresh Job** (chạy 12h/lần): Monitoring Gate -> Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
+| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Drift Gate<br/>- **Model Refresh Job** (chạy 12h/lần): Monitoring Gate -> Regression Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
 
@@ -276,7 +276,8 @@ Retrain only if validation passes
 Implementation detail:
 - `btc_data_prediction_job` không chạy drift/training để giữ hourly serving path ngắn và ổn định.
 - `btc_drift_monitoring_job` ghi drift metrics và drift gate decisions riêng mỗi 6 giờ.
-- `btc_model_refresh_job` là nơi duy nhất chạy scheduled retraining và Champion/Challenger promotion.
+- `btc_model_refresh_job` là nơi duy nhất chạy scheduled regression retraining và Champion/Challenger promotion.
+
 | 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, failed runs, failed tasks, latest run duration<br/>- Ghi metrics vào `monitoring.pipeline_metrics` qua `notebooks/09_job_quality_monitoring.py`<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs API, Delta metrics tables, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
 | 4.6 | Thiết lập Alerts | - SQL alerts được quản lý bằng DAB trong `databricks/resources/alerts.yml`<br/>- Cần truyền `sql_warehouse_id` khi deploy<br/>- Email/Slack notification khi job fail, data quality issue hoặc model performance drop | Databricks Alerts |
