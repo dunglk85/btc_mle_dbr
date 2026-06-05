@@ -115,21 +115,25 @@ except Exception as exc:
 # COMMAND ----------
 
 reasons = []
+block_reasons = []
 should_retrain = trigger_mode == "scheduled"
 
 if blocking_alert_count > 0:
     should_retrain = False
-    reasons.append(f"latest monitoring has {blocking_alert_count} blocking alert metrics")
+    block_reasons.append(f"latest monitoring has {blocking_alert_count} blocking alert metrics")
 
 if trigger_mode == "drift" and validation_metric_count == 0:
     should_retrain = False
-    reasons.append("missing data/schema/feature quality validation metrics")
+    block_reasons.append("missing data/schema/feature quality validation metrics")
 
 if raw_freshness_hours is not None and raw_freshness_hours > max_raw_freshness_hours:
     should_retrain = False
-    reasons.append(
+    block_reasons.append(
         f"raw data stale: {raw_freshness_hours:.2f}h > {max_raw_freshness_hours:.2f}h"
     )
+
+if block_reasons:
+    reasons.extend(block_reasons)
 
 if drift_alert_count > 0 and blocking_alert_count == 0 and validation_metric_count > 0:
     should_retrain = True
@@ -152,7 +156,15 @@ if trigger_mode == "drift" and not reasons:
 if not reasons:
     reasons.append("scheduled refresh allowed")
 
+if should_retrain:
+    decision_status = "RETRAIN_ALLOWED"
+elif block_reasons:
+    decision_status = "NO_RETRAIN_BLOCKED"
+else:
+    decision_status = "NO_RETRAIN_NO_TRIGGER"
+
 reason = "; ".join(reasons)
+print(f"decision_status={decision_status}")
 print(f"should_retrain={should_retrain}")
 print(f"reason={reason}")
 

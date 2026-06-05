@@ -117,7 +117,7 @@ print(f"latest_alert_metrics={alert_names}")
 
 if not alert_names:
     record_action("blocked", "no data quality alerts to remediate", "none", snapshot)
-    dbutils.notebook.exit("NO_REMEDIATION_NEEDED")
+    dbutils.notebook.exit("NO_DATA_ALERTS: no data quality alerts to remediate")
 
 # COMMAND ----------
 
@@ -149,7 +149,7 @@ safe_actions = list(dict.fromkeys(safe_actions))
 
 if manual_reasons and not safe_actions:
     record_action("blocked", "; ".join(manual_reasons), "manual_required", snapshot)
-    dbutils.notebook.exit("MANUAL_REMEDIATION_REQUIRED")
+    dbutils.notebook.exit(f"MANUAL_REMEDIATION_REQUIRED: {'; '.join(manual_reasons)}")
 
 if not safe_actions:
     record_action(
@@ -158,7 +158,9 @@ if not safe_actions:
         "none",
         snapshot,
     )
-    dbutils.notebook.exit("NO_DATA_REMEDIATION_ACTION")
+    dbutils.notebook.exit(
+        f"NO_AUTO_REMEDIATION_FOR_ALERTS: latest_alert_metrics={alert_names}"
+    )
 
 # COMMAND ----------
 
@@ -182,7 +184,7 @@ try:
     status = "succeeded" if not manual_reasons else "attempted"
     reason_parts = [f"safe_actions={safe_actions}"] + manual_reasons
     record_action(status, "; ".join(reason_parts), "+".join(safe_actions), snapshot)
-    dbutils.notebook.exit("DATA_REMEDIATION_COMPLETE")
+    dbutils.notebook.exit(f"DATA_REMEDIATION_{status.upper()}: {'; '.join(reason_parts)}")
 except Exception as exc:
     record_action("failed", str(exc), "+".join(safe_actions), snapshot)
     raise

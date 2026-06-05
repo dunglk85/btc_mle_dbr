@@ -62,13 +62,22 @@ print(f"trigger_mode={decision['trigger_mode']}")
 print(f"reason={decision['reason']}")
 
 if decision_age_hours > max_decision_age_hours:
-    dbutils.notebook.exit("SKIP_MODEL_REFRESH_STALE_DECISION")
+    dbutils.notebook.exit(
+        f"SKIP_MODEL_REFRESH_STALE_DECISION: age_hours={decision_age_hours:.2f}; reason={decision['reason']}"
+    )
 
 if decision["trigger_mode"] != expected_trigger_mode:
-    dbutils.notebook.exit("SKIP_MODEL_REFRESH_TRIGGER_MODE_MISMATCH")
+    dbutils.notebook.exit(
+        "SKIP_MODEL_REFRESH_TRIGGER_MODE_MISMATCH: "
+        f"actual={decision['trigger_mode']}; expected={expected_trigger_mode}; reason={decision['reason']}"
+    )
 
 if not decision["should_retrain"]:
-    dbutils.notebook.exit("SKIP_MODEL_REFRESH_DECISION_FALSE")
+    if "blocking" in decision["reason"] or "stale" in decision["reason"] or "missing" in decision["reason"]:
+        skip_status = "SKIP_MODEL_REFRESH_BLOCKED"
+    else:
+        skip_status = "SKIP_MODEL_REFRESH_NO_RETRAIN_TRIGGER"
+    dbutils.notebook.exit(f"{skip_status}: reason={decision['reason']}")
 
 # COMMAND ----------
 
