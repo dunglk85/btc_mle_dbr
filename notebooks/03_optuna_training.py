@@ -3,11 +3,26 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 03 - Optuna Model Training
+# MAGIC # 03 - Optuna Model Training (Regression & Classification)
+# MAGIC
+# MAGIC Notebook huấn luyện mô hình với Optuna HPO, hỗ trợ cả hai bài toán:
+# MAGIC - **Regression**: Dự đoán `target_return_1h` (% thay đổi giá)
+# MAGIC - **Classification**: Dự đoán `target_direction_1h` (lên/xuống)
+# MAGIC
+# MAGIC Sử dụng Databricks Widget `task_type` để chọn bài toán.
+# MAGIC
+# MAGIC **Models:**
+# MAGIC - LightGBM (LGBMRegressor / LGBMClassifier)
+# MAGIC - XGBoost (XGBRegressor / XGBClassifier) — optional
+# MAGIC
+# MAGIC **Đặc biệt:**
+# MAGIC - Time Series Split (không xáo trộn ngẫu nhiên)
+# MAGIC - Tự động đọc `selected_features` từ EDA notebook
+# MAGIC - MLflow logging đầy đủ
 
 # COMMAND ----------
 
-# MAGIC %pip install optuna
+# MAGIC %pip install optuna lightgbm xgboost
 
 # COMMAND ----------
 
@@ -15,11 +30,23 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+import json
+import numpy as np
+import pandas as pd
 import mlflow
 import optuna
 from mlflow.models import infer_signature
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+)
 
 # COMMAND ----------
 
@@ -31,35 +58,54 @@ def get_widget(name, default):
         return str(default)
 
 
+# --- Widgets ---
 catalog = get_widget("catalog", "btc_dev")
+task_type = get_widget("task_type", "regression")  # "regression" hoặc "classification"
+model_algo = get_widget("model_algo", "lightgbm")  # "lightgbm" hoặc "xgboost"
+n_trials = int(get_widget("n_trials", "30"))
+timeout_seconds = int(get_widget("timeout_seconds", "1200"))
+n_cv_splits = int(get_widget("n_cv_splits", "5"))
+
+# --- Constants ---
 features_schema = "features"
 features_table = "btc_features"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
+config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
-experiment_name = "/Shared/btc_baseline_training"
-default_n_trials = 15
-default_timeout_seconds = 900
 
+# Validate inputs
+assert task_type in ("regression", "classification"), f"Invalid task_type: {task_type}"
+assert model_algo in ("lightgbm", "xgboost"), f"Invalid model_algo: {model_algo}"
+assert n_trials >= 1, f"n_trials must be >= 1, got {n_trials}"
+assert timeout_seconds > 0, f"timeout_seconds must be > 0, got {timeout_seconds}"
 
-n_trials = int(get_widget("n_trials", default_n_trials))
-timeout_seconds = int(get_widget("timeout_seconds", default_timeout_seconds))
-if n_trials < 1:
-    raise ValueError(f"n_trials must be >= 1, got {n_trials}")
-if timeout_seconds <= 0:
-    raise ValueError(f"timeout_seconds must be > 0, got {timeout_seconds}")
+# Experiment name phân biệt theo task_type
+experiment_name = f"/Shared/btc_{task_type}_{model_algo}_training"
 
-print("RUNNING SELF-CONTAINED OPTUNA TRAINING NOTEBOOK")
+print("=" * 60)
+print(f"RUNNING OPTUNA TRAINING — {task_type.upper()} with {model_algo.upper()}")
 print(f"features_ref={features_ref}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
+print(f"n_cv_splits={n_cv_splits}")
+print(f"experiment_name={experiment_name}")
+print("=" * 60)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1. Check Monitoring Gate (Skip if not needed)
 
 # COMMAND ----------
 
 skip_reason = None
 try:
-    latest_decision = spark.table(decisions_ref).orderBy(
-        "decision_time", ascending=False
-    ).limit(1).collect()
+    latest_decision = (
+        spark.table(decisions_ref)
+        .orderBy("decision_time", ascending=False)
+        .limit(1)
+        .collect()
+    )
     if latest_decision and not latest_decision[0]["should_retrain"]:
         skip_reason = latest_decision[0]["reason"]
 except Exception as exc:
@@ -72,30 +118,54 @@ if skip_reason:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## 2. Load Data & Features
+
+# COMMAND ----------
+
+# Đọc selected features từ EDA config
+try:
+    config_row = spark.table(config_ref).collect()
+    if config_row:
+        feature_cols = json.loads(config_row[0]["config_value"])
+        print(f"Loaded {len(feature_cols)} selected features from EDA config")
+    else:
+        raise ValueError("Empty config table")
+except Exception as e:
+    print(f"WARNING: Could not load EDA config ({e}), using default features")
+    feature_cols = [
+        "return_1h", "return_6h", "return_24h",
+        "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
+        "macd", "macd_signal", "macd_hist",
+        "rsi_14",
+        "atr_14", "atr_ratio", "bb_width",
+        "volume_ratio", "log_volume",
+        "hl_spread", "oc_change",
+        "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
+        "hour", "day_of_week",
+        "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+    ]
+
+# Xác định target column
+if task_type == "regression":
+    target_col = "target_return_1h"
+else:
+    target_col = "target_direction_1h"
+
+print(f"Target column: {target_col}")
+print(f"Feature columns ({len(feature_cols)}): {feature_cols}")
+
+# COMMAND ----------
+
+# Load & prepare data
 source = spark.table(features_ref).orderBy("open_time")
-target_col = "target_close_1h"
-feature_cols = [
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "quote_volume",
-    "trades",
-    "ma_7",
-    "ma_24",
-    "ma_168",
-    "close_lag_1h",
-    "close_lag_2h",
-    "close_lag_4h",
-    "close_lag_12h",
-    "close_lag_24h",
-    "return_1h",
-    "hl_spread",
-    "oc_change",
-    "hour",
-    "day_of_week",
-]
+
+# Chỉ lấy features thực sự có trong bảng
+available_features = [c for c in feature_cols if c in source.columns]
+missing_features = [c for c in feature_cols if c not in source.columns]
+if missing_features:
+    print(f"WARNING: Missing features (skipped): {missing_features}")
+feature_cols = available_features
 
 model_df = source.select("open_time", target_col, *feature_cols).dropna()
 row_count = model_df.count()
@@ -105,101 +175,307 @@ if row_count < 100:
 
 # COMMAND ----------
 
-pdf = model_df.toPandas().sort_values("open_time")
+# MAGIC %md
+# MAGIC ## 3. Time-based Train/Test Split
+
+# COMMAND ----------
+
+pdf = model_df.toPandas().sort_values("open_time").reset_index(drop=True)
+
+# 80/20 split theo thời gian — KHÔNG xáo trộn
 split_idx = int(len(pdf) * 0.8)
 train = pdf.iloc[:split_idx]
 test = pdf.iloc[split_idx:]
 
-X_train = train[feature_cols]
-y_train = train[target_col]
-X_test = test[feature_cols]
-y_test = test[target_col]
+X_train = train[feature_cols].values
+y_train = train[target_col].values
+X_test = test[feature_cols].values
+y_test = test[target_col].values
+
+if task_type == "classification":
+    y_train = y_train.astype(int)
+    y_test = y_test.astype(int)
+
+print(f"Train: {len(train)} rows ({train['open_time'].min()} → {train['open_time'].max()})")
+print(f"Test:  {len(test)} rows ({test['open_time'].min()} → {test['open_time'].max()})")
+
+if task_type == "classification":
+    print(f"Train class distribution: {np.bincount(y_train)}")
+    print(f"Test class distribution:  {np.bincount(y_test)}")
 
 # COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. Define Optuna Objective
+
+# COMMAND ----------
+
+# Time Series Cross-Validation — đảm bảo không data leakage
+tscv = TimeSeriesSplit(n_splits=n_cv_splits)
 
 mlflow.set_experiment(experiment_name)
 
 
+def create_model(trial, algo, task):
+    """Tạo model với hyperparameters từ Optuna trial."""
+    if algo == "lightgbm":
+        from lightgbm import LGBMRegressor, LGBMClassifier
+
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
+            "max_depth": trial.suggest_int("max_depth", 3, 12),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 15, 127),
+            "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+            "random_state": 42,
+            "verbose": -1,
+        }
+        if task == "regression":
+            return LGBMRegressor(**params), params
+        else:
+            return LGBMClassifier(**params), params
+
+    elif algo == "xgboost":
+        from xgboost import XGBRegressor, XGBClassifier
+
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
+            "max_depth": trial.suggest_int("max_depth", 3, 12),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+            "random_state": 42,
+            "verbosity": 0,
+        }
+        if task == "regression":
+            return XGBRegressor(**params), params
+        else:
+            params["eval_metric"] = "logloss"
+            return XGBClassifier(**params), params
+
+
 def objective(trial):
-    params = {
-        "n_estimators": trial.suggest_int("n_estimators", 50, 200),
-        "max_depth": trial.suggest_int("max_depth", 3, 12),
-        "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
-        "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 10),
-    }
+    """Optuna objective function với Time Series Cross-Validation."""
+    model, params = create_model(trial, model_algo, task_type)
 
-    with mlflow.start_run(run_name="optuna_random_forest_trial", nested=True):
-        mlflow.log_param("model_type", "random_forest")
+    cv_scores = []
+    for fold_idx, (train_idx, val_idx) in enumerate(tscv.split(X_train)):
+        X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
+        y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
+
+        model_fold, _ = create_model(trial, model_algo, task_type)
+        model_fold.fit(X_fold_train, y_fold_train)
+        preds = model_fold.predict(X_fold_val)
+
+        if task_type == "regression":
+            score = mean_squared_error(y_fold_val, preds) ** 0.5  # RMSE
+        else:
+            if hasattr(model_fold, "predict_proba"):
+                proba = model_fold.predict_proba(X_fold_val)[:, 1]
+                score = roc_auc_score(y_fold_val, proba)
+            else:
+                score = f1_score(y_fold_val, preds)
+
+        cv_scores.append(score)
+
+    mean_score = np.mean(cv_scores)
+
+    # Log trial to MLflow
+    with mlflow.start_run(
+        run_name=f"optuna_{model_algo}_{task_type}_trial_{trial.number}",
+        nested=True,
+    ):
+        mlflow.log_param("model_algo", model_algo)
+        mlflow.log_param("task_type", task_type)
+        mlflow.log_param("trial_number", trial.number)
         mlflow.log_params(params)
-        model = RandomForestRegressor(**params, random_state=42)
-        model.fit(X_train, y_train)
-        preds = model.predict(X_test)
-        rmse = mean_squared_error(y_test, preds) ** 0.5
-        mae = mean_absolute_error(y_test, preds)
-        mlflow.log_metric("rmse", rmse)
-        mlflow.log_metric("mae", mae)
-    return rmse
+        if task_type == "regression":
+            mlflow.log_metric("cv_rmse", mean_score)
+        else:
+            mlflow.log_metric("cv_roc_auc", mean_score)
 
+    return mean_score
 
-with mlflow.start_run(run_name="optuna_random_forest_parent") as parent_run:
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 5. Run Optuna Optimization
+
+# COMMAND ----------
+
+direction = "minimize" if task_type == "regression" else "maximize"
+
+with mlflow.start_run(
+    run_name=f"optuna_{model_algo}_{task_type}_parent"
+) as parent_run:
+
     study = optuna.create_study(
-        direction="minimize",
+        direction=direction,
         sampler=optuna.samplers.TPESampler(seed=42),
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=5),
     )
     study.optimize(objective, n_trials=n_trials, timeout=timeout_seconds)
 
-    best_params = study.best_params
-    best_model = RandomForestRegressor(**best_params, random_state=42)
+    # --- Train final model với best params trên toàn bộ train set ---
+    best_trial = study.best_trial
+    best_model, best_params = create_model(best_trial, model_algo, task_type)
     best_model.fit(X_train, y_train)
-    best_preds = best_model.predict(X_test)
-    rmse = mean_squared_error(y_test, best_preds) ** 0.5
-    mae = mean_absolute_error(y_test, best_preds)
-    r2 = r2_score(y_test, best_preds)
-    mape = float((abs(y_test - best_preds) / y_test.abs()).mean())
 
-    mlflow.log_param("model_type", "random_forest")
+    # --- Evaluate trên test set ---
+    if task_type == "regression":
+        best_preds = best_model.predict(X_test)
+        rmse = mean_squared_error(y_test, best_preds) ** 0.5
+        mae = mean_absolute_error(y_test, best_preds)
+        r2 = r2_score(y_test, best_preds)
+        mape = float((np.abs(y_test - best_preds) / np.abs(y_test).clip(min=1e-10)).mean())
+
+        # Directional Accuracy — tính từ predictions regression
+        pred_direction = (best_preds > 0).astype(int)
+        actual_direction = (y_test > 0).astype(int)
+        directional_accuracy = (pred_direction == actual_direction).mean()
+
+        mlflow.log_metric("rmse", rmse)
+        mlflow.log_metric("mae", mae)
+        mlflow.log_metric("r2", r2)
+        mlflow.log_metric("mape", mape)
+        mlflow.log_metric("directional_accuracy", directional_accuracy)
+
+        print(f"\n{'='*60}")
+        print(f"REGRESSION RESULTS ({model_algo.upper()})")
+        print(f"{'='*60}")
+        print(f"RMSE:                  {rmse:.6f}")
+        print(f"MAE:                   {mae:.6f}")
+        print(f"R²:                    {r2:.4f}")
+        print(f"MAPE:                  {mape:.6f}")
+        print(f"Directional Accuracy:  {directional_accuracy:.4f}")
+
+    else:
+        best_preds = best_model.predict(X_test)
+        accuracy = accuracy_score(y_test, best_preds)
+        precision = precision_score(y_test, best_preds, zero_division=0)
+        recall = recall_score(y_test, best_preds, zero_division=0)
+        f1 = f1_score(y_test, best_preds, zero_division=0)
+
+        if hasattr(best_model, "predict_proba"):
+            best_proba = best_model.predict_proba(X_test)[:, 1]
+            roc_auc = roc_auc_score(y_test, best_proba)
+        else:
+            roc_auc = 0.0
+
+        mlflow.log_metric("accuracy", accuracy)
+        mlflow.log_metric("precision", precision)
+        mlflow.log_metric("recall", recall)
+        mlflow.log_metric("f1_score", f1)
+        mlflow.log_metric("roc_auc", roc_auc)
+
+        print(f"\n{'='*60}")
+        print(f"CLASSIFICATION RESULTS ({model_algo.upper()})")
+        print(f"{'='*60}")
+        print(f"Accuracy:   {accuracy:.4f}")
+        print(f"Precision:  {precision:.4f}")
+        print(f"Recall:     {recall:.4f}")
+        print(f"F1-Score:   {f1:.4f}")
+        print(f"ROC-AUC:    {roc_auc:.4f}")
+
+    # --- Log common params & model ---
+    mlflow.log_param("model_algo", model_algo)
+    mlflow.log_param("task_type", task_type)
     mlflow.log_param("training_mode", "optuna")
     mlflow.log_param("n_trials_requested", n_trials)
     mlflow.log_param("n_trials_completed", len(study.trials))
+    mlflow.log_param("n_cv_splits", n_cv_splits)
+    mlflow.log_param("n_features", len(feature_cols))
+    mlflow.log_param("train_rows", len(train))
+    mlflow.log_param("test_rows", len(test))
     mlflow.log_params(best_params)
-    mlflow.log_metric("rmse", rmse)
-    mlflow.log_metric("mae", mae)
-    mlflow.log_metric("r2", r2)
-    mlflow.log_metric("mape", mape)
-    signature = infer_signature(X_train, best_model.predict(X_train))
-    mlflow.sklearn.log_model(best_model, "model", signature=signature)
+
+    # Log feature list
+    mlflow.log_text(json.dumps(feature_cols, indent=2), "feature_cols.json")
+
+    # Log model
+    signature = infer_signature(
+        pd.DataFrame(X_train, columns=feature_cols),
+        best_model.predict(X_train),
+    )
+    if model_algo == "lightgbm":
+        mlflow.lightgbm.log_model(best_model, "model", signature=signature)
+    else:
+        mlflow.xgboost.log_model(best_model, "model", signature=signature)
+
     run_id = parent_run.info.run_id
 
 dbutils.jobs.taskValues.set(key="training_status", value="trained")
 dbutils.jobs.taskValues.set(key="run_id", value=run_id)
+dbutils.jobs.taskValues.set(key="task_type", value=task_type)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 6. Results Summary
 
 # COMMAND ----------
 
 print(f"run_id={run_id}")
+print(f"task_type={task_type}")
+print(f"model_algo={model_algo}")
 print(f"best_params={best_params}")
 print(f"n_trials_completed={len(study.trials)}")
-print(f"rmse={rmse:.4f}")
-print(f"mae={mae:.4f}")
-print(f"r2={r2:.4f}")
-print(f"mape={mape:.6f}")
+print(f"best_trial_value={study.best_value:.6f}")
 
 # COMMAND ----------
 
-display(
-    spark.createDataFrame(
-        [
-            {
-                "run_id": run_id,
-                "rmse": float(rmse),
-                "mae": float(mae),
-                "r2": float(r2),
-                "mape": float(mape),
-                "n_trials_requested": int(n_trials),
-                "n_trials_completed": int(len(study.trials)),
-                "train_rows": int(len(train)),
-                "test_rows": int(len(test)),
-            }
-        ]
-    )
-)
+# Feature Importance Plot
+if hasattr(best_model, "feature_importances_"):
+    importance_df = pd.DataFrame({
+        "feature": feature_cols,
+        "importance": best_model.feature_importances_,
+    }).sort_values("importance", ascending=True)
+
+    display(spark.createDataFrame(
+        importance_df.sort_values("importance", ascending=False)
+    ))
+
+# COMMAND ----------
+
+# Summary table
+if task_type == "regression":
+    summary_data = {
+        "run_id": run_id,
+        "task_type": task_type,
+        "model_algo": model_algo,
+        "rmse": float(rmse),
+        "mae": float(mae),
+        "r2": float(r2),
+        "mape": float(mape),
+        "directional_accuracy": float(directional_accuracy),
+        "n_trials_requested": int(n_trials),
+        "n_trials_completed": int(len(study.trials)),
+        "train_rows": int(len(train)),
+        "test_rows": int(len(test)),
+        "n_features": len(feature_cols),
+    }
+else:
+    summary_data = {
+        "run_id": run_id,
+        "task_type": task_type,
+        "model_algo": model_algo,
+        "accuracy": float(accuracy),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1_score": float(f1),
+        "roc_auc": float(roc_auc),
+        "n_trials_requested": int(n_trials),
+        "n_trials_completed": int(len(study.trials)),
+        "train_rows": int(len(train)),
+        "test_rows": int(len(test)),
+        "n_features": len(feature_cols),
+    }
+
+display(spark.createDataFrame([summary_data]))
