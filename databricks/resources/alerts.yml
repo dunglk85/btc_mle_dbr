@@ -11,6 +11,11 @@ resources:
         ORDER BY metric_time DESC
         LIMIT 1
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: raw_freshness_hours
         comparison_operator: GREATER_THAN
@@ -31,6 +36,11 @@ resources:
         WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
           AND status = 'alert'
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: alert_count
         comparison_operator: GREATER_THAN
@@ -57,6 +67,11 @@ resources:
           END AS prediction_age_hours
         FROM ${var.catalog}.predictions.btc_predictions
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: prediction_age_hours
         comparison_operator: GREATER_THAN
@@ -79,6 +94,11 @@ resources:
           ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
         WHERE p.prediction_time >= current_timestamp() - INTERVAL 24 HOURS
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: avg_pct_error
         comparison_operator: GREATER_THAN
@@ -100,6 +120,11 @@ resources:
           AND status = 'alert'
           AND metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_'
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: drift_alert_count
         comparison_operator: GREATER_THAN
@@ -121,6 +146,11 @@ resources:
           AND status = 'alert'
           AND metric_name RLIKE '^(feature_quality|schema_drift)_'
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: quality_alert_count
         comparison_operator: GREATER_THAN
@@ -142,6 +172,11 @@ resources:
           AND status = 'alert'
           AND metric_name RLIKE '^job_quality_'
       evaluation:
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 3600
+          subscriptions:
+            - user_email: dunglk85@gmail.com
         source:
           name: job_quality_alert_count
         comparison_operator: GREATER_THAN
