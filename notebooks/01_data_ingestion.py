@@ -8,6 +8,7 @@
 # COMMAND ----------
 
 from pyspark.sql import Window, functions as F
+from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType
 
 # COMMAND ----------
 
@@ -24,10 +25,13 @@ raw_schema = "raw"
 volume_name = "landing"
 table_name = "btc_hourly"
 landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/btc_hourly"
+checkpoint_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_checkpoints/btc_hourly"
+schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_schemas/btc_hourly"
 table_ref = f"{catalog}.{raw_schema}.{table_name}"
 
-print("RUNNING SELF-CONTAINED INGESTION NOTEBOOK")
+print("RUNNING SELF-CONTAINED AUTO LOADER INGESTION NOTEBOOK")
 print(f"landing_path={landing_path}")
+print(f"checkpoint_path={checkpoint_path}")
 print(f"table_ref={table_ref}")
 
 # COMMAND ----------
@@ -51,70 +55,104 @@ spark.sql(f"""
     USING DELTA
 """)
 
-raw = spark.read.option("header", True).csv(landing_path).withColumn(
-    "_source_file", F.col("_metadata.file_path")
+landing_schema = StructType(
+    [
+        StructField("open_time", StringType(), True),
+        StructField("open", DoubleType(), True),
+        StructField("high", DoubleType(), True),
+        StructField("low", DoubleType(), True),
+        StructField("close", DoubleType(), True),
+        StructField("volume", DoubleType(), True),
+        StructField("close_time", StringType(), True),
+        StructField("quote_volume", DoubleType(), True),
+        StructField("trades", LongType(), True),
+        StructField("source", StringType(), True),
+    ]
 )
-raw_count = raw.count()
-print(f"raw_landing_count={raw_count}")
-if raw_count == 0:
-    raise ValueError(f"No CSV rows found at {landing_path}")
 
 # COMMAND ----------
 
-# Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
-parsed = raw.select(
-    F.coalesce(
-        F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
-        F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
-        F.to_timestamp("open_time"),
-    ).alias("open_time"),
-    F.col("open").cast("double").alias("open"),
-    F.col("high").cast("double").alias("high"),
-    F.col("low").cast("double").alias("low"),
-    F.col("close").cast("double").alias("close"),
-    F.col("volume").cast("double").alias("volume"),
-    F.coalesce(
-        F.to_timestamp("close_time", "yyyy-MM-dd HH:mm:ss"),
-        F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
-        F.to_timestamp("close_time"),
-    ).alias("close_time"),
-    F.col("quote_volume").cast("double").alias("quote_volume"),
-    F.col("trades").cast("bigint").alias("trades"),
-    F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
-    F.current_timestamp().alias("ingested_at"),
-    F.col("_source_file"),
-)
+def merge_landing_batch(batch_df, batch_id):
+    raw_count = batch_df.count()
+    print(f"batch_id={batch_id}")
+    print(f"raw_landing_count={raw_count}")
+    if raw_count == 0:
+        print("empty Auto Loader batch; skipping merge")
+        return
 
-null_open_time_count = parsed.filter(F.col("open_time").isNull()).count()
-print(f"null_open_time_count={null_open_time_count}")
-if null_open_time_count > 0:
-    display(raw.filter(F.col("open_time").isNotNull()).select("open_time", "close_time").limit(20))
-    raise ValueError(f"Found {null_open_time_count} rows with unparseable open_time")
+    raw = batch_df.withColumn("_source_file", F.col("_metadata.file_path"))
+
+    # Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
+    parsed = raw.select(
+        F.coalesce(
+            F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
+            F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
+            F.to_timestamp("open_time"),
+        ).alias("open_time"),
+        F.col("open").cast("double").alias("open"),
+        F.col("high").cast("double").alias("high"),
+        F.col("low").cast("double").alias("low"),
+        F.col("close").cast("double").alias("close"),
+        F.col("volume").cast("double").alias("volume"),
+        F.coalesce(
+            F.to_timestamp("close_time", "yyyy-MM-dd HH:mm:ss"),
+            F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
+            F.to_timestamp("close_time"),
+        ).alias("close_time"),
+        F.col("quote_volume").cast("double").alias("quote_volume"),
+        F.col("trades").cast("bigint").alias("trades"),
+        F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
+        F.current_timestamp().alias("ingested_at"),
+        F.col("_source_file"),
+    )
+
+    null_open_time_count = parsed.filter(F.col("open_time").isNull()).count()
+    print(f"null_open_time_count={null_open_time_count}")
+    if null_open_time_count > 0:
+        display(raw.filter(F.col("open_time").isNotNull()).select("open_time", "close_time").limit(20))
+        raise ValueError(f"Found {null_open_time_count} rows with unparseable open_time")
+
+    dedupe_window = Window.partitionBy("open_time").orderBy(F.col("_source_file").desc())
+    deduped = (
+        parsed.withColumn("_row_number", F.row_number().over(dedupe_window))
+        .filter(F.col("_row_number") == 1)
+        .drop("_row_number", "_source_file")
+    )
+    deduped_count = deduped.count()
+    print(f"deduped_landing_count={deduped_count}")
+    if deduped_count == 0:
+        raise ValueError(f"No parsed rows available from {landing_path}")
+
+    deduped.createOrReplaceTempView("_btc_hourly_landing")
+
+    spark.sql(f"""
+        MERGE INTO {table_ref} AS target
+        USING _btc_hourly_landing AS source
+        ON target.open_time = source.open_time
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+    """)
 
 # COMMAND ----------
 
-dedupe_window = Window.partitionBy("open_time").orderBy(F.col("_source_file").desc())
-deduped = (
-    parsed.withColumn("_row_number", F.row_number().over(dedupe_window))
-    .filter(F.col("_row_number") == 1)
-    .drop("_row_number", "_source_file")
+stream_df = (
+    spark.readStream.format("cloudFiles")
+    .option("cloudFiles.format", "csv")
+    .option("cloudFiles.schemaLocation", schema_path)
+    .option("header", True)
+    .schema(landing_schema)
+    .load(landing_path)
 )
-deduped_count = deduped.count()
-print(f"deduped_landing_count={deduped_count}")
-if deduped_count == 0:
-    raise ValueError(f"No parsed rows available from {landing_path}")
-
-deduped.createOrReplaceTempView("_btc_hourly_landing")
 
 # COMMAND ----------
 
-spark.sql(f"""
-    MERGE INTO {table_ref} AS target
-    USING _btc_hourly_landing AS source
-    ON target.open_time = source.open_time
-    WHEN MATCHED THEN UPDATE SET *
-    WHEN NOT MATCHED THEN INSERT *
-""")
+query = (
+    stream_df.writeStream.option("checkpointLocation", checkpoint_path)
+    .foreachBatch(merge_landing_batch)
+    .trigger(availableNow=True)
+    .start()
+)
+query.awaitTermination()
 
 result = spark.table(table_ref)
 print(f"table_count_after_merge={result.count()}")

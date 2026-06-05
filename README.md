@@ -4,7 +4,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 
 ## Architecture
 
-- **Data**: Binance Vision API -> UC Volume -> Delta Lake (Unity Catalog)
+- **Data**: Binance Vision API -> UC Volume landing CSV -> Auto Loader -> Delta Lake (Unity Catalog)
 - **ML**: Optuna hyperparameter tuning + MLflow tracking
 - **CI/CD**: GitHub Actions + Databricks Asset Bundles (DABs)
 - **Monitoring**: Data quality, model performance, job health

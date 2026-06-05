@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 try:
-    from pyspark.sql import SparkSession, DataFrame, functions as F
+    from pyspark.sql import SparkSession, DataFrame, Window, functions as F
     from pyspark.sql.types import (
         StructType,
         StructField,
@@ -15,6 +15,7 @@ try:
 except ImportError:
     SparkSession = Any
     DataFrame = Any
+    Window = None
     F = None
     StructType = StructField = DoubleType = LongType = StringType = TimestampType = None
 
@@ -212,9 +213,13 @@ def load_landing_to_raw(
     volume_name: str = "landing",
     table: str = "btc_hourly",
     landing_subdir: str = "btc_hourly",
+    checkpoint_subdir: str = "_checkpoints/btc_hourly",
+    schema_subdir: str = "_schemas/btc_hourly",
 ) -> DataFrame:
     table_ref = f"{catalog}.{raw_schema}.{table}"
     landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{landing_subdir}"
+    checkpoint_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{checkpoint_subdir}"
+    schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{schema_subdir}"
     spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{raw_schema}")
     spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{raw_schema}.{volume_name}")
     spark.sql(f"""
@@ -234,27 +239,88 @@ def load_landing_to_raw(
         USING DELTA
     """)
 
-    df = spark.read.option("header", True).schema(LANDING_SCHEMA).csv(landing_path)
-    raw_landing_count = df.count()
     print(f"load_landing_to_raw: landing_path={landing_path}")
-    print(f"load_landing_to_raw: raw_landing_count={raw_landing_count}")
-    if raw_landing_count == 0:
-        raise ValueError(f"No landing rows found at {landing_path}")
+    print(f"load_landing_to_raw: checkpoint_path={checkpoint_path}")
+    stream_df = (
+        spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "csv")
+        .option("cloudFiles.schemaLocation", schema_path)
+        .option("header", True)
+        .schema(LANDING_SCHEMA)
+        .load(landing_path)
+    )
 
-    df = df.withColumn("open_time", F.to_timestamp(F.col("open_time")))
-    df = df.withColumn("close_time", F.to_timestamp(F.col("close_time")))
-    df = df.withColumn("source", F.coalesce(F.col("source"), F.lit("binance")))
-    df = df.withColumn("ingested_at", F.current_timestamp())
-    df = df.dropDuplicates(["open_time"])
+    query = (
+        stream_df.writeStream.option("checkpointLocation", checkpoint_path)
+        .foreachBatch(
+            lambda batch_df, batch_id: merge_landing_batch_to_raw(
+                spark,
+                batch_df,
+                table_ref,
+                landing_path,
+                batch_id,
+            )
+        )
+        .trigger(availableNow=True)
+        .start()
+    )
+    query.awaitTermination()
+    return spark.table(table_ref)
+
+
+def merge_landing_batch_to_raw(
+    spark: SparkSession,
+    batch_df: DataFrame,
+    table_ref: str,
+    landing_path: str,
+    batch_id: int | None = None,
+) -> None:
+    raw_landing_count = batch_df.count()
+    print(f"merge_landing_batch_to_raw: batch_id={batch_id}")
+    print(f"merge_landing_batch_to_raw: raw_landing_count={raw_landing_count}")
+    if raw_landing_count == 0:
+        print("merge_landing_batch_to_raw: empty batch, skipping merge")
+        return
+
+    df = batch_df.withColumn("_source_file", F.col("_metadata.file_path"))
+    df = df.select(
+        F.coalesce(
+            F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
+            F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
+            F.to_timestamp("open_time"),
+        ).alias("open_time"),
+        F.col("open").cast("double").alias("open"),
+        F.col("high").cast("double").alias("high"),
+        F.col("low").cast("double").alias("low"),
+        F.col("close").cast("double").alias("close"),
+        F.col("volume").cast("double").alias("volume"),
+        F.coalesce(
+            F.to_timestamp("close_time", "yyyy-MM-dd HH:mm:ss"),
+            F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
+            F.to_timestamp("close_time"),
+        ).alias("close_time"),
+        F.col("quote_volume").cast("double").alias("quote_volume"),
+        F.col("trades").cast("bigint").alias("trades"),
+        F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
+        F.current_timestamp().alias("ingested_at"),
+        F.col("_source_file"),
+    )
     null_open_time_count = df.filter(F.col("open_time").isNull()).count()
-    print(f"load_landing_to_raw: null_open_time_count={null_open_time_count}")
+    print(f"merge_landing_batch_to_raw: null_open_time_count={null_open_time_count}")
     if null_open_time_count > 0:
         raise ValueError(
             f"Found {null_open_time_count} landing rows with unparseable open_time "
             f"at {landing_path}"
         )
+
+    dedupe_window = Window.partitionBy("open_time").orderBy(F.col("_source_file").desc())
+    df = (
+        df.withColumn("_row_number", F.row_number().over(dedupe_window))
+        .filter(F.col("_row_number") == 1)
+        .drop("_row_number", "_source_file")
+    )
     landing_count = df.count()
-    print(f"load_landing_to_raw: parsed_distinct_landing_count={landing_count}")
+    print(f"merge_landing_batch_to_raw: parsed_distinct_landing_count={landing_count}")
     if landing_count == 0:
         raise ValueError(
             f"No parsed landing rows found at {landing_path}; "
@@ -269,4 +335,3 @@ def load_landing_to_raw(
         WHEN MATCHED THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     """)
-    return spark.table(table_ref)

@@ -13,7 +13,7 @@
 ```
 <catalog>/
 ├── raw/
-│   ├── landing           # UC Volume for landing CSV files
+│   ├── landing           # UC Volume for landing CSV files plus Auto Loader checkpoints/schemas
 │   └── btc_hourly        # Raw OHLCV Delta table from Binance
 ├── features/
 │   └── btc_features      # Engineered features
@@ -27,6 +27,11 @@
 ```
 
 ## btc_hourly Schema
+
+Auto Loader state for this table is stored in the `raw.landing` volume:
+
+- Checkpoint: `/Volumes/<catalog>/raw/landing/_checkpoints/btc_hourly`
+- Schema tracking: `/Volumes/<catalog>/raw/landing/_schemas/btc_hourly`
 
 | Column        | Type      | Description                |
 |---------------|-----------|----------------------------|

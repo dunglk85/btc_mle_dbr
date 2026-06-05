@@ -94,6 +94,7 @@ def test_fetch_klines_uses_python_binance_client(monkeypatch):
 
 def test_load_landing_to_raw_merges_volume_files(monkeypatch):
     monkeypatch.setattr(ingestion, "F", FakeFunctions())
+    monkeypatch.setattr(ingestion, "Window", FakeWindow)
     spark = FakeLandingSpark()
 
     result = ingestion.load_landing_to_raw(
@@ -104,7 +105,16 @@ def test_load_landing_to_raw_merges_volume_files(monkeypatch):
         table="btc_hourly",
     )
 
-    assert spark.read.csv_path == "/Volumes/btc_dev/raw/landing/btc_hourly"
+    assert spark.readStream.loaded_path == "/Volumes/btc_dev/raw/landing/btc_hourly"
+    assert spark.readStream.format_name == "cloudFiles"
+    assert spark.readStream.options["cloudFiles.format"] == "csv"
+    assert spark.readStream.options["cloudFiles.schemaLocation"] == (
+        "/Volumes/btc_dev/raw/landing/_schemas/btc_hourly"
+    )
+    assert spark.write_stream.options["checkpointLocation"] == (
+        "/Volumes/btc_dev/raw/landing/_checkpoints/btc_hourly"
+    )
+    assert spark.write_stream.trigger_kwargs == {"availableNow": True}
     assert any("CREATE VOLUME IF NOT EXISTS btc_dev.raw.landing" in sql for sql in spark.sql_calls)
     assert any("MERGE INTO btc_dev.raw.btc_hourly" in sql for sql in spark.sql_calls)
     assert spark.temp_view == "_btc_hourly_landing"
@@ -191,7 +201,8 @@ class FakeBinanceClient:
 class FakeLandingSpark:
     def __init__(self):
         self.sql_calls = []
-        self.read = FakeReader(self)
+        self.readStream = FakeStreamReader(self)
+        self.write_stream = None
         self.temp_view = None
 
     def sql(self, query):
@@ -201,57 +212,112 @@ class FakeLandingSpark:
         return FakeTable(table_name)
 
 
-class FakeReader:
+class FakeStreamReader:
     def __init__(self, spark):
         self.spark = spark
-        self.csv_path = None
+        self.format_name = None
+        self.options = {}
+        self.loaded_path = None
 
-    def option(self, _key, _value):
+    def format(self, name):
+        self.format_name = name
+        return self
+
+    def option(self, key, value):
+        self.options[key] = value
         return self
 
     def schema(self, _schema):
         return self
 
-    def csv(self, path):
-        self.csv_path = path
-        return FakeLandingDataFrame(self)
+    def load(self, path):
+        self.loaded_path = path
+        return FakeLandingDataFrame(self.spark)
 
 
 class FakeLandingDataFrame:
-    def __init__(self, reader):
-        self.reader = reader
+    def __init__(self, spark):
+        self.spark = spark
+        self.writeStream = FakeWriteStream(spark, self)
 
     def withColumn(self, _name, _value):
         return self
 
-    def dropDuplicates(self, _cols):
+    def select(self, *_cols):
         return self
 
-    def filter(self, _condition):
-        return FakeCountDataFrame(0)
+    def drop(self, *_cols):
+        return self
+
+    def filter(self, condition):
+        if "IS NULL" in str(condition):
+            return FakeCountDataFrame(0)
+        return self
 
     def count(self):
         return 1
 
     def createOrReplaceTempView(self, name):
-        self.reader.spark.temp_view = name
+        self.spark.temp_view = name
+
+
+class FakeWriteStream:
+    def __init__(self, spark, batch_df):
+        self.spark = spark
+        self.batch_df = batch_df
+        self.options = {}
+        self.callback = None
+        self.trigger_kwargs = None
+
+    def option(self, key, value):
+        self.options[key] = value
+        return self
+
+    def foreachBatch(self, callback):
+        self.callback = callback
+        return self
+
+    def trigger(self, **kwargs):
+        self.trigger_kwargs = kwargs
+        return self
+
+    def start(self):
+        self.spark.write_stream = self
+        self.callback(self.batch_df, 0)
+        return FakeQuery()
+
+
+class FakeQuery:
+    def awaitTermination(self):
+        return None
 
 
 class FakeFunctions:
     def coalesce(self, *_args):
-        return "coalesce"
+        return FakeExpression()
 
     def col(self, name):
         return FakeColumn(name)
 
     def lit(self, value):
-        return value
+        return FakeExpression(value)
 
     def current_timestamp(self):
-        return "current_timestamp"
+        return FakeExpression("current_timestamp")
 
-    def to_timestamp(self, value):
+    def to_timestamp(self, value, _format=None):
         return value
+
+    def row_number(self):
+        return FakeRowNumber()
+
+
+class FakeExpression:
+    def __init__(self, value=None):
+        self.value = value
+
+    def alias(self, _name):
+        return self
 
 
 class FakeColumn:
@@ -260,6 +326,34 @@ class FakeColumn:
 
     def isNull(self):
         return f"{self.name} IS NULL"
+
+    def cast(self, _type):
+        return self
+
+    def alias(self, _name):
+        return self
+
+    def desc(self):
+        return self
+
+    def __eq__(self, other):
+        return f"{self.name} = {other}"
+
+
+class FakeWindow:
+    @staticmethod
+    def partitionBy(*_cols):
+        return FakeWindowSpec()
+
+
+class FakeWindowSpec:
+    def orderBy(self, *_cols):
+        return self
+
+
+class FakeRowNumber:
+    def over(self, _window):
+        return self
 
 
 class FakeCountDataFrame:

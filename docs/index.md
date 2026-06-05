@@ -5,7 +5,7 @@
 - **Project:** BTC Databricks MLOps
 - **Type:** Data/ML pipeline on Databricks
 - **Primary language:** Python
-- **Architecture:** Databricks Asset Bundles + Git-backed notebooks + Unity Catalog Delta tables + MLflow UC Model Registry
+- **Architecture:** Databricks Asset Bundles + Git-backed notebooks + Auto Loader + Unity Catalog Delta tables + MLflow UC Model Registry
 
 ## Quick Reference
 
@@ -32,7 +32,7 @@
 - `databricks.yml`: bundle targets and catalog variables.
 - `databricks/resources/jobs.yml`: Databricks job definitions.
 - `notebooks/00_fetch_binance_to_volume.py`: fetch closed Binance hourly candles into UC Volume.
-- `notebooks/01_data_ingestion.py`: landing CSV to raw Delta MERGE.
+- `notebooks/01_data_ingestion.py`: Auto Loader landing CSV ingestion to raw Delta MERGE.
 - `notebooks/02_feature_engineering.py`: features and exact next-hour target.
 - `notebooks/03_optuna_training.py`: Optuna training and MLflow logging.
 - `notebooks/04_champion_challenger.py`: UC model registration and alias promotion.
