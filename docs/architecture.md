@@ -75,4 +75,4 @@ If validation fails: block retrain and trigger remediation/manual review
 Job separation:
 - `btc_data_prediction_job` runs only the hourly serving path: fetch, ingestion, feature engineering, prediction, regular monitoring, and job quality monitoring.
 - `btc_drift_monitoring_job` runs `drift_monitoring`, `training_gate_drift`, conditional model-refresh trigger, and safe data remediation every 6 hours.
-- `btc_model_refresh_job` owns trigger-only retraining and Champion/Challenger promotion, with a final training gate before training.
+- `btc_model_refresh_job` owns trigger-only retraining and Champion/Challenger promotion; training notebooks require a fresh positive training-gate decision.

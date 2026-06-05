@@ -87,7 +87,7 @@ Ghi chú kiến trúc hiện tại:
 - Job hourly chính do Databricks quản lý: `btc_data_prediction_job` chạy fetch -> Auto Loader ingestion -> feature engineering -> prediction -> monitoring -> job quality monitoring.
 - Job drift riêng: `btc_drift_monitoring_job` chạy drift metrics -> training gate -> conditional model refresh trigger / data remediation mỗi 6 giờ.
 - Task remediation trong `btc_drift_monitoring_job` xử lý các lỗi data an toàn như raw stale, feature mismatch, prediction stale; lỗi nguy hiểm vẫn yêu cầu manual review.
-- Job refresh model: `btc_model_refresh_job` là trigger-only, chạy final training gate -> regression-only Optuna training -> Champion/Challenger khi gate cho phép.
+- Job refresh model: `btc_model_refresh_job` là trigger-only, chạy regression-only Optuna training -> Champion/Challenger; training notebook yêu cầu latest training-gate decision còn fresh và `should_retrain=true`.
 - GitHub Actions không còn là hourly scheduler chính; workflow hourly chỉ còn manual trigger nếu cần.
 - Tất cả notebooks nhận `catalog` từ Databricks widget do DAB truyền vào: `btc_dev` cho dev, `btc_prod` cho prod.
 - `target_close_1h` là exact next-hour close bằng self-join theo `open_time + 1 hour`, không dùng next-row `lead`.
@@ -262,7 +262,7 @@ flowchart TD
 
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
-| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate -> Conditional Model Refresh Trigger + Data Remediation<br/>- **Model Refresh Job** (trigger-only): Final Training Gate -> Regression Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
+| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate -> Conditional Model Refresh Trigger + Data Remediation<br/>- **Model Refresh Job** (trigger-only): Regression Optuna Training -> Champion/Challenger, guarded by latest training-gate decision<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
 

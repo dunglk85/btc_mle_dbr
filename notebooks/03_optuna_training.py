@@ -27,6 +27,8 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 import json
+from datetime import datetime, timezone
+
 import numpy as np
 import pandas as pd
 import mlflow
@@ -55,6 +57,8 @@ model_algo = get_widget("model_algo", "lightgbm")  # "lightgbm" hoặc "xgboost"
 n_trials = int(get_widget("n_trials", "30"))
 timeout_seconds = int(get_widget("timeout_seconds", "1200"))
 n_cv_splits = int(get_widget("n_cv_splits", "5"))
+max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
+expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
 
 # --- Constants ---
 features_schema = "features"
@@ -78,6 +82,8 @@ print(f"target_col={target_col}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
 print(f"n_cv_splits={n_cv_splits}")
+print(f"max_decision_age_hours={max_decision_age_hours}")
+print(f"expected_trigger_mode={expected_trigger_mode}")
 print(f"experiment_name={experiment_name}")
 print("=" * 60)
 
@@ -96,10 +102,34 @@ try:
         .limit(1)
         .collect()
     )
-    if latest_decision and not latest_decision[0]["should_retrain"]:
-        skip_reason = latest_decision[0]["reason"]
+    if not latest_decision:
+        skip_reason = "missing training gate decision"
+    else:
+        decision = latest_decision[0]
+        decision_time = decision["decision_time"]
+        decision_time_utc = decision_time.replace(tzinfo=timezone.utc)
+        decision_age_hours = (
+            datetime.now(timezone.utc) - decision_time_utc
+        ).total_seconds() / 3600
+        print(f"decision_time={decision_time}")
+        print(f"decision_age_hours={decision_age_hours:.2f}")
+        print(f"decision_trigger_mode={decision['trigger_mode']}")
+        print(f"decision_should_retrain={decision['should_retrain']}")
+        print(f"decision_reason={decision['reason']}")
+        if decision_age_hours > max_decision_age_hours:
+            skip_reason = (
+                f"stale training gate decision: {decision_age_hours:.2f}h > "
+                f"{max_decision_age_hours:.2f}h"
+            )
+        elif decision["trigger_mode"] != expected_trigger_mode:
+            skip_reason = (
+                f"unexpected trigger_mode={decision['trigger_mode']}; "
+                f"expected={expected_trigger_mode}"
+            )
+        elif not decision["should_retrain"]:
+            skip_reason = decision["reason"]
 except Exception as exc:
-    print(f"No training gate decision found, continuing training: {exc}")
+    skip_reason = f"could not read training gate decision: {exc}"
 
 if skip_reason:
     print(f"SKIP_RETRAIN: {skip_reason}")

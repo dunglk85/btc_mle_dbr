@@ -121,21 +121,12 @@ resources:
         git_provider: gitHub
         git_branch: main
       tasks:
-        - task_key: training_gate
-          notebook_task:
-            notebook_path: notebooks/07_training_gate
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              trigger_mode: "scheduled"
         - task_key: eda_feature_selection
           notebook_task:
             notebook_path: notebooks/02b_eda_feature_selection
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          depends_on:
-            - task_key: training_gate
         - task_key: model_training_reg_lgbm
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -144,6 +135,8 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
+              max_decision_age_hours: "12"
+              expected_trigger_mode: "drift"
               model_algo: "lightgbm"
           depends_on:
             - task_key: eda_feature_selection
@@ -164,6 +157,8 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
+              max_decision_age_hours: "12"
+              expected_trigger_mode: "drift"
               model_algo: "xgboost"
           depends_on:
             - task_key: eda_feature_selection
