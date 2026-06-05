@@ -15,6 +15,7 @@ graph TB
     subgraph "Databricks Platform (Free Edition)"
         subgraph "Unity Catalog"
             V["raw.landing<br/>(UC Volume CSV)"]
+            S["raw.btc_hourly_landing_autoloader<br/>(Auto Loader staging Delta Table)"]
             B["raw.btc_hourly<br/>(Delta Table)"]
             C["features.btc_features<br/>(Delta Table)"]
             P["predictions.btc_predictions<br/>(Delta Table)"]
@@ -36,7 +37,8 @@ graph TB
         end
 
         K["btc_data_prediction_job<br/>(hourly)"]
-        O["btc_model_refresh_job<br/>(12h, paused by default)"]
+        L["btc_drift_monitoring_job<br/>(6h)"]
+        O["btc_model_refresh_job<br/>(12h)"]
     end
 
     subgraph "CI/CD"
@@ -45,7 +47,8 @@ graph TB
     end
 
     A -->|"Fetch closed candles"| V
-    V -->|"MERGE by open_time"| B
+    V -->|"Auto Loader cloudFiles"| S
+    S -->|"Parse + dedupe + MERGE by open_time"| B
     B -->|"Feature Engineering + exact target_close_1h"| C
     C -->|"Predict with Champion"| P
     C -->|"Optuna training"| D
@@ -63,20 +66,25 @@ graph TB
     R --> J
     M --> N
     N --> K
+    N --> L
     N --> O
     K --> V
-    K --> B
+    K --> S
+    S --> B
     K --> C
     K --> P
     K --> Q
+    L --> Q
+    L --> R
     O --> R
     O --> D
     O --> E
 ```
 
 Ghi chú kiến trúc hiện tại:
-- Job hourly chính do Databricks quản lý: `btc_data_prediction_job` chạy fetch -> ingestion -> feature engineering -> prediction -> monitoring.
-- Job refresh model: `btc_model_refresh_job` chạy monitoring gate -> Optuna training -> Champion/Challenger. Job này schedule 12 giờ/lần và đang `PAUSED` mặc định.
+- Job hourly chính do Databricks quản lý: `btc_data_prediction_job` chạy fetch -> Auto Loader ingestion -> feature engineering -> prediction -> monitoring -> job quality monitoring.
+- Job drift riêng: `btc_drift_monitoring_job` chạy drift metrics -> drift gate mỗi 6 giờ.
+- Job refresh model: `btc_model_refresh_job` chạy monitoring gate -> Optuna training -> Champion/Challenger mỗi 12 giờ.
 - GitHub Actions không còn là hourly scheduler chính; workflow hourly chỉ còn manual trigger nếu cần.
 - Tất cả notebooks nhận `catalog` từ Databricks widget do DAB truyền vào: `btc_dev` cho dev, `btc_prod` cho prod.
 - `target_close_1h` là exact next-hour close bằng self-join theo `open_time + 1 hour`, không dùng next-row `lead`.
@@ -95,7 +103,7 @@ Ghi chú kiến trúc hiện tại:
 #### Mục tiêu
 - Nghiên cứu & quyết định kiến trúc Delta Lake, Unity Catalog, MLflow.
 - Setup Git, SP OIDC, và catalog schema (`btc_dev`/`btc_stg`/`btc_prod`).
-- Xây dựng Ingestion script tải dữ liệu từ Binance API và lưu Delta Table.
+- Xây dựng ingestion tải dữ liệu từ Binance API vào UC Volume, dùng Auto Loader nạp incremental vào Delta.
 
 #### Tasks
 
@@ -107,7 +115,7 @@ Ghi chú kiến trúc hiện tại:
 | 1.4 | Nghiên cứu MLflow trên Databricks | - Experiment tracking, model registry<br/>- Champion/Challenger workflow<br/>- Model versioning & aliases | MLflow |
 | 1.5 | Nghiên cứu Databricks CLI | - Setup databricks-cli ở local<br/>- Tạo/quản lý resources bằng terminal<br/>- Databricks Asset Bundles (DABs) | Databricks CLI |
 | 1.6 | Setup GitHub repo & branching strategy | - Branch: `main`, `dev`, `feature/*`<br/>- Cấu trúc thư mục project | GitHub |
-| 1.7 | Xây dựng Data Ingestion notebook/script | - Kéo dữ liệu BTC hourly từ **Binance API**<br/>- Lưu vào `btc_dev.raw.btc_hourly` (Delta Table)<br/>- Xử lý incremental load (chỉ kéo dữ liệu mới) | Notebooks, Delta Lake |
+| 1.7 | Xây dựng Data Ingestion notebook/script | - Kéo dữ liệu BTC hourly từ **Binance API** vào UC Volume landing<br/>- Dùng Auto Loader đọc incremental vào `btc_dev.raw.btc_hourly_landing_autoloader`<br/>- Parse/dedupe và MERGE vào `btc_dev.raw.btc_hourly` | Notebooks, Auto Loader, Delta Lake |
 | 1.8 | Backfill dữ liệu lịch sử | - Kéo dữ liệu từ 2025-01-01 → nay (~12,000+ rows)<br/>- Kiểm tra data quality sau backfill | Delta Lake, SQL |
 
 #### Deliverables
@@ -251,7 +259,7 @@ flowchart TD
 
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
-| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Ingestion -> Feature Engineering -> Prediction -> Monitoring<br/>- **Model Refresh Job** (chạy 12h/lần, đang paused mặc định): Monitoring Gate -> Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
+| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Drift Gate<br/>- **Model Refresh Job** (chạy 12h/lần): Monitoring Gate -> Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
 
@@ -266,9 +274,9 @@ Retrain only if validation passes
 ```
 
 Implementation detail:
-- `btc_data_prediction_job` includes a drift retraining branch after `drift_monitoring`.
-- The branch runs gate -> training -> Champion/Challenger immediately when drift is detected and validation passes.
-- If no drift is detected, the branch exits through `SKIP_RETRAIN`.
+- `btc_data_prediction_job` không chạy drift/training để giữ hourly serving path ngắn và ổn định.
+- `btc_drift_monitoring_job` ghi drift metrics và drift gate decisions riêng mỗi 6 giờ.
+- `btc_model_refresh_job` là nơi duy nhất chạy scheduled retraining và Champion/Challenger promotion.
 | 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, failed runs, failed tasks, latest run duration<br/>- Ghi metrics vào `monitoring.pipeline_metrics` qua `notebooks/09_job_quality_monitoring.py`<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs API, Delta metrics tables, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
 | 4.6 | Thiết lập Alerts | - SQL alerts được quản lý bằng DAB trong `databricks/resources/alerts.yml`<br/>- Cần truyền `sql_warehouse_id` khi deploy<br/>- Email/Slack notification khi job fail, data quality issue hoặc model performance drop | Databricks Alerts |
@@ -293,7 +301,7 @@ Implementation detail:
 ```
 
 #### Deliverables
-- [ ] `btc_data_prediction_job` và `btc_model_refresh_job` hoạt động ổn định trên Databricks
+- [ ] `btc_data_prediction_job`, `btc_drift_monitoring_job`, và `btc_model_refresh_job` hoạt động ổn định trên Databricks
 - [ ] Data, Model & Job Quality monitoring setup
 - [ ] Dashboard hoàn chỉnh & Alert configuration
 
@@ -316,7 +324,7 @@ BTC/
 │       └── alert_queries.sql
 ├── notebooks/
 │   ├── 00_fetch_binance_to_volume.py # Fetch Binance Vision API -> UC Volume
-│   ├── 01_data_ingestion.py          # Landing CSV -> raw Delta MERGE
+│   ├── 01_data_ingestion.py          # Auto Loader landing CSV -> staging Delta -> raw Delta MERGE
 │   ├── 02_feature_engineering.py     # Features + exact target_close_1h
 │   ├── 03_model_training.py          # Baseline training notebook
 │   ├── 03_optuna_training.py         # Optuna RandomForest training
@@ -375,7 +383,7 @@ BTC/
 | Train model | **MLflow Experiments** | Auto-log params, metrics, artifacts |
 | Model Registry | **MLflow Model Registry** | Champion/Challenger với aliases |
 | Hyperparameter Tuning | **Optuna** + **MLflow** | TPE Bayesian optimization, single-node, early stopping |
-| Chạy job | **Databricks Jobs/Workflows** | 2 jobs: Data Prediction (1h) + Model Refresh (12h, paused mặc định) |
+| Chạy job | **Databricks Jobs/Workflows** | 3 jobs: Data Prediction (1h) + Drift Monitoring (6h) + Model Refresh (12h) |
 | CI/CD | **Databricks Asset Bundles (DABs)** | IaC cho Databricks resources, multi-env qua targets |
 | Data Quality | **Delta metrics tables** | Fallback monitoring qua `monitoring.pipeline_metrics`; data drift PSI/KS là bước mở rộng tiếp theo |
 | Model Monitoring | **Delta metrics tables** + **MLflow** | Actual vs predicted, refresh decisions, model registry aliases; rolling performance drift là bước mở rộng tiếp theo |
@@ -393,7 +401,7 @@ BTC/
 > ✅ **Databricks tier**: Free edition (vẫn dùng Unity Catalog)
 > ✅ **DBR version**: 17.3 LTS ML (LTS mới nhất, supported đến 10/2028)
 > ✅ **Target variable**: `target_close_1h` exact next-hour close (regression)
-> ✅ **Retraining**: Model Refresh Job schedule 12h/lần, gated by monitoring, paused mặc định
+> ✅ **Retraining**: Model Refresh Job schedule 12h/lần, gated by monitoring
 > ✅ **Alert channels**: Email + Slack
 > ✅ **Optuna**: single-node (phù hợp Free Edition serverless, không dùng MlflowSparkStudy)
 > ✅ **Multi-env**: DABs targets với catalog name khác nhau (btc_dev / btc_prod) trong cùng 1 workspace
@@ -414,5 +422,5 @@ BTC/
 - Kiểm tra dữ liệu trên Databricks UI (Catalog Explorer)
 - Review MLflow experiments & model registry
 - Kiểm tra Dashboard hiển thị đúng metrics
-- Chạy thử `btc_data_prediction_job` hourly path và `btc_model_refresh_job` refresh path
+- Chạy thử `btc_data_prediction_job` hourly path, `btc_drift_monitoring_job` drift path, và `btc_model_refresh_job` refresh path
 - Kiểm tra actual vs predicted bằng join prediction với raw candle kế tiếp
