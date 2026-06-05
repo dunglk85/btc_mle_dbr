@@ -5,7 +5,7 @@
 # MAGIC %md
 # MAGIC # 02 - Feature Engineering (Advanced)
 # MAGIC
-# MAGIC Tạo candidate features cho cả **Regression** và **Classification** targets.
+# MAGIC Tạo candidate features cho bài toán regression.
 # MAGIC
 # MAGIC **Features bao gồm:**
 # MAGIC - Return features (1h, 6h, 24h)
@@ -17,7 +17,6 @@
 # MAGIC
 # MAGIC **Targets:**
 # MAGIC - `target_return_1h` (Regression): % thay đổi giá close giờ tiếp theo
-# MAGIC - `target_direction_1h` (Classification): 1 nếu giá tăng, 0 nếu giá giảm
 
 # COMMAND ----------
 
@@ -280,12 +279,6 @@ features = features.withColumn(
     (F.lead("close", 1).over(w) / F.col("close")) - F.lit(1.0),
 )
 
-# Classification target: 1 nếu giá tăng, 0 nếu giảm hoặc đi ngang
-features = features.withColumn(
-    "target_direction_1h",
-    F.when(F.col("target_return_1h") > 0, F.lit(1)).otherwise(F.lit(0)),
-)
-
 # Giữ lại target_close_1h cho backward compatibility
 features = features.withColumn(
     "target_close_1h", F.lead("close", 1).over(w)
@@ -318,7 +311,6 @@ features.write.format("delta").mode("overwrite").option(
 result = spark.table(features_ref)
 print(f"features_table_count={result.count()}")
 print(f"null_target_return_1h={result.filter(F.col('target_return_1h').isNull()).count()}")
-print(f"null_target_direction_1h={result.filter(F.col('target_direction_1h').isNull()).count()}")
 
 # COMMAND ----------
 
@@ -329,7 +321,7 @@ display(result.select(
     "macd", "macd_signal", "macd_hist",
     "rsi_14", "atr_14", "atr_ratio", "bb_width",
     "volume_ratio", "log_volume",
-    "target_return_1h", "target_direction_1h",
+    "target_return_1h",
 ).summary())
 
 # COMMAND ----------

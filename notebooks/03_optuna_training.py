@@ -3,17 +3,13 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 03 - Optuna Model Training (Regression & Classification)
+# MAGIC # 03 - Optuna Model Training (Regression)
 # MAGIC
-# MAGIC Notebook huấn luyện mô hình với Optuna HPO, hỗ trợ cả hai bài toán:
-# MAGIC - **Regression**: Dự đoán `target_return_1h` (% thay đổi giá)
-# MAGIC - **Classification**: Dự đoán `target_direction_1h` (lên/xuống)
-# MAGIC
-# MAGIC Sử dụng Databricks Widget `task_type` để chọn bài toán.
+# MAGIC Notebook huấn luyện mô hình regression với Optuna HPO để dự đoán `target_return_1h` (% thay đổi giá).
 # MAGIC
 # MAGIC **Models:**
-# MAGIC - LightGBM (LGBMRegressor / LGBMClassifier)
-# MAGIC - XGBoost (XGBRegressor / XGBClassifier) — optional
+# MAGIC - LightGBM (LGBMRegressor)
+# MAGIC - XGBoost (XGBRegressor) — optional
 # MAGIC
 # MAGIC **Đặc biệt:**
 # MAGIC - Time Series Split (không xáo trộn ngẫu nhiên)
@@ -41,11 +37,6 @@ from sklearn.metrics import (
     mean_absolute_error,
     mean_squared_error,
     r2_score,
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
 )
 
 # COMMAND ----------
@@ -60,7 +51,6 @@ def get_widget(name, default):
 
 # --- Widgets ---
 catalog = get_widget("catalog", "btc_dev")
-task_type = get_widget("task_type", "regression")  # "regression" hoặc "classification"
 model_algo = get_widget("model_algo", "lightgbm")  # "lightgbm" hoặc "xgboost"
 n_trials = int(get_widget("n_trials", "30"))
 timeout_seconds = int(get_widget("timeout_seconds", "1200"))
@@ -72,19 +62,19 @@ features_table = "btc_features"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
+target_col = "target_return_1h"
 
 # Validate inputs
-assert task_type in ("regression", "classification"), f"Invalid task_type: {task_type}"
 assert model_algo in ("lightgbm", "xgboost"), f"Invalid model_algo: {model_algo}"
 assert n_trials >= 1, f"n_trials must be >= 1, got {n_trials}"
 assert timeout_seconds > 0, f"timeout_seconds must be > 0, got {timeout_seconds}"
 
-# Experiment name phân biệt theo task_type
-experiment_name = f"/Shared/btc_{task_type}_{model_algo}_training"
+experiment_name = f"/Shared/btc_regression_{model_algo}_training"
 
 print("=" * 60)
-print(f"RUNNING OPTUNA TRAINING — {task_type.upper()} with {model_algo.upper()}")
+print(f"RUNNING OPTUNA REGRESSION TRAINING with {model_algo.upper()}")
 print(f"features_ref={features_ref}")
+print(f"target_col={target_col}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
 print(f"n_cv_splits={n_cv_splits}")
@@ -146,12 +136,6 @@ except Exception as e:
         "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
     ]
 
-# Xác định target column
-if task_type == "regression":
-    target_col = "target_return_1h"
-else:
-    target_col = "target_direction_1h"
-
 print(f"Target column: {target_col}")
 print(f"Feature columns ({len(feature_cols)}): {feature_cols}")
 
@@ -192,16 +176,8 @@ y_train = train[target_col].values
 X_test = test[feature_cols].values
 y_test = test[target_col].values
 
-if task_type == "classification":
-    y_train = y_train.astype(int)
-    y_test = y_test.astype(int)
-
 print(f"Train: {len(train)} rows ({train['open_time'].min()} → {train['open_time'].max()})")
 print(f"Test:  {len(test)} rows ({test['open_time'].min()} → {test['open_time'].max()})")
-
-if task_type == "classification":
-    print(f"Train class distribution: {np.bincount(y_train)}")
-    print(f"Test class distribution:  {np.bincount(y_test)}")
 
 # COMMAND ----------
 
@@ -216,10 +192,10 @@ tscv = TimeSeriesSplit(n_splits=n_cv_splits)
 mlflow.set_experiment(experiment_name)
 
 
-def create_model(trial, algo, task):
+def create_model(trial, algo):
     """Tạo model với hyperparameters từ Optuna trial."""
     if algo == "lightgbm":
-        from lightgbm import LGBMRegressor, LGBMClassifier
+        from lightgbm import LGBMRegressor
 
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
@@ -234,13 +210,10 @@ def create_model(trial, algo, task):
             "random_state": 42,
             "verbose": -1,
         }
-        if task == "regression":
-            return LGBMRegressor(**params), params
-        else:
-            return LGBMClassifier(**params), params
+        return LGBMRegressor(**params), params
 
     elif algo == "xgboost":
-        from xgboost import XGBRegressor, XGBClassifier
+        from xgboost import XGBRegressor
 
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
@@ -254,34 +227,22 @@ def create_model(trial, algo, task):
             "random_state": 42,
             "verbosity": 0,
         }
-        if task == "regression":
-            return XGBRegressor(**params), params
-        else:
-            params["eval_metric"] = "logloss"
-            return XGBClassifier(**params), params
+        return XGBRegressor(**params), params
 
 
 def objective(trial):
     """Optuna objective function với Time Series Cross-Validation."""
-    model, params = create_model(trial, model_algo, task_type)
+    model, params = create_model(trial, model_algo)
 
     cv_scores = []
     for fold_idx, (train_idx, val_idx) in enumerate(tscv.split(X_train)):
         X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
         y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
 
-        model_fold, _ = create_model(trial, model_algo, task_type)
+        model_fold, _ = create_model(trial, model_algo)
         model_fold.fit(X_fold_train, y_fold_train)
         preds = model_fold.predict(X_fold_val)
-
-        if task_type == "regression":
-            score = mean_squared_error(y_fold_val, preds) ** 0.5  # RMSE
-        else:
-            if hasattr(model_fold, "predict_proba"):
-                proba = model_fold.predict_proba(X_fold_val)[:, 1]
-                score = roc_auc_score(y_fold_val, proba)
-            else:
-                score = f1_score(y_fold_val, preds)
+        score = mean_squared_error(y_fold_val, preds) ** 0.5  # RMSE
 
         cv_scores.append(score)
 
@@ -289,17 +250,14 @@ def objective(trial):
 
     # Log trial to MLflow
     with mlflow.start_run(
-        run_name=f"optuna_{model_algo}_{task_type}_trial_{trial.number}",
+        run_name=f"optuna_{model_algo}_regression_trial_{trial.number}",
         nested=True,
     ):
         mlflow.log_param("model_algo", model_algo)
-        mlflow.log_param("task_type", task_type)
+        mlflow.log_param("task_type", "regression")
         mlflow.log_param("trial_number", trial.number)
         mlflow.log_params(params)
-        if task_type == "regression":
-            mlflow.log_metric("cv_rmse", mean_score)
-        else:
-            mlflow.log_metric("cv_roc_auc", mean_score)
+        mlflow.log_metric("cv_rmse", mean_score)
 
     return mean_score
 
@@ -310,14 +268,12 @@ def objective(trial):
 
 # COMMAND ----------
 
-direction = "minimize" if task_type == "regression" else "maximize"
-
 with mlflow.start_run(
-    run_name=f"optuna_{model_algo}_{task_type}_parent"
+    run_name=f"optuna_{model_algo}_regression_parent"
 ) as parent_run:
 
     study = optuna.create_study(
-        direction=direction,
+        direction="minimize",
         sampler=optuna.samplers.TPESampler(seed=42),
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=5),
     )
@@ -325,68 +281,39 @@ with mlflow.start_run(
 
     # --- Train final model với best params trên toàn bộ train set ---
     best_trial = study.best_trial
-    best_model, best_params = create_model(best_trial, model_algo, task_type)
+    best_model, best_params = create_model(best_trial, model_algo)
     best_model.fit(X_train, y_train)
 
     # --- Evaluate trên test set ---
-    if task_type == "regression":
-        best_preds = best_model.predict(X_test)
-        rmse = mean_squared_error(y_test, best_preds) ** 0.5
-        mae = mean_absolute_error(y_test, best_preds)
-        r2 = r2_score(y_test, best_preds)
-        mape = float((np.abs(y_test - best_preds) / np.abs(y_test).clip(min=1e-10)).mean())
+    best_preds = best_model.predict(X_test)
+    rmse = mean_squared_error(y_test, best_preds) ** 0.5
+    mae = mean_absolute_error(y_test, best_preds)
+    r2 = r2_score(y_test, best_preds)
+    mape = float((np.abs(y_test - best_preds) / np.abs(y_test).clip(min=1e-10)).mean())
 
-        # Directional Accuracy — tính từ predictions regression
-        pred_direction = (best_preds > 0).astype(int)
-        actual_direction = (y_test > 0).astype(int)
-        directional_accuracy = (pred_direction == actual_direction).mean()
+    # Directional accuracy is derived from regression predictions, not a classifier.
+    pred_direction = (best_preds > 0).astype(int)
+    actual_direction = (y_test > 0).astype(int)
+    directional_accuracy = (pred_direction == actual_direction).mean()
 
-        mlflow.log_metric("rmse", rmse)
-        mlflow.log_metric("mae", mae)
-        mlflow.log_metric("r2", r2)
-        mlflow.log_metric("mape", mape)
-        mlflow.log_metric("directional_accuracy", directional_accuracy)
+    mlflow.log_metric("rmse", rmse)
+    mlflow.log_metric("mae", mae)
+    mlflow.log_metric("r2", r2)
+    mlflow.log_metric("mape", mape)
+    mlflow.log_metric("directional_accuracy", directional_accuracy)
 
-        print(f"\n{'='*60}")
-        print(f"REGRESSION RESULTS ({model_algo.upper()})")
-        print(f"{'='*60}")
-        print(f"RMSE:                  {rmse:.6f}")
-        print(f"MAE:                   {mae:.6f}")
-        print(f"R²:                    {r2:.4f}")
-        print(f"MAPE:                  {mape:.6f}")
-        print(f"Directional Accuracy:  {directional_accuracy:.4f}")
-
-    else:
-        best_preds = best_model.predict(X_test)
-        accuracy = accuracy_score(y_test, best_preds)
-        precision = precision_score(y_test, best_preds, zero_division=0)
-        recall = recall_score(y_test, best_preds, zero_division=0)
-        f1 = f1_score(y_test, best_preds, zero_division=0)
-
-        if hasattr(best_model, "predict_proba"):
-            best_proba = best_model.predict_proba(X_test)[:, 1]
-            roc_auc = roc_auc_score(y_test, best_proba)
-        else:
-            roc_auc = 0.0
-
-        mlflow.log_metric("accuracy", accuracy)
-        mlflow.log_metric("precision", precision)
-        mlflow.log_metric("recall", recall)
-        mlflow.log_metric("f1_score", f1)
-        mlflow.log_metric("roc_auc", roc_auc)
-
-        print(f"\n{'='*60}")
-        print(f"CLASSIFICATION RESULTS ({model_algo.upper()})")
-        print(f"{'='*60}")
-        print(f"Accuracy:   {accuracy:.4f}")
-        print(f"Precision:  {precision:.4f}")
-        print(f"Recall:     {recall:.4f}")
-        print(f"F1-Score:   {f1:.4f}")
-        print(f"ROC-AUC:    {roc_auc:.4f}")
+    print(f"\n{'='*60}")
+    print(f"REGRESSION RESULTS ({model_algo.upper()})")
+    print(f"{'='*60}")
+    print(f"RMSE:                  {rmse:.6f}")
+    print(f"MAE:                   {mae:.6f}")
+    print(f"R²:                    {r2:.4f}")
+    print(f"MAPE:                  {mape:.6f}")
+    print(f"Directional Accuracy:  {directional_accuracy:.4f}")
 
     # --- Log common params & model ---
     mlflow.log_param("model_algo", model_algo)
-    mlflow.log_param("task_type", task_type)
+    mlflow.log_param("task_type", "regression")
     mlflow.log_param("training_mode", "optuna")
     mlflow.log_param("n_trials_requested", n_trials)
     mlflow.log_param("n_trials_completed", len(study.trials))
@@ -413,7 +340,7 @@ with mlflow.start_run(
 
 dbutils.jobs.taskValues.set(key="training_status", value="trained")
 dbutils.jobs.taskValues.set(key="run_id", value=run_id)
-dbutils.jobs.taskValues.set(key="task_type", value=task_type)
+dbutils.jobs.taskValues.set(key="task_type", value="regression")
 
 # COMMAND ----------
 
@@ -423,7 +350,7 @@ dbutils.jobs.taskValues.set(key="task_type", value=task_type)
 # COMMAND ----------
 
 print(f"run_id={run_id}")
-print(f"task_type={task_type}")
+print("task_type=regression")
 print(f"model_algo={model_algo}")
 print(f"best_params={best_params}")
 print(f"n_trials_completed={len(study.trials)}")
@@ -445,37 +372,20 @@ if hasattr(best_model, "feature_importances_"):
 # COMMAND ----------
 
 # Summary table
-if task_type == "regression":
-    summary_data = {
-        "run_id": run_id,
-        "task_type": task_type,
-        "model_algo": model_algo,
-        "rmse": float(rmse),
-        "mae": float(mae),
-        "r2": float(r2),
-        "mape": float(mape),
-        "directional_accuracy": float(directional_accuracy),
-        "n_trials_requested": int(n_trials),
-        "n_trials_completed": int(len(study.trials)),
-        "train_rows": int(len(train)),
-        "test_rows": int(len(test)),
-        "n_features": len(feature_cols),
-    }
-else:
-    summary_data = {
-        "run_id": run_id,
-        "task_type": task_type,
-        "model_algo": model_algo,
-        "accuracy": float(accuracy),
-        "precision": float(precision),
-        "recall": float(recall),
-        "f1_score": float(f1),
-        "roc_auc": float(roc_auc),
-        "n_trials_requested": int(n_trials),
-        "n_trials_completed": int(len(study.trials)),
-        "train_rows": int(len(train)),
-        "test_rows": int(len(test)),
-        "n_features": len(feature_cols),
-    }
+summary_data = {
+    "run_id": run_id,
+    "task_type": "regression",
+    "model_algo": model_algo,
+    "rmse": float(rmse),
+    "mae": float(mae),
+    "r2": float(r2),
+    "mape": float(mape),
+    "directional_accuracy": float(directional_accuracy),
+    "n_trials_requested": int(n_trials),
+    "n_trials_completed": int(len(study.trials)),
+    "train_rows": int(len(train)),
+    "test_rows": int(len(test)),
+    "n_features": len(feature_cols),
+}
 
 display(spark.createDataFrame([summary_data]))

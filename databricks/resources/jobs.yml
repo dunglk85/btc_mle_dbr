@@ -126,7 +126,6 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
-              task_type: "regression"
               model_algo: "lightgbm"
           depends_on:
             - task_key: eda_feature_selection
@@ -147,7 +146,6 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
-              task_type: "regression"
               model_algo: "xgboost"
           depends_on:
             - task_key: eda_feature_selection

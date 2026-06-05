@@ -6,15 +6,14 @@
 # MAGIC # 02b - EDA & Feature Selection
 # MAGIC
 # MAGIC Notebook phân tích khám phá dữ liệu (EDA) và lựa chọn features tối ưu
-# MAGIC cho cả **Regression** (`target_return_1h`) và **Classification** (`target_direction_1h`).
+# MAGIC cho bài toán **Regression** (`target_return_1h`).
 # MAGIC
 # MAGIC **Phương pháp:**
 # MAGIC 1. Kiểm tra phân phối & thống kê cơ bản các features
 # MAGIC 2. Correlation Matrix (Pearson & Spearman) — phát hiện collinearity
-# MAGIC 3. Mutual Information — đánh giá tương quan phi tuyến với cả hai targets
-# MAGIC 4. ANOVA F-value — cho Classification target
-# MAGIC 5. Feature Importance sơ bộ bằng LightGBM
-# MAGIC 6. Xuất danh sách `selected_features` cuối cùng
+# MAGIC 3. Mutual Information — đánh giá tương quan phi tuyến với regression target
+# MAGIC 4. Feature Importance sơ bộ bằng LightGBM
+# MAGIC 5. Xuất danh sách `selected_features` cuối cùng
 
 # COMMAND ----------
 
@@ -30,8 +29,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
-from sklearn.feature_selection import f_classif
+from sklearn.feature_selection import mutual_info_regression
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -91,11 +89,10 @@ CANDIDATE_FEATURES = [
 ]
 
 REGRESSION_TARGET = "target_return_1h"
-CLASSIFICATION_TARGET = "target_direction_1h"
 
 # Load data
 source = spark.table(features_ref).orderBy("open_time")
-all_cols = ["open_time", REGRESSION_TARGET, CLASSIFICATION_TARGET] + CANDIDATE_FEATURES
+all_cols = ["open_time", REGRESSION_TARGET] + CANDIDATE_FEATURES
 # Chỉ lấy các cột thực sự có trong bảng
 existing_cols = [c for c in all_cols if c in source.columns]
 missing_cols = [c for c in all_cols if c not in source.columns]
@@ -105,7 +102,7 @@ if missing_cols:
 pdf = source.select(existing_cols).toPandas().sort_values("open_time").reset_index(drop=True)
 
 # Loại bỏ rows có target null (dòng cuối cùng do shift)
-pdf = pdf.dropna(subset=[REGRESSION_TARGET, CLASSIFICATION_TARGET])
+pdf = pdf.dropna(subset=[REGRESSION_TARGET])
 print(f"Total rows for EDA: {len(pdf)}")
 
 # Cập nhật danh sách features thực tế
@@ -128,12 +125,11 @@ display(spark.createDataFrame(stats.reset_index().rename(columns={"index": "feat
 # COMMAND ----------
 
 # Loại bỏ rows có bất kỳ feature nào null (chủ yếu do rolling window đầu)
-pdf_clean = pdf[feature_cols + [REGRESSION_TARGET, CLASSIFICATION_TARGET]].dropna()
+pdf_clean = pdf[feature_cols + [REGRESSION_TARGET]].dropna()
 print(f"Rows after dropping NaN: {len(pdf_clean)} (dropped {len(pdf) - len(pdf_clean)} rows)")
 
 X = pdf_clean[feature_cols]
 y_reg = pdf_clean[REGRESSION_TARGET]
-y_cls = pdf_clean[CLASSIFICATION_TARGET].astype(int)
 
 # COMMAND ----------
 
@@ -228,41 +224,12 @@ display(spark.createDataFrame(mi_reg_df))
 
 # COMMAND ----------
 
-# MI cho Classification target
-mi_cls = mutual_info_classif(X, y_cls, random_state=42, n_neighbors=5)
-mi_cls_df = pd.DataFrame({
-    "feature": feature_cols,
-    "mi_classification": mi_cls,
-}).sort_values("mi_classification", ascending=False)
-
-print("=== Mutual Information — Classification Target (target_direction_1h) ===")
-display(spark.createDataFrame(mi_cls_df))
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC ## 6. ANOVA F-value — cho Classification
+# MAGIC ## 6. Quick LightGBM Feature Importance
 
 # COMMAND ----------
 
-f_scores, p_values = f_classif(X, y_cls)
-anova_df = pd.DataFrame({
-    "feature": feature_cols,
-    "f_score": f_scores,
-    "p_value": p_values,
-}).sort_values("f_score", ascending=False)
-
-print("=== ANOVA F-value — Classification Target ===")
-display(spark.createDataFrame(anova_df))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 7. Quick LightGBM Feature Importance
-
-# COMMAND ----------
-
-from lightgbm import LGBMRegressor, LGBMClassifier
+from lightgbm import LGBMRegressor
 
 # --- Regression importance ---
 lgbm_reg = LGBMRegressor(n_estimators=100, max_depth=6, random_state=42, verbose=-1)
@@ -272,37 +239,23 @@ imp_reg = pd.DataFrame({
     "importance_regression": lgbm_reg.feature_importances_,
 }).sort_values("importance_regression", ascending=False)
 
-# --- Classification importance ---
-lgbm_cls = LGBMClassifier(n_estimators=100, max_depth=6, random_state=42, verbose=-1)
-lgbm_cls.fit(X, y_cls)
-imp_cls = pd.DataFrame({
-    "feature": feature_cols,
-    "importance_classification": lgbm_cls.feature_importances_,
-}).sort_values("importance_classification", ascending=False)
-
 print("=== LightGBM Feature Importance — Regression ===")
 display(spark.createDataFrame(imp_reg))
-
-print("=== LightGBM Feature Importance — Classification ===")
-display(spark.createDataFrame(imp_cls))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. Consolidated Feature Ranking & Selection
+# MAGIC ## 7. Consolidated Feature Ranking & Selection
 
 # COMMAND ----------
 
 # Gộp tất cả metrics vào một bảng
 ranking = pd.DataFrame({"feature": feature_cols})
 ranking = ranking.merge(mi_reg_df, on="feature", how="left")
-ranking = ranking.merge(mi_cls_df, on="feature", how="left")
-ranking = ranking.merge(anova_df[["feature", "f_score", "p_value"]], on="feature", how="left")
 ranking = ranking.merge(imp_reg[["feature", "importance_regression"]], on="feature", how="left")
-ranking = ranking.merge(imp_cls[["feature", "importance_classification"]], on="feature", how="left")
 
 # Tính rank trung bình (thấp hơn = tốt hơn)
-for col in ["mi_regression", "mi_classification", "f_score", "importance_regression", "importance_classification"]:
+for col in ["mi_regression", "importance_regression"]:
     ranking[f"rank_{col}"] = ranking[col].rank(ascending=False)
 
 rank_cols = [c for c in ranking.columns if c.startswith("rank_")]
@@ -311,14 +264,13 @@ ranking = ranking.sort_values("avg_rank")
 
 print("=== Consolidated Feature Ranking ===")
 display(spark.createDataFrame(
-    ranking[["feature", "mi_regression", "mi_classification", "f_score",
-             "importance_regression", "importance_classification", "avg_rank"]]
+    ranking[["feature", "mi_regression", "importance_regression", "avg_rank"]]
 ))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Automatic Feature Selection
+# MAGIC ## 8. Automatic Feature Selection
 
 # COMMAND ----------
 
@@ -339,15 +291,12 @@ for _, row in high_corr_df.iterrows():
 
 print(f"Features dropped due to high correlation: {features_to_drop_corr}")
 
-# Bước 2: Loại features có MI rất thấp cho CẢ HAI targets
+# Bước 2: Loại features có MI rất thấp với regression target
 MI_THRESHOLD = 0.001
 low_mi_features = set(
-    ranking[
-        (ranking["mi_regression"] < MI_THRESHOLD) &
-        (ranking["mi_classification"] < MI_THRESHOLD)
-    ]["feature"].tolist()
+    ranking[ranking["mi_regression"] < MI_THRESHOLD]["feature"].tolist()
 )
-print(f"Features with very low MI for both targets: {low_mi_features}")
+print(f"Features with very low MI for regression target: {low_mi_features}")
 
 # Bước 3: Tạo danh sách selected features
 all_drops = features_to_drop_corr | low_mi_features
@@ -365,7 +314,7 @@ for f in sorted(all_drops):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 10. Save Selected Features as Config
+# MAGIC ## 9. Save Selected Features as Config
 
 # COMMAND ----------
 
@@ -393,31 +342,18 @@ print(f"Selected features: {selected_features}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 11. Target Distribution Analysis
+# MAGIC ## 10. Target Distribution Analysis
 
 # COMMAND ----------
 
-# Phân phối classification target — kiểm tra class imbalance
-class_dist = y_cls.value_counts()
-print(f"Classification target distribution:")
-print(f"  Class 0 (down/flat): {class_dist.get(0, 0)} ({class_dist.get(0, 0)/len(y_cls)*100:.1f}%)")
-print(f"  Class 1 (up):        {class_dist.get(1, 0)} ({class_dist.get(1, 0)/len(y_cls)*100:.1f}%)")
-print(f"  Imbalance ratio:     {max(class_dist)/min(class_dist):.2f}")
-
 # Phân phối regression target
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 
-axes[0].hist(y_reg.values, bins=100, edgecolor="black", alpha=0.7, color="steelblue")
-axes[0].set_title("Distribution: target_return_1h (Regression)", fontsize=12)
-axes[0].set_xlabel("Return")
-axes[0].set_ylabel("Count")
-axes[0].axvline(x=0, color="red", linestyle="--", alpha=0.7)
-
-class_dist.plot.bar(ax=axes[1], color=["salmon", "steelblue"], edgecolor="black")
-axes[1].set_title("Distribution: target_direction_1h (Classification)", fontsize=12)
-axes[1].set_xlabel("Class")
-axes[1].set_ylabel("Count")
-axes[1].set_xticklabels(["0 (Down/Flat)", "1 (Up)"], rotation=0)
+ax.hist(y_reg.values, bins=100, edgecolor="black", alpha=0.7, color="steelblue")
+ax.set_title("Distribution: target_return_1h (Regression)", fontsize=12)
+ax.set_xlabel("Return")
+ax.set_ylabel("Count")
+ax.axvline(x=0, color="red", linestyle="--", alpha=0.7)
 
 plt.tight_layout()
 plt.savefig("/tmp/target_distributions.png", dpi=100, bbox_inches="tight")
@@ -431,8 +367,7 @@ plt.show()
 # MAGIC Notebook này thực hiện:
 # MAGIC 1. **Thống kê cơ bản** — kiểm tra null, phân phối
 # MAGIC 2. **Correlation analysis** — phát hiện collinearity giữa features
-# MAGIC 3. **Mutual Information** — đánh giá tương quan phi tuyến cho cả Regression & Classification
-# MAGIC 4. **ANOVA F-test** — cho Classification
-# MAGIC 5. **LightGBM Feature Importance** — quick baseline importance
-# MAGIC 6. **Tự động lựa chọn features** — loại features collinear & low-information
-# MAGIC 7. **Lưu config** — `selected_features` vào Delta table để `03_optuna_training.py` sử dụng
+# MAGIC 3. **Mutual Information** — đánh giá tương quan phi tuyến cho regression target
+# MAGIC 4. **LightGBM Feature Importance** — quick baseline importance
+# MAGIC 5. **Tự động lựa chọn features** — loại features collinear & low-information
+# MAGIC 6. **Lưu config** — `selected_features` vào Delta table để `03_optuna_training.py` sử dụng
