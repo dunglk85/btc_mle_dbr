@@ -98,6 +98,7 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+              model_refresh_job_id: ${resources.jobs.btc_model_refresh_job.id}
               model_refresh_job_name: "[${bundle.target}] BTC Model Refresh Job"
               max_decision_age_hours: "12"
               expected_trigger_mode: "drift"

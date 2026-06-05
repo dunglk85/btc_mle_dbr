@@ -22,17 +22,19 @@ def get_widget(name, default):
 
 
 catalog = get_widget("catalog", "btc_dev")
+model_refresh_job_id = get_widget("model_refresh_job_id", "")
 model_refresh_job_name = get_widget("model_refresh_job_name", "")
 max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
 expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
 
-if not model_refresh_job_name:
-    raise ValueError("model_refresh_job_name is required")
+if not model_refresh_job_id and not model_refresh_job_name:
+    raise ValueError("model_refresh_job_id or model_refresh_job_name is required")
 
 decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
 
 print("RUNNING MODEL REFRESH TRIGGER NOTEBOOK")
 print(f"decisions_ref={decisions_ref}")
+print(f"model_refresh_job_id={model_refresh_job_id}")
 print(f"model_refresh_job_name={model_refresh_job_name}")
 print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
@@ -87,13 +89,16 @@ except ImportError as exc:
     raise RuntimeError("databricks-sdk is required to trigger model refresh job") from exc
 
 workspace = WorkspaceClient()
-matches = list(workspace.jobs.list(name=model_refresh_job_name))
-if not matches:
-    raise ValueError(f"Could not find Databricks job named {model_refresh_job_name}")
-if len(matches) > 1:
-    raise ValueError(f"Found multiple Databricks jobs named {model_refresh_job_name}")
+if model_refresh_job_id:
+    job_id = int(model_refresh_job_id)
+else:
+    matches = list(workspace.jobs.list(name=model_refresh_job_name))
+    if not matches:
+        raise ValueError(f"Could not find Databricks job named {model_refresh_job_name}")
+    if len(matches) > 1:
+        raise ValueError(f"Found multiple Databricks jobs named {model_refresh_job_name}")
+    job_id = matches[0].job_id
 
-job_id = matches[0].job_id
 run = workspace.jobs.run_now(job_id=job_id)
 print(f"triggered_job_id={job_id}")
 print(f"triggered_run_id={run.run_id}")
