@@ -70,6 +70,7 @@ except Exception as exc:
 raw_freshness_hours = None
 alert_count = 0
 blocking_alert_count = 0
+non_blocking_alert_count = 0
 drift_alert_count = 0
 validation_metric_count = 0
 if metrics_exists:
@@ -86,12 +87,20 @@ if metrics_exists:
         "raw_freshness_hours|features_count|features_target_close_1h_null_count|"
         "raw_features_row_count_delta|feature_quality_|schema_drift_)"
     )
+    blocking_metric = F.col("metric_name").rlike(
+        "^(raw_duplicate_open_time_count|raw_null_open_time_count|raw_freshness_hours|"
+        "features_target_close_1h_null_count|raw_features_row_count_delta|"
+        "feature_quality_|schema_drift_)"
+    )
     alert_count = latest_metrics.filter(F.col("status") == "alert").count()
     drift_alert_count = latest_metrics.filter(
         (F.col("status") == "alert") & retrain_drift_metric
     ).count()
     blocking_alert_count = latest_metrics.filter(
-        (F.col("status") == "alert") & (~drift_metric)
+        (F.col("status") == "alert") & blocking_metric
+    ).count()
+    non_blocking_alert_count = latest_metrics.filter(
+        (F.col("status") == "alert") & (~blocking_metric) & (~retrain_drift_metric)
     ).count()
     validation_metric_count = latest_metrics.filter(validation_metric).count()
     raw_freshness = latest_metrics.filter(
@@ -167,6 +176,8 @@ reason = "; ".join(reasons)
 print(f"decision_status={decision_status}")
 print(f"should_retrain={should_retrain}")
 print(f"reason={reason}")
+print(f"blocking_alert_count={blocking_alert_count}")
+print(f"non_blocking_alert_count={non_blocking_alert_count}")
 
 # COMMAND ----------
 
