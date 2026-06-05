@@ -254,7 +254,6 @@ def load_landing_to_raw(
         stream_df.writeStream.option("checkpointLocation", checkpoint_path)
         .foreachBatch(
             lambda batch_df, batch_id: merge_landing_batch_to_raw(
-                spark,
                 batch_df,
                 table_ref,
                 landing_path,
@@ -269,12 +268,12 @@ def load_landing_to_raw(
 
 
 def merge_landing_batch_to_raw(
-    spark: SparkSession,
     batch_df: DataFrame,
     table_ref: str,
     landing_path: str,
     batch_id: int | None = None,
 ) -> None:
+    spark = batch_df.sparkSession
     raw_landing_count = batch_df.count()
     print(f"merge_landing_batch_to_raw: batch_id={batch_id}")
     print(f"merge_landing_batch_to_raw: raw_landing_count={raw_landing_count}")

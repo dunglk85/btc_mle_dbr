@@ -238,6 +238,7 @@ class FakeStreamReader:
 class FakeLandingDataFrame:
     def __init__(self, spark):
         self.spark = spark
+        self.sparkSession = spark
         self.writeStream = FakeWriteStream(spark, self)
 
     def withColumn(self, _name, _value):

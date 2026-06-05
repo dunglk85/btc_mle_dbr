@@ -73,6 +73,7 @@ landing_schema = StructType(
 # COMMAND ----------
 
 def merge_landing_batch(batch_df, batch_id):
+    batch_spark = batch_df.sparkSession
     raw_count = batch_df.count()
     print(f"batch_id={batch_id}")
     print(f"raw_landing_count={raw_count}")
@@ -125,7 +126,7 @@ def merge_landing_batch(batch_df, batch_id):
 
     deduped.createOrReplaceTempView("_btc_hourly_landing")
 
-    spark.sql(f"""
+    batch_spark.sql(f"""
         MERGE INTO {table_ref} AS target
         USING _btc_hourly_landing AS source
         ON target.open_time = source.open_time
