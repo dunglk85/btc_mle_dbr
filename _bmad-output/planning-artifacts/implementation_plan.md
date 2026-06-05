@@ -38,7 +38,8 @@ graph TB
 
         K["btc_data_prediction_job<br/>(hourly)"]
         L["btc_drift_monitoring_job<br/>(6h)"]
-        O["btc_model_refresh_job<br/>(12h)"]
+        X["data_remediation task<br/>(triggered by training gate)"]
+        O["btc_model_refresh_job<br/>(trigger-only)"]
     end
 
     subgraph "CI/CD"
@@ -76,6 +77,7 @@ graph TB
     K --> Q
     L --> Q
     L --> R
+    L --> X
     O --> R
     O --> D
     O --> E
@@ -83,8 +85,9 @@ graph TB
 
 Ghi chú kiến trúc hiện tại:
 - Job hourly chính do Databricks quản lý: `btc_data_prediction_job` chạy fetch -> Auto Loader ingestion -> feature engineering -> prediction -> monitoring -> job quality monitoring.
-- Job drift riêng: `btc_drift_monitoring_job` chạy drift metrics -> drift gate mỗi 6 giờ.
-- Job refresh model: `btc_model_refresh_job` chạy training gate -> regression-only Optuna training -> Champion/Challenger mỗi 12 giờ.
+- Job drift riêng: `btc_drift_monitoring_job` chạy drift metrics -> training gate -> conditional model refresh trigger / data remediation mỗi 6 giờ.
+- Task remediation trong `btc_drift_monitoring_job` xử lý các lỗi data an toàn như raw stale, feature mismatch, prediction stale; lỗi nguy hiểm vẫn yêu cầu manual review.
+- Job refresh model: `btc_model_refresh_job` là trigger-only, chạy final training gate -> regression-only Optuna training -> Champion/Challenger khi gate cho phép.
 - GitHub Actions không còn là hourly scheduler chính; workflow hourly chỉ còn manual trigger nếu cần.
 - Tất cả notebooks nhận `catalog` từ Databricks widget do DAB truyền vào: `btc_dev` cho dev, `btc_prod` cho prod.
 - `target_close_1h` là exact next-hour close bằng self-join theo `open_time + 1 hour`, không dùng next-row `lead`.
@@ -259,7 +262,7 @@ flowchart TD
 
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
-| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate<br/>- **Model Refresh Job** (chạy 12h/lần): Training Gate -> Regression Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
+| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate -> Conditional Model Refresh Trigger + Data Remediation<br/>- **Model Refresh Job** (trigger-only): Final Training Gate -> Regression Optuna Training -> Champion/Challenger<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
 
@@ -275,8 +278,8 @@ Retrain only if validation passes
 
 Implementation detail:
 - `btc_data_prediction_job` không chạy drift/training để giữ hourly serving path ngắn và ổn định.
-- `btc_drift_monitoring_job` ghi drift metrics và drift gate decisions riêng mỗi 6 giờ.
-- `btc_model_refresh_job` là nơi duy nhất chạy scheduled regression retraining và Champion/Challenger promotion.
+- `btc_drift_monitoring_job` ghi drift metrics, training gate decisions, trigger model refresh khi `should_retrain=true`, và chạy data remediation khi có lỗi data an toàn.
+- `btc_model_refresh_job` là nơi duy nhất chạy regression retraining và Champion/Challenger promotion, nhưng không có schedule riêng.
 
 | 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, failed runs, failed tasks, latest run duration<br/>- Ghi metrics vào `monitoring.pipeline_metrics` qua `notebooks/09_job_quality_monitoring.py`<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs API, Delta metrics tables, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
@@ -303,6 +306,7 @@ Implementation detail:
 
 #### Deliverables
 - [ ] `btc_data_prediction_job`, `btc_drift_monitoring_job`, và `btc_model_refresh_job` hoạt động ổn định trên Databricks
+- [ ] Data remediation audit table và trigger model refresh hoạt động đúng theo training gate decision
 - [ ] Data, Model & Job Quality monitoring setup
 - [ ] Dashboard hoàn chỉnh & Alert configuration
 
@@ -332,7 +336,9 @@ BTC/
 │   ├── 04_champion_challenger.py     # Register/promote UC model aliases
 │   ├── 05_prediction.py              # Predict next 1h with @Champion
 │   ├── 06_monitoring.py              # Pipeline metrics writer
-│   └── 07_training_gate.py           # Training/retraining gate decisions
+│   ├── 07_training_gate.py           # Training/retraining gate decisions
+│   ├── 10_data_remediation.py        # Safe data remediation actions
+│   └── 11_trigger_model_refresh.py   # Conditional model refresh trigger
 ├── src/
 │   ├── data/
 │   │   ├── binance_landing.py
@@ -384,7 +390,7 @@ BTC/
 | Train model | **MLflow Experiments** | Auto-log params, metrics, artifacts |
 | Model Registry | **MLflow Model Registry** | Champion/Challenger với aliases |
 | Hyperparameter Tuning | **Optuna** + **MLflow** | TPE Bayesian optimization, single-node, early stopping |
-| Chạy job | **Databricks Jobs/Workflows** | 3 jobs: Data Prediction (1h) + Drift Monitoring (6h) + Model Refresh (12h) |
+| Chạy job | **Databricks Jobs/Workflows** | Data Prediction (1h) + Drift Monitoring (6h, triggers remediation/refresh) + Model Refresh (trigger-only) |
 | CI/CD | **Databricks Asset Bundles (DABs)** | IaC cho Databricks resources, multi-env qua targets |
 | Data Quality | **Delta metrics tables** | Fallback monitoring qua `monitoring.pipeline_metrics`; data drift PSI/KS là bước mở rộng tiếp theo |
 | Model Monitoring | **Delta metrics tables** + **MLflow** | Actual vs predicted, refresh decisions, model registry aliases; rolling performance drift là bước mở rộng tiếp theo |
@@ -402,7 +408,7 @@ BTC/
 > ✅ **Databricks tier**: Free edition (vẫn dùng Unity Catalog)
 > ✅ **DBR version**: 17.3 LTS ML (LTS mới nhất, supported đến 10/2028)
 > ✅ **Target variable**: `target_close_1h` exact next-hour close (regression)
-> ✅ **Retraining**: Model Refresh Job schedule 12h/lần, gated by monitoring
+> ✅ **Retraining**: Model Refresh Job trigger-only, gated by training gate decisions
 > ✅ **Alert channels**: Email + Slack
 > ✅ **Optuna**: single-node (phù hợp Free Edition serverless, không dùng MlflowSparkStudy)
 > ✅ **Multi-env**: DABs targets với catalog name khác nhau (btc_dev / btc_prod) trong cùng 1 workspace
@@ -423,5 +429,5 @@ BTC/
 - Kiểm tra dữ liệu trên Databricks UI (Catalog Explorer)
 - Review MLflow experiments & model registry
 - Kiểm tra Dashboard hiển thị đúng metrics
-- Chạy thử `btc_data_prediction_job` hourly path, `btc_drift_monitoring_job` drift path, và `btc_model_refresh_job` refresh path
+- Chạy thử `btc_data_prediction_job` hourly path, `btc_drift_monitoring_job` drift/remediation/trigger path, và `btc_model_refresh_job` refresh path
 - Kiểm tra actual vs predicted bằng join prediction với raw candle kế tiếp

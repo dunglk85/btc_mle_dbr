@@ -13,7 +13,7 @@
 - **Prod catalog:** `btc_prod`
 - **Data job:** `btc_data_prediction_job`, hourly
 - **Drift monitoring job:** `btc_drift_monitoring_job`, every 6 hours
-- **Model refresh job:** `btc_model_refresh_job`, every 12 hours
+- **Model refresh job:** `btc_model_refresh_job`, trigger-only from drift decisions
 - **Registered model:** `<catalog>.models.btc_price_model`
 - **Champion alias:** `@Champion`
 - **Challenger alias:** `@Challenger`
@@ -42,6 +42,8 @@
 - `notebooks/07_training_gate.py`: training/retraining gate decisions.
 - `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
 - `notebooks/09_job_quality_monitoring.py`: Databricks job quality metrics.
+- `notebooks/10_data_remediation.py`: safe auto-remediation for stale raw data, stale features, and stale predictions.
+- `notebooks/11_trigger_model_refresh.py`: conditional trigger for model refresh when training gate allows retraining.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
 - `databricks/resources/dashboards.yml`: CI/CD-managed AI/BI dashboard resource.
@@ -52,6 +54,6 @@
 ```bash
 pytest
 ruff check src/ tests/ scripts/
-python -m py_compile notebooks/00_fetch_binance_to_volume.py notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py
+python -m py_compile notebooks/00_fetch_binance_to_volume.py notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py
 databricks bundle validate
 ```

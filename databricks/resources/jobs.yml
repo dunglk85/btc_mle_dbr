@@ -92,12 +92,29 @@ resources:
               trigger_mode: "drift"
           depends_on:
             - task_key: drift_monitoring
+        - task_key: trigger_model_refresh
+          notebook_task:
+            notebook_path: notebooks/11_trigger_model_refresh
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              model_refresh_job_name: "[${bundle.target}] BTC Model Refresh Job"
+              max_decision_age_hours: "12"
+              expected_trigger_mode: "drift"
+          depends_on:
+            - task_key: training_gate_drift
+        - task_key: data_remediation
+          notebook_task:
+            notebook_path: notebooks/10_data_remediation
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              backfill_limit: "168"
+              notebook_timeout_seconds: "1800"
+          depends_on:
+            - task_key: training_gate_drift
     btc_model_refresh_job:
       name: "[${bundle.target}] BTC Model Refresh Job"
-      schedule:
-        quartz_cron_expression: "0 0 */12 * * ?"
-        timezone_id: UTC
-        pause_status: UNPAUSED
       git_source:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub

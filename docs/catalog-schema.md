@@ -22,7 +22,8 @@
 │   └── btc_predictions   # Model predictions
 ├── monitoring/
 │   ├── pipeline_metrics
-│   └── model_refresh_decisions
+│   ├── model_refresh_decisions
+│   └── data_remediation_actions
 └── models/
     └── btc_price_model   # UC registered model with Champion/Challenger aliases
 ```
@@ -57,3 +58,5 @@ Auto Loader state for this table is stored in the `raw.landing` volume:
 `pipeline_metrics` records pipeline health metrics with `metric_time`, `metric_name`, `metric_value`, `status`, and `details`.
 
 `model_refresh_decisions` records whether the model refresh job should train, including the reason, latest raw freshness, alert count, and Champion existence.
+
+`data_remediation_actions` records safe auto-remediation attempts, blocked manual-required cases, and failure reasons.
