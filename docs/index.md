@@ -39,7 +39,7 @@
 - `notebooks/04_champion_challenger.py`: UC model registration and alias promotion.
 - `notebooks/05_prediction.py`: Champion prediction writes.
 - `notebooks/06_monitoring.py`: pipeline metrics.
-- `notebooks/07_monitoring_gate.py`: model refresh decisions.
+- `notebooks/07_training_gate.py`: training/retraining gate decisions.
 - `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
 - `notebooks/09_job_quality_monitoring.py`: Databricks job quality metrics.
 - `databricks/sql/`: dashboard and alert SQL templates.
@@ -52,6 +52,6 @@
 ```bash
 pytest
 ruff check src/ tests/ scripts/
-python -m py_compile notebooks/00_fetch_binance_to_volume.py notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_monitoring_gate.py
+python -m py_compile notebooks/00_fetch_binance_to_volume.py notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py
 databricks bundle validate
 ```

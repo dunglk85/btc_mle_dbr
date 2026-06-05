@@ -559,12 +559,12 @@ Alert condition:
 prediction_age_hours > 3
 ```
 
-## Monitoring Gate Metrics
+## Training Gate Metrics
 
 The model refresh gate is implemented in:
 
 ```text
-notebooks/07_monitoring_gate.py
+notebooks/07_training_gate.py
 ```
 
 It writes decisions to:
@@ -988,7 +988,7 @@ Why useful:
 
 ### Drift Gate Behavior
 
-The monitoring gate treats model/concept drift alerts as retraining candidates, not automatic retraining approval.
+The training gate treats model/concept drift alerts as retraining candidates, not automatic retraining approval.
 
 Retraining decision flow:
 
@@ -1033,11 +1033,11 @@ These are shown in the dashboard but should not trigger retraining by themselves
 
 Immediate drift-triggered retraining is wired into `btc_data_prediction_job`:
 - `drift_monitoring`
-- `monitoring_gate_drift` with `trigger_mode=drift`
+- `training_gate_drift` with `trigger_mode=drift`
 - `model_training_drift`
 - `champion_challenger_drift`
 
-If no drift alert exists, `monitoring_gate_drift` records `should_retrain=false` and training exits with `SKIP_RETRAIN`.
+If no drift alert exists, `training_gate_drift` records `should_retrain=false` and training exits with `SKIP_RETRAIN`.
 
 ## Job Quality Metrics
 

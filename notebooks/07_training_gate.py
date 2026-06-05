@@ -3,7 +3,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 07 - Monitoring Gate
+# MAGIC # 07 - Training Gate
 
 # COMMAND ----------
 
@@ -35,7 +35,7 @@ full_model_name = f"{catalog}.{model_schema}.{model_name}"
 trigger_mode = get_widget("trigger_mode", "scheduled")
 max_raw_freshness_hours = float(get_widget("max_raw_freshness_hours", "3"))
 
-print("RUNNING SELF-CONTAINED MONITORING GATE NOTEBOOK")
+print("RUNNING SELF-CONTAINED TRAINING GATE NOTEBOOK")
 print(f"metrics_ref={metrics_ref}")
 print(f"decisions_ref={decisions_ref}")
 print(f"full_model_name={full_model_name}")

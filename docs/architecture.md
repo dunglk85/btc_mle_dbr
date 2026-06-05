@@ -73,5 +73,5 @@ If validation fails: block retrain and alert operator
 
 Job separation:
 - `btc_data_prediction_job` runs only the hourly serving path: fetch, ingestion, feature engineering, prediction, regular monitoring, and job quality monitoring.
-- `btc_drift_monitoring_job` runs `drift_monitoring` and `monitoring_gate_drift` with `trigger_mode=drift` every 6 hours.
+- `btc_drift_monitoring_job` runs `drift_monitoring` and `training_gate_drift` with `trigger_mode=drift` every 6 hours.
 - `btc_model_refresh_job` owns scheduled retraining and Champion/Challenger promotion every 12 hours.

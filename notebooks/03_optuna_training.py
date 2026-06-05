@@ -84,7 +84,7 @@ print("=" * 60)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Check Monitoring Gate (Skip if not needed)
+# MAGIC ## 1. Check Training Gate (Skip if not needed)
 
 # COMMAND ----------
 
@@ -99,7 +99,7 @@ try:
     if latest_decision and not latest_decision[0]["should_retrain"]:
         skip_reason = latest_decision[0]["reason"]
 except Exception as exc:
-    print(f"No monitoring gate decision found, continuing training: {exc}")
+    print(f"No training gate decision found, continuing training: {exc}")
 
 if skip_reason:
     print(f"SKIP_RETRAIN: {skip_reason}")

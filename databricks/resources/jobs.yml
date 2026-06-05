@@ -83,9 +83,9 @@ resources:
               recent_hours: "168"
               reference_hours: "720"
               fail_on_alert: "false"
-        - task_key: monitoring_gate_drift
+        - task_key: training_gate_drift
           notebook_task:
-            notebook_path: notebooks/07_monitoring_gate
+            notebook_path: notebooks/07_training_gate
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
@@ -103,9 +103,9 @@ resources:
         git_provider: gitHub
         git_branch: main
       tasks:
-        - task_key: monitoring_gate
+        - task_key: training_gate
           notebook_task:
-            notebook_path: notebooks/07_monitoring_gate
+            notebook_path: notebooks/07_training_gate
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
@@ -117,7 +117,7 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
           depends_on:
-            - task_key: monitoring_gate
+            - task_key: training_gate
         - task_key: model_training_reg_lgbm
           notebook_task:
             notebook_path: notebooks/03_optuna_training
