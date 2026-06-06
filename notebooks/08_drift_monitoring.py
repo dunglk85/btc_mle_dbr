@@ -334,7 +334,19 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
             F.col("p.predicted_close").alias("predicted_close"),
             F.col("r.close").alias("actual_close"),
             F.col("p.feature_open_time").alias("feature_open_time"),
-        ).withColumn("error", F.col("actual_close") - F.col("predicted_close"))
+        )
+        invalid_close_predictions = scored.filter(F.col("predicted_close") <= 1000.0).count()
+        if invalid_close_predictions:
+            append_metric(
+                "model_drift_invalid_predicted_close_count_24h",
+                invalid_close_predictions,
+                "warn",
+                "Ignored predictions that are too small to be BTC close prices; likely legacy return-as-close rows",
+            )
+        scored = scored.filter(F.col("predicted_close") > 1000.0).withColumn(
+            "error",
+            F.col("actual_close") - F.col("predicted_close"),
+        )
 
         scored = scored.withColumn("abs_error", F.abs(F.col("error"))).withColumn(
             "pct_error", F.abs(F.col("error")) / F.abs(F.col("actual_close"))

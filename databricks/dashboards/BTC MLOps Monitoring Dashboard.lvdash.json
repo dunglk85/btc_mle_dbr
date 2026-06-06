@@ -96,6 +96,8 @@
         "  p.prediction_time,\n",
         "  p.feature_open_time,\n",
         "  p.predicted_close,\n",
+        "  p.predicted_return_1h,\n",
+        "  p.model_target_col,\n",
         "  r.open_time AS actual_open_time,\n",
         "  r.close AS actual_close,\n",
         "  ABS(r.close - p.predicted_close) AS abs_error,\n",
@@ -107,6 +109,7 @@
         "WHERE\n",
         "  p.prediction_time >= :date_range.min\n",
         "  AND p.prediction_time <= :date_range.max\n",
+        "  AND p.predicted_close > 1000.0\n",
         "ORDER BY\n",
         "  p.prediction_time DESC\n",
         "LIMIT 100"
@@ -228,6 +231,8 @@
         "  prediction_time,\n",
         "  feature_open_time,\n",
         "  predicted_close,\n",
+        "  predicted_return_1h,\n",
+        "  model_target_col,\n",
         "  model_uri\n",
         "FROM\n",
         "  btc_dev.predictions.btc_predictions\n",
@@ -273,6 +278,7 @@
         "WHERE\n",
         "  p.feature_open_time >= :date_range.min\n",
         "  AND p.feature_open_time <= :date_range.max\n",
+        "  AND p.predicted_close > 1000.0\n",
         "ORDER BY\n",
         "  p.feature_open_time"
       ],
@@ -322,6 +328,7 @@
         "    WHERE\n",
         "      p.feature_open_time >= :date_range.min\n",
         "      AND p.feature_open_time <= :date_range.max\n",
+        "      AND p.predicted_close > 1000.0\n",
         "  )"
       ],
       "parameters": [
@@ -936,6 +943,7 @@
         "  WHERE\n",
         "    p.feature_open_time >= :date_range.min\n",
         "    AND p.feature_open_time <= :date_range.max\n",
+        "    AND p.predicted_close > 1000.0\n",
         "),\n",
         "stats AS (\n",
         "  SELECT\n",
@@ -1015,7 +1023,8 @@
         "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
         "WHERE\n",
         "  p.feature_open_time >= :date_range.min\n",
-        "  AND p.feature_open_time <= :date_range.max"
+        "  AND p.feature_open_time <= :date_range.max\n",
+        "  AND p.predicted_close > 1000.0"
       ],
       "parameters": [
         {

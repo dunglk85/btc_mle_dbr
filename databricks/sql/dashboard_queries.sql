@@ -48,6 +48,8 @@ SELECT
   prediction_time,
   feature_open_time,
   predicted_close,
+  predicted_return_1h,
+  model_target_col,
   model_uri
 FROM IDENTIFIER(:catalog || '.predictions.btc_predictions')
 ORDER BY prediction_time DESC
@@ -65,6 +67,7 @@ SELECT
 FROM IDENTIFIER(:catalog || '.predictions.btc_predictions') p
 LEFT JOIN IDENTIFIER(:catalog || '.raw.btc_hourly') r
   ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
+WHERE p.predicted_close > 1000.0
 ORDER BY p.prediction_time DESC
 LIMIT 100;
 
@@ -78,7 +81,22 @@ SELECT
 FROM IDENTIFIER(:catalog || '.predictions.btc_predictions') p
 JOIN IDENTIFIER(:catalog || '.raw.btc_hourly') r
   ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
+WHERE p.predicted_close > 1000.0
 ORDER BY p.feature_open_time;
+
+-- 7b. Prediction Debug: find legacy return-as-close rows
+SELECT
+  prediction_time,
+  feature_open_time,
+  predicted_close,
+  predicted_return_1h,
+  model_target_col,
+  model_version,
+  model_run_id
+FROM IDENTIFIER(:catalog || '.predictions.btc_predictions')
+WHERE predicted_close <= 1000.0 OR predicted_close IS NULL
+ORDER BY prediction_time DESC
+LIMIT 100;
 
 -- 8. Model Refresh Decisions Table
 SELECT
