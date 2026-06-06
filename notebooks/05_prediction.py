@@ -146,13 +146,15 @@ def load_feature_cols_for_champion(run_id):
         config_row = (
             spark.table(config_ref)
             .filter(F.col("config_key") == "selected_features")
+            .filter(F.col("is_active") == True)
             .orderBy(F.col("created_at").desc())
             .limit(1)
             .collect()
         )
         if config_row:
             cols = json.loads(config_row[0]["config_value"])
-            config_id = config_row[0].asDict().get("config_version")
+            config_dict = config_row[0].asDict()
+            config_id = config_dict.get("config_id") or config_dict.get("config_version")
             print(
                 f"Loaded {len(cols)} fallback selected features from {config_ref} "
                 f"config_version={config_id}"

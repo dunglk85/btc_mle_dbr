@@ -27,6 +27,7 @@ dbutils.library.restartPython()
 
 import numpy as np
 import pandas as pd
+import json
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.feature_selection import mutual_info_regression
@@ -92,6 +93,7 @@ REGRESSION_TARGET = "target_return_1h"
 
 # Load data
 source = spark.table(features_ref).orderBy("open_time")
+features_table_version = int(spark.sql(f"DESCRIBE HISTORY {features_ref} LIMIT 1").collect()[0]["version"])
 all_cols = ["open_time", REGRESSION_TARGET] + CANDIDATE_FEATURES
 # Chỉ lấy các cột thực sự có trong bảng
 existing_cols = [c for c in all_cols if c in source.columns]
@@ -104,6 +106,7 @@ pdf = source.select(existing_cols).toPandas().sort_values("open_time").reset_ind
 # Loại bỏ rows có target null (dòng cuối cùng do shift)
 pdf = pdf.dropna(subset=[REGRESSION_TARGET])
 print(f"Total rows for EDA: {len(pdf)}")
+print(f"features_table_version={features_table_version}")
 
 # Cập nhật danh sách features thực tế
 feature_cols = [c for c in CANDIDATE_FEATURES if c in pdf.columns]
@@ -318,29 +321,90 @@ for f in sorted(all_drops):
 
 # COMMAND ----------
 
-# Lưu selected_features dạng append-only để training có thể trace đúng config đã dùng.
-import json
-
 created_at = pd.Timestamp.now(tz="UTC")
+config_id = int(created_at.timestamp())
+config_ref = f"{catalog}.{features_schema}.feature_selection_config"
+
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {config_ref} (
+        config_key STRING,
+        config_value STRING,
+        config_id BIGINT,
+        config_version BIGINT,
+        created_at STRING,
+        created_by STRING,
+        is_active BOOLEAN,
+        n_features BIGINT,
+        method STRING,
+        source_table STRING,
+        source_table_version BIGINT,
+        target_col STRING,
+        candidate_features_json STRING,
+        dropped_features_json STRING,
+        selection_metrics_json STRING,
+        corr_threshold DOUBLE,
+        mi_threshold DOUBLE
+    )
+    USING DELTA
+""")
+
+for column_spec in [
+    "config_id BIGINT",
+    "created_by STRING",
+    "is_active BOOLEAN",
+    "source_table STRING",
+    "source_table_version BIGINT",
+    "target_col STRING",
+    "candidate_features_json STRING",
+    "dropped_features_json STRING",
+    "selection_metrics_json STRING",
+]:
+    try:
+        spark.sql(f"ALTER TABLE {config_ref} ADD COLUMNS ({column_spec})")
+    except Exception as exc:
+        print(f"feature config column already exists or cannot be added: {column_spec}; {exc}")
+
+selection_metrics = {
+    "top_mi_features": mi_reg_df.head(20).to_dict(orient="records"),
+    "top_importance_features": imp_reg.head(20).to_dict(orient="records"),
+    "high_corr_pairs": high_corr_df.head(50).to_dict(orient="records") if len(high_corr_df) else [],
+}
+
 config_df = spark.createDataFrame([{
     "config_key": "selected_features",
     "config_value": json.dumps(selected_features),
-    "config_version": int(created_at.timestamp()),
+    "config_id": config_id,
+    "config_version": config_id,
     "created_at": created_at.isoformat(),
+    "created_by": "02b_eda_feature_selection",
     "is_active": True,
     "n_features": len(selected_features),
     "method": "eda_auto_selection",
+    "source_table": features_ref,
+    "source_table_version": features_table_version,
+    "target_col": REGRESSION_TARGET,
+    "candidate_features_json": json.dumps(feature_cols),
+    "dropped_features_json": json.dumps(sorted(all_drops)),
+    "selection_metrics_json": json.dumps(selection_metrics, default=str),
     "corr_threshold": CORR_THRESHOLD,
     "mi_threshold": MI_THRESHOLD,
 }])
 
-config_ref = f"{catalog}.{features_schema}.feature_selection_config"
+try:
+    spark.sql(f"""
+        UPDATE {config_ref}
+        SET is_active = false
+        WHERE config_key = 'selected_features' AND is_active = true
+    """)
+except Exception as exc:
+    print(f"No existing active feature config to deactivate: {exc}")
+
 config_df.write.format("delta").mode("append").option(
     "mergeSchema", "true"
 ).saveAsTable(config_ref)
 
 print(f"Selected features config saved to: {config_ref}")
-print(f"Feature config version: {int(created_at.timestamp())}")
+print(f"Feature config id: {config_id}")
 print(f"Selected features: {selected_features}")
 
 # COMMAND ----------

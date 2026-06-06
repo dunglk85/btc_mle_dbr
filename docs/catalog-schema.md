@@ -17,7 +17,8 @@
 │   ├── btc_hourly_landing_autoloader # Auto Loader staging Delta table
 │   └── btc_hourly        # Raw OHLCV Delta table from Binance
 ├── features/
-│   └── btc_features      # Engineered features
+│   ├── btc_features      # Engineered features
+│   └── feature_selection_config # Append-only active feature selection metadata
 ├── predictions/
 │   └── btc_predictions   # Model predictions
 ├── monitoring/
@@ -53,6 +54,21 @@ Auto Loader state for this table is stored in the `raw.landing` volume:
 - `target_close_1h` is the exact close price for `open_time + 1 hour`.
 - If the next hourly candle is missing, `target_close_1h` is null.
 - Training drops rows with null feature or target values.
+
+## Feature Selection Config
+
+`features.feature_selection_config` is append-only governance metadata for selected model features.
+
+Important fields:
+
+- `config_key`: currently `selected_features`.
+- `config_id` / `config_version`: timestamp-derived config identifier.
+- `is_active`: only one active selected-features config should exist after `02b_eda_feature_selection` runs.
+- `source_table`, `source_table_version`: feature Delta table snapshot used for selection.
+- `target_col`: regression target used for selection.
+- `candidate_features_json`, `dropped_features_json`, `selection_metrics_json`: audit context for why the feature set was chosen.
+
+Training reads only `is_active = true` configs unless `allow_default_feature_fallback=true` is explicitly set.
 
 ## Monitoring Tables
 

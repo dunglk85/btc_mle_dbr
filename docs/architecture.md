@@ -31,6 +31,7 @@ Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundle
 
 - Fetch excludes currently open candles by requiring Binance `close_time` to be before current UTC time.
 - Feature target is an exact one-hour lookup, not just the next available row.
+- Feature selection config is append-only with one active config; each config records source feature table version, target column, candidates, dropped features, and selection metrics.
 - Auto Loader tracks processed landing files with a checkpoint under `/Volumes/<catalog>/raw/landing/_checkpoints/btc_hourly`.
 - Ingestion deduplicates overlapping landing files deterministically using Unity Catalog `_metadata.file_path`.
 - Training logs Delta versions for raw/features/config tables into MLflow and `monitoring.training_dataset_manifests`.

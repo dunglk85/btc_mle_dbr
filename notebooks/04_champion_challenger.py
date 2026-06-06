@@ -121,7 +121,10 @@ def load_feature_cols(run_id, run_params):
             config = spark.read.option("versionAsOf", int(config_version)).table(config_table)
             config = config.filter(F.col("config_key") == "selected_features")
             if config_id is not None and int(config_id) >= 0:
-                config = config.filter(F.col("config_version") == int(config_id))
+                if "config_id" in config.columns:
+                    config = config.filter(F.col("config_id") == int(config_id))
+                else:
+                    config = config.filter(F.col("config_version") == int(config_id))
             config_rows = config.orderBy(F.col("created_at").desc()).limit(1).collect()
             if config_rows:
                 cols = json.loads(config_rows[0]["config_value"])

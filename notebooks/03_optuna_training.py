@@ -60,6 +60,7 @@ timeout_seconds = int(get_widget("timeout_seconds", "1200"))
 n_cv_splits = int(get_widget("n_cv_splits", "5"))
 max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
 expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
+allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
 
 # --- Constants ---
 features_schema = "features"
@@ -89,6 +90,7 @@ print(f"timeout_seconds={timeout_seconds}")
 print(f"n_cv_splits={n_cv_splits}")
 print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
+print(f"allow_default_feature_fallback={allow_default_feature_fallback}")
 print(f"experiment_name={experiment_name}")
 print("=" * 60)
 
@@ -179,13 +181,15 @@ try:
     config_row = (
         spark.table(config_ref)
         .filter(F.col("config_key") == "selected_features")
+        .filter(F.col("is_active") == True)
         .orderBy(F.col("created_at").desc())
         .limit(1)
         .collect()
     )
     if config_row:
         feature_cols = json.loads(config_row[0]["config_value"])
-        feature_config_id = config_row[0].asDict().get("config_version")
+        config_dict = config_row[0].asDict()
+        feature_config_id = config_dict.get("config_id") or config_dict.get("config_version")
         if feature_config_id is None:
             feature_config_id = -1
         print(
@@ -193,9 +197,14 @@ try:
             f"config_version={feature_config_id}"
         )
     else:
-        raise ValueError("Empty config table")
+        raise ValueError("No active selected_features config found")
 except Exception as e:
-    print(f"WARNING: Could not load EDA config ({e}), using default features")
+    if not allow_default_feature_fallback:
+        raise ValueError(
+            f"Could not load active EDA feature config from {config_ref}: {e}. "
+            "Run 02b_eda_feature_selection or set allow_default_feature_fallback=true explicitly."
+        ) from e
+    print(f"WARNING: Could not load active EDA config ({e}), using explicit default fallback")
     feature_config_id = -1
     feature_cols = [
         "return_1h", "return_6h", "return_24h",
