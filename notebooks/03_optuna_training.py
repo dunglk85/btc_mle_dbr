@@ -34,6 +34,7 @@ import pandas as pd
 import mlflow
 import optuna
 from mlflow.models import infer_signature
+from pyspark.sql import functions as F
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import (
     mean_absolute_error,
@@ -63,9 +64,11 @@ expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
 # --- Constants ---
 features_schema = "features"
 features_table = "btc_features"
+raw_ref = f"{catalog}.raw.btc_hourly"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
+training_manifest_ref = f"{catalog}.monitoring.training_dataset_manifests"
 target_col = "target_return_1h"
 
 # Validate inputs
@@ -78,6 +81,8 @@ experiment_name = f"/Shared/btc_regression_{model_algo}_training"
 print("=" * 60)
 print(f"RUNNING OPTUNA REGRESSION TRAINING with {model_algo.upper()}")
 print(f"features_ref={features_ref}")
+print(f"raw_ref={raw_ref}")
+print(f"training_manifest_ref={training_manifest_ref}")
 print(f"target_col={target_col}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
@@ -86,6 +91,32 @@ print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
 print(f"experiment_name={experiment_name}")
 print("=" * 60)
+
+# COMMAND ----------
+
+def latest_delta_history(table_ref):
+    history = spark.sql(f"DESCRIBE HISTORY {table_ref} LIMIT 1").collect()
+    if not history:
+        raise ValueError(f"No Delta history found for {table_ref}")
+    row = history[0]
+    return {
+        "table": table_ref,
+        "version": int(row["version"]),
+        "timestamp": row["timestamp"],
+    }
+
+
+raw_version = latest_delta_history(raw_ref)
+features_version = latest_delta_history(features_ref)
+try:
+    config_version = latest_delta_history(config_ref)
+except Exception as exc:
+    print(f"WARNING: Could not resolve config table version: {exc}")
+    config_version = {"table": config_ref, "version": -1, "timestamp": None}
+
+print(f"raw_table_version={raw_version}")
+print(f"features_table_version={features_version}")
+print(f"feature_config_version={config_version}")
 
 # COMMAND ----------
 
@@ -345,6 +376,13 @@ with mlflow.start_run(
     mlflow.log_param("model_algo", model_algo)
     mlflow.log_param("task_type", "regression")
     mlflow.log_param("training_mode", "optuna")
+    mlflow.log_param("raw_table", raw_ref)
+    mlflow.log_param("raw_table_version", raw_version["version"])
+    mlflow.log_param("features_table", features_ref)
+    mlflow.log_param("features_table_version", features_version["version"])
+    mlflow.log_param("feature_config_table", config_ref)
+    if config_version["version"] >= 0:
+        mlflow.log_param("feature_config_version", config_version["version"])
     mlflow.log_param("n_trials_requested", n_trials)
     mlflow.log_param("n_trials_completed", len(study.trials))
     mlflow.log_param("n_cv_splits", n_cv_splits)
@@ -355,6 +393,25 @@ with mlflow.start_run(
 
     # Log feature list
     mlflow.log_text(json.dumps(feature_cols, indent=2), "feature_cols.json")
+    mlflow.log_text(
+        json.dumps(
+            {
+                "raw": {"table": raw_ref, "version": raw_version["version"], "timestamp": str(raw_version["timestamp"])},
+                "features": {"table": features_ref, "version": features_version["version"], "timestamp": str(features_version["timestamp"])},
+                "feature_config": {"table": config_ref, "version": config_version["version"], "timestamp": str(config_version["timestamp"])},
+                "target_col": target_col,
+                "feature_cols": feature_cols,
+                "train_start_time": str(train["open_time"].min()),
+                "train_end_time": str(train["open_time"].max()),
+                "test_start_time": str(test["open_time"].min()),
+                "test_end_time": str(test["open_time"].max()),
+                "train_rows": int(len(train)),
+                "test_rows": int(len(test)),
+            },
+            indent=2,
+        ),
+        "training_dataset_manifest.json",
+    )
 
     # Log model
     signature = infer_signature(
@@ -371,6 +428,78 @@ with mlflow.start_run(
 dbutils.jobs.taskValues.set(key="training_status", value="trained")
 dbutils.jobs.taskValues.set(key="run_id", value=run_id)
 dbutils.jobs.taskValues.set(key="task_type", value="regression")
+
+# COMMAND ----------
+
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.monitoring")
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {training_manifest_ref} (
+        created_at TIMESTAMP,
+        run_id STRING,
+        model_algo STRING,
+        target_col STRING,
+        raw_table STRING,
+        raw_table_version BIGINT,
+        features_table STRING,
+        features_table_version BIGINT,
+        feature_config_table STRING,
+        feature_config_version BIGINT,
+        train_start_time TIMESTAMP,
+        train_end_time TIMESTAMP,
+        test_start_time TIMESTAMP,
+        test_end_time TIMESTAMP,
+        train_rows BIGINT,
+        test_rows BIGINT,
+        n_features BIGINT,
+        feature_cols_json STRING
+    )
+    USING DELTA
+""")
+
+manifest_df = spark.createDataFrame(
+    [
+        {
+            "run_id": run_id,
+            "model_algo": model_algo,
+            "target_col": target_col,
+            "raw_table": raw_ref,
+            "raw_table_version": raw_version["version"],
+            "features_table": features_ref,
+            "features_table_version": features_version["version"],
+            "feature_config_table": config_ref,
+            "feature_config_version": config_version["version"],
+            "train_start_time": train["open_time"].min().to_pydatetime(),
+            "train_end_time": train["open_time"].max().to_pydatetime(),
+            "test_start_time": test["open_time"].min().to_pydatetime(),
+            "test_end_time": test["open_time"].max().to_pydatetime(),
+            "train_rows": int(len(train)),
+            "test_rows": int(len(test)),
+            "n_features": len(feature_cols),
+            "feature_cols_json": json.dumps(feature_cols),
+        }
+    ]
+).withColumn("created_at", F.current_timestamp())
+
+manifest_df.select(
+    "created_at",
+    "run_id",
+    "model_algo",
+    "target_col",
+    "raw_table",
+    "raw_table_version",
+    "features_table",
+    "features_table_version",
+    "feature_config_table",
+    "feature_config_version",
+    "train_start_time",
+    "train_end_time",
+    "test_start_time",
+    "test_end_time",
+    "train_rows",
+    "test_rows",
+    "n_features",
+    "feature_cols_json",
+).write.mode("append").saveAsTable(training_manifest_ref)
 
 # COMMAND ----------
 

@@ -33,6 +33,8 @@ Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundle
 - Feature target is an exact one-hour lookup, not just the next available row.
 - Auto Loader tracks processed landing files with a checkpoint under `/Volumes/<catalog>/raw/landing/_checkpoints/btc_hourly`.
 - Ingestion deduplicates overlapping landing files deterministically using Unity Catalog `_metadata.file_path`.
+- Training logs Delta versions for raw/features/config tables into MLflow and `monitoring.training_dataset_manifests`.
+- Predictions store model version/run ID plus raw/features Delta versions for traceability.
 
 ## Drift Monitoring Status
 

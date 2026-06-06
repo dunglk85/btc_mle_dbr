@@ -23,6 +23,7 @@
 ├── monitoring/
 │   ├── pipeline_metrics
 │   ├── model_refresh_decisions
+│   ├── training_dataset_manifests
 │   └── data_remediation_actions
 └── models/
     └── btc_price_model   # UC registered model with Champion/Challenger aliases
@@ -59,4 +60,8 @@ Auto Loader state for this table is stored in the `raw.landing` volume:
 
 `model_refresh_decisions` records whether the model refresh job should train, including the reason, latest raw freshness, alert count, and Champion existence.
 
+`training_dataset_manifests` records the raw/features/config Delta versions, feature columns, split boundaries, and row counts used for each MLflow training run.
+
 `data_remediation_actions` records safe auto-remediation attempts, blocked manual-required cases, and failure reasons.
+
+`predictions.btc_predictions` includes model/data lineage fields: `model_version`, `model_run_id`, `raw_table_version`, and `features_table_version`.

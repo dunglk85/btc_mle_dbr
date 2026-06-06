@@ -21,6 +21,7 @@ graph TB
             P["predictions.btc_predictions<br/>(Delta Table)"]
             Q["monitoring.pipeline_metrics<br/>(Delta Table)"]
             R["monitoring.model_refresh_decisions<br/>(Delta Table)"]
+            T["monitoring.training_dataset_manifests<br/>(Delta Table)"]
         end
 
         subgraph "MLflow"
@@ -53,6 +54,7 @@ graph TB
     B -->|"Feature Engineering + exact target_close_1h"| C
     C -->|"Predict with Champion"| P
     C -->|"Optuna training"| D
+    C -->|"Delta version manifest"| T
     D -->|"Register current run"| G
     G -->|"Compare RMSE"| F
     F -->|"Promote / retain"| E
@@ -91,6 +93,8 @@ Ghi chú kiến trúc hiện tại:
 - GitHub Actions không còn là hourly scheduler chính; workflow hourly chỉ còn manual trigger nếu cần.
 - Tất cả notebooks nhận `catalog` từ Databricks widget do DAB truyền vào: `btc_dev` cho dev, `btc_prod` cho prod.
 - `target_close_1h` là exact next-hour close bằng self-join theo `open_time + 1 hour`, không dùng next-row `lead`.
+- Training ghi raw/features/config Delta versions vào MLflow và `monitoring.training_dataset_manifests` để tái lập dataset.
+- Prediction ghi model version/run ID và raw/features Delta versions vào `predictions.btc_predictions` để trace từng prediction.
 
 ---
 
@@ -265,6 +269,7 @@ flowchart TD
 | 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate -> Conditional Model Refresh Trigger + Data Remediation<br/>- **Model Refresh Job** (trigger-only): Regression Optuna Training -> Champion/Challenger, guarded by latest training-gate decision<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
+| 4.3b | Data Version Control MVP | - Log `raw_table_version`, `features_table_version`, `feature_config_version` vào MLflow<br/>- Ghi `training_dataset_manifests` cho mỗi training run<br/>- Ghi model/data version lineage vào `btc_predictions` | Delta Lake Time Travel, MLflow |
 
 Drift-triggered retraining rule:
 

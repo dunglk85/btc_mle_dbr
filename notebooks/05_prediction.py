@@ -40,6 +40,7 @@ predictions_table = "btc_predictions"
 model_schema = "models"
 model_name = "btc_price_model"
 
+raw_ref = f"{catalog}.raw.btc_hourly"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 predictions_ref = f"{catalog}.{predictions_schema}.{predictions_table}"
@@ -47,6 +48,7 @@ champion_uri = f"models:/{catalog}.{model_schema}.{model_name}@Champion"
 full_model_name = f"{catalog}.{model_schema}.{model_name}"
 
 print("RUNNING SELF-CONTAINED PREDICTION NOTEBOOK")
+print(f"raw_ref={raw_ref}")
 print(f"features_ref={features_ref}")
 print(f"config_ref={config_ref}")
 print(f"predictions_ref={predictions_ref}")
@@ -61,10 +63,38 @@ spark.sql(f"""
         prediction_time TIMESTAMP,
         feature_open_time TIMESTAMP,
         predicted_close DOUBLE,
-        model_uri STRING
+        model_uri STRING,
+        model_version STRING,
+        model_run_id STRING,
+        raw_table_version BIGINT,
+        features_table_version BIGINT
     )
     USING DELTA
 """)
+
+for column_def in [
+    "model_version STRING",
+    "model_run_id STRING",
+    "raw_table_version BIGINT",
+    "features_table_version BIGINT",
+]:
+    try:
+        spark.sql(f"ALTER TABLE {predictions_ref} ADD COLUMNS ({column_def})")
+    except Exception as exc:
+        print(f"Column already exists or could not be added ({column_def}): {exc}")
+
+
+def latest_delta_version(table_ref):
+    history = spark.sql(f"DESCRIBE HISTORY {table_ref} LIMIT 1").collect()
+    if not history:
+        raise ValueError(f"No Delta history found for {table_ref}")
+    return int(history[0]["version"])
+
+
+raw_table_version = latest_delta_version(raw_ref)
+features_table_version = latest_delta_version(features_ref)
+print(f"raw_table_version={raw_table_version}")
+print(f"features_table_version={features_table_version}")
 
 # COMMAND ----------
 
@@ -146,6 +176,10 @@ pred_df = spark.createDataFrame(
             "feature_open_time": feature_open_time,
             "predicted_close": prediction,
             "model_uri": champion_uri,
+            "model_version": str(champion_version.version),
+            "model_run_id": champion_run_id,
+            "raw_table_version": raw_table_version,
+            "features_table_version": features_table_version,
         }
     ]
 ).withColumn("prediction_time", F.current_timestamp())
@@ -155,6 +189,10 @@ pred_df.select(
     "feature_open_time",
     "predicted_close",
     "model_uri",
+    "model_version",
+    "model_run_id",
+    "raw_table_version",
+    "features_table_version",
 ).createOrReplaceTempView("_btc_prediction")
 
 spark.sql(f"""
