@@ -34,6 +34,8 @@ Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundle
 - Auto Loader tracks processed landing files with a checkpoint under `/Volumes/<catalog>/raw/landing/_checkpoints/btc_hourly`.
 - Ingestion deduplicates overlapping landing files deterministically using Unity Catalog `_metadata.file_path`.
 - Training logs Delta versions for raw/features/config tables into MLflow and `monitoring.training_dataset_manifests`.
+- `12_training_dataset_replay` validates that manifest versions are still available with Delta time travel and that the replayed training dataset matches the manifest before model promotion.
+- Champion/Challenger evaluation uses a bounded latest common holdout window so both models are compared on identical rows without loading the full feature table.
 - Predictions store model version/run ID, prediction-input raw/features Delta versions, and Champion training data/config versions for traceability.
 
 ## Drift Monitoring Status
@@ -77,4 +79,4 @@ If validation fails: block retrain and trigger remediation/manual review
 Job separation:
 - `btc_data_prediction_job` runs only the hourly serving path: fetch, ingestion, feature engineering, prediction, regular monitoring, and job quality monitoring.
 - `btc_drift_monitoring_job` runs `drift_monitoring`, `training_gate_drift`, conditional model-refresh trigger, and safe data remediation every 6 hours.
-- `btc_model_refresh_job` owns trigger-only retraining and Champion/Challenger promotion; training notebooks require a fresh positive training-gate decision.
+- `btc_model_refresh_job` owns trigger-only retraining, dataset replay validation, and Champion/Challenger promotion; training notebooks require a fresh positive training-gate decision.
