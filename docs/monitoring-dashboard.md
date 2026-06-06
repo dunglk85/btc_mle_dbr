@@ -127,7 +127,7 @@ Recommended alert conditions:
 - Raw data stale: `raw_freshness_hours > 3`.
 - Monitoring has alerts: `alert_count > 0`.
 - No recent prediction: `prediction_age_hours > 3`.
-- High prediction error: `avg_pct_error > 0.02`.
+- High prediction error: at least 12 evaluated predictions and `avg_pct_error > 0.05`.
 - Feature target nulls beyond expected last row: `target_null_count > 1`.
 - Job quality alert count: `job_quality_alert_count > 0`.
 

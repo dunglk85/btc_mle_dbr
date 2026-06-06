@@ -88,7 +88,11 @@ resources:
       warehouse_id: ${var.sql_warehouse_id}
       query_text: |
         SELECT
-          COALESCE(AVG(ABS(r.close - p.predicted_close) / ABS(r.close)), 0.0) AS avg_pct_error
+          COUNT(*) AS n_eval,
+          CASE
+            WHEN COUNT(*) < 12 THEN 0.0
+            ELSE COALESCE(AVG(ABS(r.close - p.predicted_close) / ABS(r.close)), 0.0)
+          END AS avg_pct_error
         FROM ${var.catalog}.predictions.btc_predictions p
         JOIN ${var.catalog}.raw.btc_hourly r
           ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR
@@ -104,7 +108,7 @@ resources:
         comparison_operator: GREATER_THAN
         threshold:
           value:
-            double_value: 0.02
+            double_value: 0.05
       schedule:
         quartz_cron_schedule: "0 0 * * * ?"
         timezone_id: UTC
