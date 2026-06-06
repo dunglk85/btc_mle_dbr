@@ -6,7 +6,7 @@
 2. **Auto Loader ingestion** -> `01_data_ingestion` incrementally reads new landing files into `<catalog>.raw.btc_hourly_landing_autoloader`, then batch MERGEs into `<catalog>.raw.btc_hourly`.
 3. **Feature Engineering** -> `<catalog>.features.btc_features` with exact next-hour target `target_close_1h`.
 4. **Model Training** -> Regression-only Optuna training + MLflow tracking.
-5. **Champion vs Challenger** -> Register current training run as Challenger, compare RMSE, promote winner.
+5. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same holdout rows, then promote only if Challenger RMSE is lower.
 6. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`.
 7. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics` and model refresh gate decisions.
 
@@ -34,7 +34,7 @@ Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundle
 - Auto Loader tracks processed landing files with a checkpoint under `/Volumes/<catalog>/raw/landing/_checkpoints/btc_hourly`.
 - Ingestion deduplicates overlapping landing files deterministically using Unity Catalog `_metadata.file_path`.
 - Training logs Delta versions for raw/features/config tables into MLflow and `monitoring.training_dataset_manifests`.
-- Predictions store model version/run ID plus raw/features Delta versions for traceability.
+- Predictions store model version/run ID, prediction-input raw/features Delta versions, and Champion training data/config versions for traceability.
 
 ## Drift Monitoring Status
 

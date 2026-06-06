@@ -67,7 +67,11 @@ spark.sql(f"""
         model_version STRING,
         model_run_id STRING,
         raw_table_version BIGINT,
-        features_table_version BIGINT
+        features_table_version BIGINT,
+        model_raw_table_version BIGINT,
+        model_features_table_version BIGINT,
+        model_feature_config_version BIGINT,
+        model_feature_config_id BIGINT
     )
     USING DELTA
 """)
@@ -77,6 +81,10 @@ for column_def in [
     "model_run_id STRING",
     "raw_table_version BIGINT",
     "features_table_version BIGINT",
+    "model_raw_table_version BIGINT",
+    "model_features_table_version BIGINT",
+    "model_feature_config_version BIGINT",
+    "model_feature_config_id BIGINT",
 ]:
     try:
         spark.sql(f"ALTER TABLE {predictions_ref} ADD COLUMNS ({column_def})")
@@ -109,8 +117,17 @@ except Exception as exc:
     dbutils.notebook.exit("SKIP_PREDICTION_NO_CHAMPION")
 
 champion_run_id = champion_version.run_id
+champion_run = mlflow.get_run(champion_run_id)
+model_raw_table_version = int(champion_run.data.params.get("raw_table_version", -1))
+model_features_table_version = int(champion_run.data.params.get("features_table_version", -1))
+model_feature_config_version = int(champion_run.data.params.get("feature_config_version", -1))
+model_feature_config_id = int(champion_run.data.params.get("feature_config_id", -1))
 print(f"champion_version={champion_version.version}")
 print(f"champion_run_id={champion_run_id}")
+print(f"model_raw_table_version={model_raw_table_version}")
+print(f"model_features_table_version={model_features_table_version}")
+print(f"model_feature_config_version={model_feature_config_version}")
+print(f"model_feature_config_id={model_feature_config_id}")
 
 def load_feature_cols_for_champion(run_id):
     try:
@@ -190,6 +207,10 @@ pred_df = spark.createDataFrame(
             "model_run_id": champion_run_id,
             "raw_table_version": raw_table_version,
             "features_table_version": features_table_version,
+            "model_raw_table_version": model_raw_table_version,
+            "model_features_table_version": model_features_table_version,
+            "model_feature_config_version": model_feature_config_version,
+            "model_feature_config_id": model_feature_config_id,
         }
     ]
 ).withColumn("prediction_time", F.current_timestamp())
@@ -203,6 +224,10 @@ pred_df.select(
     "model_run_id",
     "raw_table_version",
     "features_table_version",
+    "model_raw_table_version",
+    "model_features_table_version",
+    "model_feature_config_version",
+    "model_feature_config_id",
 ).createOrReplaceTempView("_btc_prediction")
 
 spark.sql(f"""
