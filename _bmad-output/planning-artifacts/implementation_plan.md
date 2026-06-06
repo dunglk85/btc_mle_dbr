@@ -18,6 +18,7 @@ graph TB
             S["raw.btc_hourly_landing_autoloader<br/>(Auto Loader staging Delta Table)"]
             B["raw.btc_hourly<br/>(Delta Table)"]
             C["features.btc_features<br/>(Delta Table)"]
+            U["features.feature_selection_config<br/>(Delta Table)"]
             P["predictions.btc_predictions<br/>(Delta Table)"]
             Q["monitoring.pipeline_metrics<br/>(Delta Table)"]
             R["monitoring.model_refresh_decisions<br/>(Delta Table)"]
@@ -40,6 +41,7 @@ graph TB
         K["btc_data_prediction_job<br/>(hourly)"]
         L["btc_drift_monitoring_job<br/>(6h)"]
         X["data_remediation task<br/>(triggered by training gate)"]
+        Y["dataset replay validation<br/>(Delta VERSION AS OF)"]
         O["btc_model_refresh_job<br/>(trigger-only)"]
     end
 
@@ -54,9 +56,12 @@ graph TB
     B -->|"Feature Engineering + exact target_close_1h"| C
     C -->|"Predict with Champion"| P
     C -->|"Optuna training"| D
-    C -->|"Delta version manifest"| T
-    D -->|"Register current run"| G
-    G -->|"Compare RMSE"| F
+    C -->|"EDA feature selection"| U
+    U -->|"active selected_features config"| D
+    D -->|"Write dataset manifest"| T
+    T -->|"VERSION AS OF replay validation"| Y
+    Y -->|"validated"| G
+    G -->|"Bounded fair RMSE comparison"| F
     F -->|"Promote / retain"| E
     B --> H
     C --> H
@@ -89,12 +94,13 @@ Ghi chú kiến trúc hiện tại:
 - Job hourly chính do Databricks quản lý: `btc_data_prediction_job` chạy fetch -> Auto Loader ingestion -> feature engineering -> prediction -> monitoring -> job quality monitoring.
 - Job drift riêng: `btc_drift_monitoring_job` chạy drift metrics -> training gate -> conditional model refresh trigger / data remediation mỗi 6 giờ.
 - Task remediation trong `btc_drift_monitoring_job` xử lý các lỗi data an toàn như raw stale, feature mismatch, prediction stale; lỗi nguy hiểm vẫn yêu cầu manual review.
-- Job refresh model: `btc_model_refresh_job` là trigger-only, chạy regression-only Optuna training -> Champion/Challenger; training notebook yêu cầu latest training-gate decision còn fresh và `should_retrain=true`.
+- Job refresh model: `btc_model_refresh_job` là trigger-only, chạy EDA feature selection -> regression-only Optuna training -> dataset replay validation -> Champion/Challenger; training notebook yêu cầu latest training-gate decision còn fresh và `should_retrain=true`.
 - GitHub Actions không còn là hourly scheduler chính; workflow hourly chỉ còn manual trigger nếu cần.
 - Tất cả notebooks nhận `catalog` từ Databricks widget do DAB truyền vào: `btc_dev` cho dev, `btc_prod` cho prod.
 - `target_close_1h` là exact next-hour close bằng self-join theo `open_time + 1 hour`, không dùng next-row `lead`.
-- Training ghi raw/features/config Delta versions vào MLflow và `monitoring.training_dataset_manifests` để tái lập dataset.
-- Prediction ghi model version/run ID và raw/features Delta versions vào `predictions.btc_predictions` để trace từng prediction.
+- Feature selection dùng append-only `features.feature_selection_config`, chỉ một config `is_active=true`; config ghi source feature table version, target, candidates, dropped features và selection metrics.
+- Training ghi raw/features/config Delta versions vào MLflow và `monitoring.training_dataset_manifests`; `12_training_dataset_replay.py` xác thực lại dataset bằng Delta `VERSION AS OF` trước khi cho phép promote model.
+- Prediction ghi model version/run ID, prediction-input raw/features versions, và Champion training data/config versions vào `predictions.btc_predictions` để trace từng prediction.
 
 ---
 
@@ -137,7 +143,7 @@ Ghi chú kiến trúc hiện tại:
 ### Tuần 2: Feature Engineering & Model Training (Optuna)
 
 #### Mục tiêu
-- Xây dựng feature engineering pipeline và đăng ký vào Feature Registry.
+- Xây dựng feature engineering pipeline và quản lý feature selection bằng Delta metadata config.
 - Xây dựng model training pipeline regression-only với Optuna hyperparameter tuning (single-node).
 
 #### Tasks
@@ -145,7 +151,7 @@ Ghi chú kiến trúc hiện tại:
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
 | 2.1 | Feature Engineering pipeline | - Tạo features từ raw data:<br/>  • Moving averages (MA7, MA24, MA168)<br/>  • RSI, MACD, Bollinger Bands<br/>  • Lag features (1h, 2h, 4h, 12h, 24h)<br/>  • Volume features<br/>  • Time-based features (hour, day_of_week)<br/>- Lưu vào `btc_dev.features.btc_features` | Feature Engineering |
-| 2.2 | Quản lý Feature Delta Table | - Lưu features vào Delta table<br/>- Tạo lookup keys và metadata config | Feature Delta table / metadata config |
+| 2.2 | Quản lý Feature Delta Table | - Lưu features vào Delta table<br/>- Tạo feature selection config append-only<br/>- Chỉ một config active tại một thời điểm<br/>- Lưu source table version, candidates, dropped features, selection metrics | Feature Delta table / metadata config |
 | 2.3 | Data validation | - Kiểm tra null, duplicate, outlier<br/>- Đảm bảo tính liên tục của time series | Data Quality |
 | 2.4 | Time Series Data Split | - Temporal split: 80% train, 10% validation, 10% test<br/>- Không random shuffle<br/>- Đảm bảo không data leakage | Python/Spark |
 | 2.5 | Training pipeline regression với Optuna Tuning | - Target: `target_close_1h` regression<br/>- Thuật toán candidates trong job refresh hiện tại: LightGBM và XGBoost<br/>- Dùng **Optuna** với TPE Bayesian optimization<br/>- Chạy single-node (phù hợp Free Edition serverless)<br/>- `MedianPruner` early stopping cho trials không triển vọng<br/>- Log tất cả trials vào MLflow (child runs) | MLflow + Optuna |
@@ -175,7 +181,7 @@ Ghi chú kiến trúc hiện tại:
 > ```
 
 #### Deliverables
-- [ ] Feature engineering pipeline & Feature table registered
+- [ ] Feature engineering pipeline & active feature selection config
 - [ ] Regression training pipeline notebook với Optuna tuning hoạt động ổn định
 
 ---
@@ -194,7 +200,7 @@ Ghi chú kiến trúc hiện tại:
 | # | Task | Chi tiết | Databricks Feature / Tool |
 |---|------|----------|-------------------|
 | 3.1 | Auto-select Best Model (Challenger) | - So sánh metrics (RMSE, MAE, MAPE) trên validation set<br/>- Tự động chọn model tốt nhất → **Challenger**<br/>- Register Challenger vào Model Registry | MLflow Model Registry |
-| 3.2 | Champion vs Challenger Comparison | - Load Champion hiện tại từ Model Registry (production alias `@Champion`)<br/>- So sánh Challenger vs Champion trên test set<br/>- Nếu Challenger thắng → promote lên production alias<br/>- Nếu Champion thắng → giữ nguyên | MLflow Model Registry |
+| 3.2 | Champion vs Challenger Comparison | - Load Champion hiện tại từ Model Registry (production alias `@Champion`)<br/>- Bắt buộc dataset replay validation pass trước promotion<br/>- So sánh Challenger vs Champion trên cùng bounded common holdout rows<br/>- Nếu Challenger thắng RMSE → promote lên production alias<br/>- Nếu Champion thắng → giữ nguyên | MLflow Model Registry + Delta Time Travel |
 | 3.3 | Prediction pipeline | - Model thắng cuộc predict giá BTC cho next 1 hour<br/>- Lưu prediction vào `btc_dev.predictions.btc_predictions` | MLflow, Delta Lake |
 | 3.4 | Setup Databricks Asset Bundles (DABs) | - Định nghĩa jobs, notebooks trong `databricks.yml`<br/>- Tách config cho dev/prod bằng DABs `targets` (cùng workspace, khác catalog) | Databricks CLI, DABs |
 | 3.5 | GitHub Actions CI/CD Pipeline | - **CI (on PR/Push)**: Lint, unit test, validate bundle<br/>- **CD (on Merge)**: Deploy bundle lên Databricks và cập nhật Jobs | GitHub Actions |
@@ -224,18 +230,22 @@ Ghi chú kiến trúc hiện tại:
 
 ```mermaid
 flowchart TD
-    A["Feature Data Ready"] --> B["Optuna Tuning<br/>(50 trials, TPE Sampler)"]
-    B --> C["Select Best → Challenger"]
-    D{"Champion exists?"}
-    C --> D
-    D -->|No| E["Promote Challenger<br/>→ Champion"]
-    D -->|Yes| F["Compare on Test Set"]
-    F --> G{"Challenger better?"}
+    A["Feature Data Ready"] --> Z["Active feature selection config"]
+    Z --> B["Optuna Tuning<br/>(LightGBM/XGBoost)"]
+    B --> C["Write MLflow run + dataset manifest"]
+    C --> R["Replay dataset with<br/>Delta VERSION AS OF"]
+    R --> D{"Replay valid?"}
+    D -->|No| X["Fail promotion"]
+    D -->|Yes| Y["Register Challenger"]
+    Y --> E{"Champion exists?"}
+    E -->|No| P["Promote Challenger<br/>→ Champion"]
+    E -->|Yes| F["Evaluate both models on<br/>same bounded rows"]
+    F --> G{"Challenger RMSE lower?"}
     G -->|Yes| H["Promote Challenger<br/>→ New Champion"]
     G -->|No| I["Keep Current Champion"]
     H --> J["Predict Next 1h"]
     I --> J
-    E --> J
+    P --> J
     J --> K["Save Prediction<br/>to Delta Table"]
 ```
 
@@ -251,7 +261,7 @@ flowchart TD
 | n_trials / early_stopped | Số trials chạy / bị dừng sớm | Đo mức độ hội tụ của Optuna |
 
 #### Deliverables
-- [ ] Champion vs Challenger comparison logic & prediction pipeline
+- [ ] Replay-gated Champion vs Challenger comparison logic & prediction pipeline
 - [ ] Databricks Asset Bundle config & GitHub Actions CI/CD workflows hoạt động
 
 ---
@@ -266,10 +276,10 @@ flowchart TD
 
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
-| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate -> Conditional Model Refresh Trigger + Data Remediation<br/>- **Model Refresh Job** (trigger-only): Regression Optuna Training -> Champion/Challenger, guarded by latest training-gate decision<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
+| 4.1 | Databricks Jobs (Schedule) | - **Data Prediction Job** (chạy 1h/lần): Fetch Binance -> Auto Loader Ingestion -> Feature Engineering -> Prediction -> Monitoring -> Job Quality Monitoring<br/>- **Drift Monitoring Job** (chạy 6h/lần): Drift Monitoring -> Training Gate -> Conditional Model Refresh Trigger + Data Remediation<br/>- **Model Refresh Job** (trigger-only): EDA Feature Selection -> Regression Optuna Training -> Dataset Replay Validation -> Champion/Challenger, guarded by latest training-gate decision<br/>- Cấu hình retry, timeout, alerts | Databricks Jobs/Workflows |
 | 4.2 | Data Quality + Data Drift Monitoring | - Fallback metrics: row count, duplicate `open_time`, null `open_time`, freshness, target null count<br/>- Drift metrics: PSI/KS cho selected features, label drift cho `target_close_1h`, prediction drift cho `predicted_close`<br/>- Alert khi data bất thường hoặc drift vượt threshold | Delta metrics tables, Databricks SQL Alerts |
 | 4.3 | Model Performance / Concept Drift Monitoring | - Theo dõi prediction accuracy theo thời gian<br/>- So sánh actual vs predicted bằng join `predictions.feature_open_time + 1 hour = raw.open_time`<br/>- Metrics: rolling RMSE/MAE/MAPE, direction accuracy, p95 error, signed error bias proxy cho concept drift<br/>- Alert khi performance giảm hoặc drift vượt threshold | MLflow, Delta metrics tables |
-| 4.3b | Data Version Control MVP | - Log `raw_table_version`, `features_table_version`, `feature_config_version` vào MLflow<br/>- Ghi `training_dataset_manifests` cho mỗi training run<br/>- Ghi model/data version lineage vào `btc_predictions` | Delta Lake Time Travel, MLflow |
+| 4.3b | Data Version Control production-like | - Log `raw_table_version`, `features_table_version`, `feature_config_version`, `feature_config_id` vào MLflow<br/>- Ghi `training_dataset_manifests` cho mỗi training run<br/>- Replay manifest bằng Delta `VERSION AS OF` trước promotion<br/>- Ghi prediction-input và Champion-training lineage vào `btc_predictions` | Delta Lake Time Travel, MLflow |
 
 Drift-triggered retraining rule:
 
@@ -284,7 +294,7 @@ Retrain only if validation passes
 Implementation detail:
 - `btc_data_prediction_job` không chạy drift/training để giữ hourly serving path ngắn và ổn định.
 - `btc_drift_monitoring_job` ghi drift metrics, training gate decisions, trigger model refresh khi `should_retrain=true`, và chạy data remediation khi có lỗi data an toàn.
-- `btc_model_refresh_job` là nơi duy nhất chạy regression retraining và Champion/Challenger promotion, nhưng không có schedule riêng.
+- `btc_model_refresh_job` là nơi duy nhất chạy regression retraining, dataset replay validation và Champion/Challenger promotion, nhưng không có schedule riêng. Promotion được serialize để tránh race khi LightGBM/XGBoost cùng cập nhật alias `@Champion`.
 
 | 4.4 | Job Quality Monitoring | - Theo dõi: job success/failure rate, failed runs, failed tasks, latest run duration<br/>- Ghi metrics vào `monitoring.pipeline_metrics` qua `notebooks/09_job_quality_monitoring.py`<br/>- Alert khi job fail hoặc chạy quá lâu | Databricks Jobs API, Delta metrics tables, Alerts |
 | 4.5 | Tạo Dashboard | - Tổng hợp tất cả metrics monitoring<br/>- Hiển thị: data freshness, model accuracy trend, job status, biểu đồ actual vs predicted price | Databricks Dashboard (Lakeview) |
@@ -336,14 +346,16 @@ BTC/
 │   ├── 00_fetch_binance_to_volume.py # Fetch Binance Vision API -> UC Volume
 │   ├── 01_data_ingestion.py          # Auto Loader landing CSV -> staging Delta -> raw Delta MERGE
 │   ├── 02_feature_engineering.py     # Features + exact target_close_1h
+│   ├── 02b_eda_feature_selection.py  # Active feature selection config governance
 │   ├── 03_model_training.py          # Baseline training notebook
-│   ├── 03_optuna_training.py         # Optuna RandomForest training
-│   ├── 04_champion_challenger.py     # Register/promote UC model aliases
+│   ├── 03_optuna_training.py         # Regression Optuna LightGBM/XGBoost training
+│   ├── 04_champion_challenger.py     # Replay-gated fair Champion/Challenger promotion
 │   ├── 05_prediction.py              # Predict next 1h with @Champion
 │   ├── 06_monitoring.py              # Pipeline metrics writer
 │   ├── 07_training_gate.py           # Training/retraining gate decisions
 │   ├── 10_data_remediation.py        # Safe data remediation actions
-│   └── 11_trigger_model_refresh.py   # Conditional model refresh trigger
+│   ├── 11_trigger_model_refresh.py   # Conditional model refresh trigger
+│   └── 12_training_dataset_replay.py # Delta VERSION AS OF dataset replay validation
 ├── src/
 │   ├── data/
 │   │   ├── binance_landing.py
