@@ -20,6 +20,7 @@ import json
 import pandas as pd
 from pyspark.sql import functions as F
 from mlflow.exceptions import MlflowException
+from mlflow.tracking import MlflowClient
 
 # COMMAND ----------
 
@@ -43,12 +44,14 @@ features_ref = f"{catalog}.{features_schema}.{features_table}"
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 predictions_ref = f"{catalog}.{predictions_schema}.{predictions_table}"
 champion_uri = f"models:/{catalog}.{model_schema}.{model_name}@Champion"
+full_model_name = f"{catalog}.{model_schema}.{model_name}"
 
 print("RUNNING SELF-CONTAINED PREDICTION NOTEBOOK")
 print(f"features_ref={features_ref}")
 print(f"config_ref={config_ref}")
 print(f"predictions_ref={predictions_ref}")
 print(f"champion_uri={champion_uri}")
+print(f"full_model_name={full_model_name}")
 
 # COMMAND ----------
 
@@ -65,27 +68,47 @@ spark.sql(f"""
 
 # COMMAND ----------
 
+mlflow.set_registry_uri("databricks-uc")
+client = MlflowClient()
+
 try:
-    config_row = spark.table(config_ref).collect()
-    if config_row:
-        feature_cols = json.loads(config_row[0]["config_value"])
-        print(f"Loaded {len(feature_cols)} selected features from {config_ref}")
-    else:
-        raise ValueError("Empty feature selection config table")
+    champion_version = client.get_model_version_by_alias(full_model_name, "Champion")
 except Exception as exc:
-    print(f"WARNING: Could not load feature selection config ({exc}), using fallback features")
-    feature_cols = [
-        "return_1h", "return_6h", "return_24h",
-        "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
-        "macd", "macd_signal", "macd_hist",
-        "rsi_14",
-        "atr_14", "atr_ratio", "bb_width",
-        "volume_ratio", "log_volume",
-        "hl_spread", "oc_change",
-        "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
-        "hour", "day_of_week",
-        "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
-    ]
+    print(f"SKIP_PREDICTION_NO_CHAMPION: {champion_uri}")
+    print(f"mlflow_error={exc}")
+    dbutils.notebook.exit("SKIP_PREDICTION_NO_CHAMPION")
+
+champion_run_id = champion_version.run_id
+print(f"champion_version={champion_version.version}")
+print(f"champion_run_id={champion_run_id}")
+
+def load_feature_cols_for_champion(run_id):
+    try:
+        artifact_path = mlflow.artifacts.download_artifacts(
+            run_id=run_id,
+            artifact_path="feature_cols.json",
+        )
+        with open(artifact_path, encoding="utf-8") as feature_file:
+            cols = json.load(feature_file)
+        print(f"Loaded {len(cols)} features from Champion artifact feature_cols.json")
+        return cols
+    except Exception as artifact_exc:
+        print(f"WARNING: Could not load Champion feature artifact ({artifact_exc})")
+
+    try:
+        config_row = spark.table(config_ref).collect()
+        if config_row:
+            cols = json.loads(config_row[0]["config_value"])
+            print(f"Loaded {len(cols)} fallback selected features from {config_ref}")
+            return cols
+        raise ValueError("Empty feature selection config table")
+    except Exception as config_exc:
+        raise ValueError(
+            "Could not resolve prediction feature columns from Champion artifact or feature config"
+        ) from config_exc
+
+
+feature_cols = load_feature_cols_for_champion(champion_run_id)
 
 source = spark.table(features_ref)
 missing_features = [col for col in feature_cols if col not in source.columns]
@@ -104,7 +127,6 @@ latest_pdf = latest.select(*feature_cols).toPandas()
 
 # COMMAND ----------
 
-mlflow.set_registry_uri("databricks-uc")
 try:
     champion = mlflow.pyfunc.load_model(champion_uri)
 except MlflowException as exc:
