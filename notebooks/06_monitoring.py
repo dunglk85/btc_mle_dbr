@@ -7,6 +7,7 @@
 
 # COMMAND ----------
 
+import json
 from datetime import datetime, timezone
 
 from pyspark.sql import functions as F
@@ -65,17 +66,31 @@ def table_exists(table_ref):
         return False
 
 
+def latest_table_version(table_ref):
+    try:
+        row = spark.sql(f"DESCRIBE HISTORY {table_ref} LIMIT 1").collect()[0]
+        return {"table": table_ref, "version": int(row["version"]), "timestamp": str(row["timestamp"])}
+    except Exception as exc:
+        return {"table": table_ref, "version": None, "error": str(exc)}
+
+
 metric_time = datetime.now(timezone.utc)
+lineage_context = {
+    "raw": latest_table_version(raw_ref),
+    "features": latest_table_version(features_ref),
+    "predictions": latest_table_version(predictions_ref) if table_exists(predictions_ref) else None,
+}
 
 
 def append_metric(metrics, name, value, status="ok", details=""):
+    details_payload = {"message": details, "lineage": lineage_context}
     metrics.append(
         {
             "metric_time": metric_time,
             "metric_name": name,
             "metric_value": float(value) if value is not None else None,
             "status": status,
-            "details": details,
+            "details": json.dumps(details_payload),
         }
     )
 

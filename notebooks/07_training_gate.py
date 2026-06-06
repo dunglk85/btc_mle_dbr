@@ -7,6 +7,7 @@
 
 # COMMAND ----------
 
+import json
 from datetime import datetime, timezone
 
 import mlflow
@@ -31,6 +32,9 @@ model_name = "btc_price_model"
 metrics_ref = f"{catalog}.{monitoring_schema}.pipeline_metrics"
 decisions_ref = f"{catalog}.{monitoring_schema}.model_refresh_decisions"
 full_model_name = f"{catalog}.{model_schema}.{model_name}"
+raw_ref = f"{catalog}.raw.btc_hourly"
+features_ref = f"{catalog}.features.btc_features"
+predictions_ref = f"{catalog}.predictions.btc_predictions"
 
 trigger_mode = get_widget("trigger_mode", "scheduled")
 max_raw_freshness_hours = float(get_widget("max_raw_freshness_hours", "3"))
@@ -52,12 +56,42 @@ spark.sql(f"""
         trigger_mode STRING,
         raw_freshness_hours DOUBLE,
         alert_count BIGINT,
-        champion_exists BOOLEAN
+        champion_exists BOOLEAN,
+        metrics_table_version BIGINT,
+        raw_table_version BIGINT,
+        features_table_version BIGINT,
+        predictions_table_version BIGINT,
+        details STRING
     )
     USING DELTA
 """)
 
+for column_spec in [
+    "metrics_table_version BIGINT",
+    "raw_table_version BIGINT",
+    "features_table_version BIGINT",
+    "predictions_table_version BIGINT",
+    "details STRING",
+]:
+    try:
+        spark.sql(f"ALTER TABLE {decisions_ref} ADD COLUMNS ({column_spec})")
+    except Exception as exc:
+        print(f"decision table column already exists or cannot be added: {column_spec}; {exc}")
+
 # COMMAND ----------
+
+def latest_table_version(table_ref):
+    try:
+        row = spark.sql(f"DESCRIBE HISTORY {table_ref} LIMIT 1").collect()[0]
+        return {"table": table_ref, "version": int(row["version"]), "timestamp": str(row["timestamp"])}
+    except Exception as exc:
+        return {"table": table_ref, "version": None, "error": str(exc)}
+
+
+def version_number(version_context):
+    version = version_context.get("version")
+    return int(version) if version is not None else -1
+
 
 metrics_exists = True
 try:
@@ -73,6 +107,10 @@ blocking_alert_count = 0
 non_blocking_alert_count = 0
 drift_alert_count = 0
 validation_metric_count = 0
+metrics_version = latest_table_version(metrics_ref) if metrics_exists else {"table": metrics_ref, "version": None}
+raw_version = latest_table_version(raw_ref)
+features_version = latest_table_version(features_ref)
+predictions_version = latest_table_version(predictions_ref)
 if metrics_exists:
     latest_window = Window.partitionBy("metric_name").orderBy(F.col("metric_time").desc())
     latest_metrics = metrics.withColumn("_rn", F.row_number().over(latest_window)).filter(
@@ -173,6 +211,19 @@ else:
     decision_status = "NO_RETRAIN_NO_TRIGGER"
 
 reason = "; ".join(reasons)
+decision_details = {
+    "decision_status": decision_status,
+    "blocking_alert_count": int(blocking_alert_count),
+    "non_blocking_alert_count": int(non_blocking_alert_count),
+    "drift_alert_count": int(drift_alert_count),
+    "validation_metric_count": int(validation_metric_count),
+    "lineage": {
+        "metrics": metrics_version,
+        "raw": raw_version,
+        "features": features_version,
+        "predictions": predictions_version,
+    },
+}
 print(f"decision_status={decision_status}")
 print(f"should_retrain={should_retrain}")
 print(f"reason={reason}")
@@ -188,9 +239,14 @@ decision_df = spark.createDataFrame(
             "should_retrain": bool(should_retrain),
             "reason": reason,
             "trigger_mode": trigger_mode,
-            "raw_freshness_hours": raw_freshness_hours,
+            "raw_freshness_hours": float(raw_freshness_hours) if raw_freshness_hours is not None else -1.0,
             "alert_count": int(alert_count),
             "champion_exists": bool(champion_exists),
+            "metrics_table_version": version_number(metrics_version),
+            "raw_table_version": version_number(raw_version),
+            "features_table_version": version_number(features_version),
+            "predictions_table_version": version_number(predictions_version),
+            "details": json.dumps(decision_details),
         }
     ]
 )

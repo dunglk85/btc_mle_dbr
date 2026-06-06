@@ -145,7 +145,7 @@ Ghi chú kiến trúc hiện tại:
 | # | Task | Chi tiết | Databricks Feature |
 |---|------|----------|-------------------|
 | 2.1 | Feature Engineering pipeline | - Tạo features từ raw data:<br/>  • Moving averages (MA7, MA24, MA168)<br/>  • RSI, MACD, Bollinger Bands<br/>  • Lag features (1h, 2h, 4h, 12h, 24h)<br/>  • Volume features<br/>  • Time-based features (hour, day_of_week)<br/>- Lưu vào `btc_dev.features.btc_features` | Feature Engineering |
-| 2.2 | Đăng ký Feature Table | - Register features vào Feature Registry<br/>- Tạo lookup keys và metadata | Feature Store / Feature Registry |
+| 2.2 | Quản lý Feature Delta Table | - Lưu features vào Delta table<br/>- Tạo lookup keys và metadata config | Feature Delta table / metadata config |
 | 2.3 | Data validation | - Kiểm tra null, duplicate, outlier<br/>- Đảm bảo tính liên tục của time series | Data Quality |
 | 2.4 | Time Series Data Split | - Temporal split: 80% train, 10% validation, 10% test<br/>- Không random shuffle<br/>- Đảm bảo không data leakage | Python/Spark |
 | 2.5 | Training pipeline regression với Optuna Tuning | - Target: `target_close_1h` regression<br/>- Thuật toán candidates trong job refresh hiện tại: LightGBM và XGBoost<br/>- Dùng **Optuna** với TPE Bayesian optimization<br/>- Chạy single-node (phù hợp Free Edition serverless)<br/>- `MedianPruner` early stopping cho trials không triển vọng<br/>- Log tất cả trials vào MLflow (child runs) | MLflow + Optuna |
@@ -391,7 +391,7 @@ BTC/
 | Nhiệm vụ | Databricks Feature | Ghi chú |
 |-----------|-------------------|---------|
 | Lưu trữ dữ liệu | **Unity Catalog** + **Delta Lake** | Vẫn dùng được trên Free edition |
-| Feature Engineering | **Feature Store / Feature Registry** | Quản lý features tập trung |
+| Feature Engineering | **Feature Delta table / metadata config** | Quản lý features tập trung |
 | Train model | **MLflow Experiments** | Auto-log params, metrics, artifacts |
 | Model Registry | **MLflow Model Registry** | Champion/Challenger với aliases |
 | Hyperparameter Tuning | **Optuna** + **MLflow** | TPE Bayesian optimization, single-node, early stopping |

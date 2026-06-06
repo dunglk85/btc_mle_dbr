@@ -215,6 +215,7 @@ def load_landing_to_raw(
     landing_subdir: str = "btc_hourly",
     checkpoint_subdir: str = "_checkpoints/btc_hourly",
     schema_subdir: str = "_schemas/btc_hourly",
+    staging_retention_hours: int = 48,
 ) -> DataFrame:
     table_ref = f"{catalog}.{raw_schema}.{table}"
     staging_table_ref = f"{catalog}.{raw_schema}.{table}_landing_autoloader"
@@ -289,7 +290,13 @@ def load_landing_to_raw(
         .toTable(staging_table_ref)
     )
     query.awaitTermination()
-    merge_landing_staging_to_raw(spark, staging_table_ref, table_ref, landing_path)
+    merge_landing_staging_to_raw(
+        spark,
+        staging_table_ref,
+        table_ref,
+        landing_path,
+        staging_retention_hours=staging_retention_hours,
+    )
     return spark.table(table_ref)
 
 
@@ -298,6 +305,7 @@ def merge_landing_staging_to_raw(
     staging_table_ref: str,
     table_ref: str,
     landing_path: str,
+    staging_retention_hours: int = 48,
 ) -> None:
     raw_landing_count = spark.table(staging_table_ref).count()
     print(f"merge_landing_staging_to_raw: raw_landing_count={raw_landing_count}")
@@ -358,3 +366,12 @@ def merge_landing_staging_to_raw(
         WHEN MATCHED THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     """)
+
+    spark.sql(f"""
+        DELETE FROM {staging_table_ref}
+        WHERE _loaded_at < current_timestamp() - INTERVAL {staging_retention_hours} HOURS
+    """)
+    print(
+        "merge_landing_staging_to_raw: "
+        f"staging_rows_after_retention_cleanup={spark.table(staging_table_ref).count()}"
+    )

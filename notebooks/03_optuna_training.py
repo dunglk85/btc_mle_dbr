@@ -176,14 +176,27 @@ if skip_reason:
 
 # Đọc selected features từ EDA config
 try:
-    config_row = spark.table(config_ref).collect()
+    config_row = (
+        spark.table(config_ref)
+        .filter(F.col("config_key") == "selected_features")
+        .orderBy(F.col("created_at").desc())
+        .limit(1)
+        .collect()
+    )
     if config_row:
         feature_cols = json.loads(config_row[0]["config_value"])
-        print(f"Loaded {len(feature_cols)} selected features from EDA config")
+        feature_config_id = config_row[0].asDict().get("config_version")
+        if feature_config_id is None:
+            feature_config_id = -1
+        print(
+            f"Loaded {len(feature_cols)} selected features from EDA config "
+            f"config_version={feature_config_id}"
+        )
     else:
         raise ValueError("Empty config table")
 except Exception as e:
     print(f"WARNING: Could not load EDA config ({e}), using default features")
+    feature_config_id = -1
     feature_cols = [
         "return_1h", "return_6h", "return_24h",
         "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
@@ -383,6 +396,8 @@ with mlflow.start_run(
     mlflow.log_param("feature_config_table", config_ref)
     if config_version["version"] >= 0:
         mlflow.log_param("feature_config_version", config_version["version"])
+    if feature_config_id >= 0:
+        mlflow.log_param("feature_config_id", feature_config_id)
     mlflow.log_param("n_trials_requested", n_trials)
     mlflow.log_param("n_trials_completed", len(study.trials))
     mlflow.log_param("n_cv_splits", n_cv_splits)
@@ -398,7 +413,7 @@ with mlflow.start_run(
             {
                 "raw": {"table": raw_ref, "version": raw_version["version"], "timestamp": str(raw_version["timestamp"])},
                 "features": {"table": features_ref, "version": features_version["version"], "timestamp": str(features_version["timestamp"])},
-                "feature_config": {"table": config_ref, "version": config_version["version"], "timestamp": str(config_version["timestamp"])},
+                "feature_config": {"table": config_ref, "version": config_version["version"], "config_id": feature_config_id, "timestamp": str(config_version["timestamp"])},
                 "target_col": target_col,
                 "feature_cols": feature_cols,
                 "train_start_time": str(train["open_time"].min()),
@@ -444,6 +459,7 @@ spark.sql(f"""
         features_table_version BIGINT,
         feature_config_table STRING,
         feature_config_version BIGINT,
+        feature_config_id BIGINT,
         train_start_time TIMESTAMP,
         train_end_time TIMESTAMP,
         test_start_time TIMESTAMP,
@@ -455,6 +471,11 @@ spark.sql(f"""
     )
     USING DELTA
 """)
+
+try:
+    spark.sql(f"ALTER TABLE {training_manifest_ref} ADD COLUMNS (feature_config_id BIGINT)")
+except Exception as exc:
+    print(f"manifest table column already exists or cannot be added: feature_config_id; {exc}")
 
 manifest_df = spark.createDataFrame(
     [
@@ -468,6 +489,7 @@ manifest_df = spark.createDataFrame(
             "features_table_version": features_version["version"],
             "feature_config_table": config_ref,
             "feature_config_version": config_version["version"],
+            "feature_config_id": feature_config_id,
             "train_start_time": train["open_time"].min().to_pydatetime(),
             "train_end_time": train["open_time"].max().to_pydatetime(),
             "test_start_time": test["open_time"].min().to_pydatetime(),
@@ -491,6 +513,7 @@ manifest_df.select(
     "features_table_version",
     "feature_config_table",
     "feature_config_version",
+    "feature_config_id",
     "train_start_time",
     "train_end_time",
     "test_start_time",
@@ -499,7 +522,7 @@ manifest_df.select(
     "test_rows",
     "n_features",
     "feature_cols_json",
-).write.mode("append").saveAsTable(training_manifest_ref)
+).write.mode("append").option("mergeSchema", "true").saveAsTable(training_manifest_ref)
 
 # COMMAND ----------
 

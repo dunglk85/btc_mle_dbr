@@ -318,13 +318,16 @@ for f in sorted(all_drops):
 
 # COMMAND ----------
 
-# Lưu selected_features vào Delta table để notebook training có thể đọc
+# Lưu selected_features dạng append-only để training có thể trace đúng config đã dùng.
 import json
 
+created_at = pd.Timestamp.now(tz="UTC")
 config_df = spark.createDataFrame([{
     "config_key": "selected_features",
     "config_value": json.dumps(selected_features),
-    "created_at": pd.Timestamp.now().isoformat(),
+    "config_version": int(created_at.timestamp()),
+    "created_at": created_at.isoformat(),
+    "is_active": True,
     "n_features": len(selected_features),
     "method": "eda_auto_selection",
     "corr_threshold": CORR_THRESHOLD,
@@ -332,11 +335,12 @@ config_df = spark.createDataFrame([{
 }])
 
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
-config_df.write.format("delta").mode("overwrite").option(
-    "overwriteSchema", "true"
+config_df.write.format("delta").mode("append").option(
+    "mergeSchema", "true"
 ).saveAsTable(config_ref)
 
 print(f"Selected features config saved to: {config_ref}")
+print(f"Feature config version: {int(created_at.timestamp())}")
 print(f"Selected features: {selected_features}")
 
 # COMMAND ----------

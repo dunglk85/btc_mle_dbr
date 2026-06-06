@@ -29,12 +29,14 @@ checkpoint_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_checkpoints/b
 schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_schemas/btc_hourly"
 table_ref = f"{catalog}.{raw_schema}.{table_name}"
 staging_table_ref = f"{catalog}.{raw_schema}.{table_name}_landing_autoloader"
+staging_retention_hours = int(get_widget("staging_retention_hours", "48"))
 
 print("RUNNING SELF-CONTAINED AUTO LOADER INGESTION NOTEBOOK")
 print(f"landing_path={landing_path}")
 print(f"checkpoint_path={checkpoint_path}")
 print(f"table_ref={table_ref}")
 print(f"staging_table_ref={staging_table_ref}")
+print(f"staging_retention_hours={staging_retention_hours}")
 
 # COMMAND ----------
 
@@ -149,6 +151,12 @@ def parse_and_merge_staging():
         WHEN MATCHED THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     """)
+
+    spark.sql(f"""
+        DELETE FROM {staging_table_ref}
+        WHERE _loaded_at < current_timestamp() - INTERVAL {staging_retention_hours} HOURS
+    """)
+    print(f"staging_rows_after_retention_cleanup={spark.table(staging_table_ref).count()}")
 
 # COMMAND ----------
 

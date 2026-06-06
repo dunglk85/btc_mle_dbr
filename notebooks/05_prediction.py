@@ -126,10 +126,20 @@ def load_feature_cols_for_champion(run_id):
         print(f"WARNING: Could not load Champion feature artifact ({artifact_exc})")
 
     try:
-        config_row = spark.table(config_ref).collect()
+        config_row = (
+            spark.table(config_ref)
+            .filter(F.col("config_key") == "selected_features")
+            .orderBy(F.col("created_at").desc())
+            .limit(1)
+            .collect()
+        )
         if config_row:
             cols = json.loads(config_row[0]["config_value"])
-            print(f"Loaded {len(cols)} fallback selected features from {config_ref}")
+            config_id = config_row[0].asDict().get("config_version")
+            print(
+                f"Loaded {len(cols)} fallback selected features from {config_ref} "
+                f"config_version={config_id}"
+            )
             return cols
         raise ValueError("Empty feature selection config table")
     except Exception as config_exc:
