@@ -123,7 +123,7 @@ if not latest_rows:
     raise ValueError(f"No feature rows available in {features_ref}")
 
 feature_open_time = latest_rows[0]["open_time"]
-latest_pdf = latest.select(*feature_cols).toPandas()
+latest_pdf = latest.select(*feature_cols).toPandas().astype("float64")
 
 # COMMAND ----------
 
