@@ -8,6 +8,7 @@
 # COMMAND ----------
 
 import mlflow
+import json
 import pandas as pd
 from pyspark.sql import functions as F
 from mlflow.exceptions import MlflowException
@@ -31,11 +32,13 @@ model_schema = "models"
 model_name = "btc_price_model"
 
 features_ref = f"{catalog}.{features_schema}.{features_table}"
+config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 predictions_ref = f"{catalog}.{predictions_schema}.{predictions_table}"
 champion_uri = f"models:/{catalog}.{model_schema}.{model_name}@Champion"
 
 print("RUNNING SELF-CONTAINED PREDICTION NOTEBOOK")
 print(f"features_ref={features_ref}")
+print(f"config_ref={config_ref}")
 print(f"predictions_ref={predictions_ref}")
 print(f"champion_uri={champion_uri}")
 
@@ -54,30 +57,34 @@ spark.sql(f"""
 
 # COMMAND ----------
 
-feature_cols = [
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "quote_volume",
-    "trades",
-    "ma_7",
-    "ma_24",
-    "ma_168",
-    "close_lag_1h",
-    "close_lag_2h",
-    "close_lag_4h",
-    "close_lag_12h",
-    "close_lag_24h",
-    "return_1h",
-    "hl_spread",
-    "oc_change",
-    "hour",
-    "day_of_week",
-]
+try:
+    config_row = spark.table(config_ref).collect()
+    if config_row:
+        feature_cols = json.loads(config_row[0]["config_value"])
+        print(f"Loaded {len(feature_cols)} selected features from {config_ref}")
+    else:
+        raise ValueError("Empty feature selection config table")
+except Exception as exc:
+    print(f"WARNING: Could not load feature selection config ({exc}), using fallback features")
+    feature_cols = [
+        "return_1h", "return_6h", "return_24h",
+        "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
+        "macd", "macd_signal", "macd_hist",
+        "rsi_14",
+        "atr_14", "atr_ratio", "bb_width",
+        "volume_ratio", "log_volume",
+        "hl_spread", "oc_change",
+        "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
+        "hour", "day_of_week",
+        "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+    ]
 
-latest = spark.table(features_ref).select("open_time", *feature_cols).dropna().orderBy(
+source = spark.table(features_ref)
+missing_features = [col for col in feature_cols if col not in source.columns]
+if missing_features:
+    raise ValueError(f"Missing prediction features in {features_ref}: {missing_features}")
+
+latest = source.select("open_time", *feature_cols).dropna().orderBy(
     F.col("open_time").desc()
 ).limit(1)
 latest_rows = latest.collect()
