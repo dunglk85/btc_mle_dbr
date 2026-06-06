@@ -63,9 +63,11 @@ spark.sql(f"""
         prediction_time TIMESTAMP,
         feature_open_time TIMESTAMP,
         predicted_close DOUBLE,
+        predicted_return_1h DOUBLE,
         model_uri STRING,
         model_version STRING,
         model_run_id STRING,
+        model_target_col STRING,
         raw_table_version BIGINT,
         features_table_version BIGINT,
         model_raw_table_version BIGINT,
@@ -77,8 +79,10 @@ spark.sql(f"""
 """)
 
 for column_def in [
+    "predicted_return_1h DOUBLE",
     "model_version STRING",
     "model_run_id STRING",
+    "model_target_col STRING",
     "raw_table_version BIGINT",
     "features_table_version BIGINT",
     "model_raw_table_version BIGINT",
@@ -129,6 +133,29 @@ print(f"model_features_table_version={model_features_table_version}")
 print(f"model_feature_config_version={model_feature_config_version}")
 print(f"model_feature_config_id={model_feature_config_id}")
 
+
+def load_champion_target_col(run_id):
+    target_col = champion_run.data.params.get("target_col")
+    if target_col:
+        return target_col
+
+    try:
+        artifact_path = mlflow.artifacts.download_artifacts(
+            run_id=run_id,
+            artifact_path="training_dataset_manifest.json",
+        )
+        with open(artifact_path, encoding="utf-8") as manifest_file:
+            manifest = json.load(manifest_file)
+        target_col = manifest.get("target_col")
+        if target_col:
+            return target_col
+    except Exception as exc:
+        print(f"WARNING: Could not load Champion training target metadata ({exc})")
+
+    print("WARNING: Champion target metadata missing; assuming target_return_1h")
+    return "target_return_1h"
+
+
 def load_feature_cols_for_champion(run_id):
     try:
         artifact_path = mlflow.artifacts.download_artifacts(
@@ -167,14 +194,22 @@ def load_feature_cols_for_champion(run_id):
         ) from config_exc
 
 
+model_target_col = load_champion_target_col(champion_run_id)
 feature_cols = load_feature_cols_for_champion(champion_run_id)
+print(f"model_target_col={model_target_col}")
 
 source = spark.table(features_ref)
 missing_features = [col for col in feature_cols if col not in source.columns]
 if missing_features:
     raise ValueError(f"Missing prediction features in {features_ref}: {missing_features}")
+if "close" not in source.columns:
+    raise ValueError(f"Missing close column in {features_ref}; cannot convert return prediction to close")
 
-latest = source.select("open_time", *feature_cols).dropna().orderBy(
+select_cols = ["open_time", *feature_cols]
+if "close" not in feature_cols:
+    select_cols.append("close")
+
+latest = source.select(*select_cols).dropna(subset=feature_cols + ["close"]).orderBy(
     F.col("open_time").desc()
 ).limit(1)
 latest_rows = latest.collect()
@@ -182,6 +217,7 @@ if not latest_rows:
     raise ValueError(f"No feature rows available in {features_ref}")
 
 feature_open_time = latest_rows[0]["open_time"]
+latest_close = float(latest_rows[0]["close"])
 latest_pdf = latest.select(*feature_cols).toPandas().astype("float64")
 
 # COMMAND ----------
@@ -193,9 +229,20 @@ except MlflowException as exc:
     print(f"mlflow_error={exc}")
     dbutils.notebook.exit("SKIP_PREDICTION_NO_CHAMPION")
 
-prediction = float(champion.predict(pd.DataFrame(latest_pdf, columns=feature_cols))[0])
+raw_prediction = float(champion.predict(pd.DataFrame(latest_pdf, columns=feature_cols))[0])
+if model_target_col == "target_return_1h":
+    predicted_return_1h = raw_prediction
+    predicted_close = latest_close * (1.0 + predicted_return_1h)
+elif model_target_col == "target_close_1h":
+    predicted_close = raw_prediction
+    predicted_return_1h = (predicted_close / latest_close) - 1.0
+else:
+    raise ValueError(f"Unsupported Champion target column for prediction: {model_target_col}")
+
 print(f"feature_open_time={feature_open_time}")
-print(f"predicted_close={prediction:.4f}")
+print(f"latest_close={latest_close:.4f}")
+print(f"predicted_return_1h={predicted_return_1h:.8f}")
+print(f"predicted_close={predicted_close:.4f}")
 
 # COMMAND ----------
 
@@ -203,10 +250,12 @@ pred_df = spark.createDataFrame(
     [
         {
             "feature_open_time": feature_open_time,
-            "predicted_close": prediction,
+            "predicted_close": float(predicted_close),
+            "predicted_return_1h": float(predicted_return_1h),
             "model_uri": champion_uri,
             "model_version": str(champion_version.version),
             "model_run_id": champion_run_id,
+            "model_target_col": model_target_col,
             "raw_table_version": raw_table_version,
             "features_table_version": features_table_version,
             "model_raw_table_version": model_raw_table_version,
@@ -221,9 +270,11 @@ pred_df.select(
     "prediction_time",
     "feature_open_time",
     "predicted_close",
+    "predicted_return_1h",
     "model_uri",
     "model_version",
     "model_run_id",
+    "model_target_col",
     "raw_table_version",
     "features_table_version",
     "model_raw_table_version",

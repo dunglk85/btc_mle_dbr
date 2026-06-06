@@ -90,6 +90,7 @@ with mlflow.start_run(run_name="baseline_random_forest") as run:
 
     mlflow.log_param("model_type", "random_forest")
     mlflow.log_param("training_mode", "baseline")
+    mlflow.log_param("target_col", target_col)
     mlflow.log_param("n_estimators", 100)
     mlflow.log_param("max_depth", 10)
     mlflow.log_metric("rmse", rmse)

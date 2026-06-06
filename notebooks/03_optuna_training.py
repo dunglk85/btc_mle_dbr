@@ -397,6 +397,7 @@ with mlflow.start_run(
     # --- Log common params & model ---
     mlflow.log_param("model_algo", model_algo)
     mlflow.log_param("task_type", "regression")
+    mlflow.log_param("target_col", target_col)
     mlflow.log_param("training_mode", "optuna")
     mlflow.log_param("raw_table", raw_ref)
     mlflow.log_param("raw_table_version", raw_version["version"])
