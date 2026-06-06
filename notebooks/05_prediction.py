@@ -7,6 +7,14 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install lightgbm xgboost
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 import mlflow
 import json
 import pandas as pd
