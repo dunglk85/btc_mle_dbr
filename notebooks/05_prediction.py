@@ -46,6 +46,7 @@ config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 predictions_ref = f"{catalog}.{predictions_schema}.{predictions_table}"
 champion_uri = f"models:/{catalog}.{model_schema}.{model_name}@Champion"
 full_model_name = f"{catalog}.{model_schema}.{model_name}"
+training_manifest_ref = f"{catalog}.monitoring.training_dataset_manifests"
 
 print("RUNNING SELF-CONTAINED PREDICTION NOTEBOOK")
 print(f"raw_ref={raw_ref}")
@@ -156,7 +157,7 @@ def load_champion_target_col(run_id):
     return "target_return_1h"
 
 
-def load_feature_cols_for_champion(run_id):
+def load_feature_cols_for_champion(run_id, run_params):
     try:
         artifact_path = mlflow.artifacts.download_artifacts(
             run_id=run_id,
@@ -168,6 +169,44 @@ def load_feature_cols_for_champion(run_id):
         return cols
     except Exception as artifact_exc:
         print(f"WARNING: Could not load Champion feature artifact ({artifact_exc})")
+
+    try:
+        manifest_rows = (
+            spark.table(training_manifest_ref)
+            .filter(F.col("run_id") == run_id)
+            .orderBy(F.col("created_at").desc())
+            .limit(1)
+            .collect()
+        )
+        if manifest_rows:
+            cols = json.loads(manifest_rows[0]["feature_cols_json"])
+            print(f"Loaded {len(cols)} features from Champion training manifest")
+            return cols
+    except Exception as manifest_exc:
+        print(f"WARNING: Could not load Champion manifest feature columns ({manifest_exc})")
+
+    config_table = run_params.get("feature_config_table")
+    config_version = run_params.get("feature_config_version")
+    config_id = run_params.get("feature_config_id")
+    if config_table and config_version is not None:
+        try:
+            config = spark.read.option("versionAsOf", int(config_version)).table(config_table)
+            config = config.filter(F.col("config_key") == "selected_features")
+            if config_id is not None and int(config_id) >= 0:
+                if "config_id" in config.columns:
+                    config = config.filter(F.col("config_id") == int(config_id))
+                else:
+                    config = config.filter(F.col("config_version") == int(config_id))
+            config_row = config.orderBy(F.col("created_at").desc()).limit(1).collect()
+            if config_row:
+                cols = json.loads(config_row[0]["config_value"])
+                print(
+                    f"Loaded {len(cols)} features from Champion versioned feature config "
+                    f"config_version={config_version}; config_id={config_id}"
+                )
+                return cols
+        except Exception as config_version_exc:
+            print(f"WARNING: Could not load Champion versioned feature config ({config_version_exc})")
 
     try:
         config_row = (
@@ -183,7 +222,7 @@ def load_feature_cols_for_champion(run_id):
             config_dict = config_row[0].asDict()
             config_id = config_dict.get("config_id") or config_dict.get("config_version")
             print(
-                f"Loaded {len(cols)} fallback selected features from {config_ref} "
+                f"Loaded {len(cols)} fallback ACTIVE selected features from {config_ref} "
                 f"config_version={config_id}"
             )
             return cols
@@ -195,7 +234,7 @@ def load_feature_cols_for_champion(run_id):
 
 
 model_target_col = load_champion_target_col(champion_run_id)
-feature_cols = load_feature_cols_for_champion(champion_run_id)
+feature_cols = load_feature_cols_for_champion(champion_run_id, champion_run.data.params)
 print(f"model_target_col={model_target_col}")
 
 source = spark.table(features_ref)

@@ -321,13 +321,18 @@ Interpretation examples:
 
 ### Champion Promotion Metric
 
-`notebooks/04_champion_challenger.py` promotes a Challenger only after dataset replay validation passes and the Challenger RMSE is lower than the current Champion RMSE on the same bounded common evaluation rows.
+`notebooks/04_champion_challenger.py` promotes a Challenger only after dataset replay validation passes and the Challenger satisfies the multi-metric gate on the same bounded common evaluation rows.
 
 Rationale:
 - RMSE penalizes large misses more heavily than MAE.
 - For BTC return/price forecasting, avoiding large forecast errors is important.
 - The first valid Challenger is promoted if no Champion exists.
 - LightGBM and XGBoost promotion tasks are serialized to avoid concurrent alias updates to `@Champion`.
+
+Current promotion gate when a Champion already exists:
+- Challenger fair RMSE must be lower than Champion fair RMSE.
+- Challenger fair MAE must be lower than Champion fair MAE.
+- Challenger directional accuracy must be at least Champion directional accuracy.
 
 ### Trading Metrics Caveat
 

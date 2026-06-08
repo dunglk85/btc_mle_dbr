@@ -200,7 +200,7 @@ Ghi chú kiến trúc hiện tại:
 | # | Task | Chi tiết | Databricks Feature / Tool |
 |---|------|----------|-------------------|
 | 3.1 | Auto-select Best Model (Challenger) | - So sánh metrics (RMSE, MAE, MAPE) trên validation set<br/>- Tự động chọn model tốt nhất → **Challenger**<br/>- Register Challenger vào Model Registry | MLflow Model Registry |
-| 3.2 | Champion vs Challenger Comparison | - Load Champion hiện tại từ Model Registry (production alias `@Champion`)<br/>- Bắt buộc dataset replay validation pass trước promotion<br/>- So sánh Challenger vs Champion trên cùng bounded common holdout rows<br/>- Nếu Challenger thắng RMSE → promote lên production alias<br/>- Nếu Champion thắng → giữ nguyên | MLflow Model Registry + Delta Time Travel |
+| 3.2 | Champion vs Challenger Comparison | - Load Champion hiện tại từ Model Registry (production alias `@Champion`)<br/>- Bắt buộc dataset replay validation pass trước promotion<br/>- So sánh Challenger vs Champion trên cùng bounded common holdout rows<br/>- Promote khi Challenger cải thiện RMSE và MAE, đồng thời directional accuracy không giảm<br/>- Nếu không đạt multi-metric gate → giữ nguyên Champion | MLflow Model Registry + Delta Time Travel |
 | 3.3 | Prediction pipeline | - Model thắng cuộc predict giá BTC cho next 1 hour<br/>- Lưu prediction vào `btc_dev.predictions.btc_predictions` | MLflow, Delta Lake |
 | 3.4 | Setup Databricks Asset Bundles (DABs) | - Định nghĩa jobs, notebooks trong `databricks.yml`<br/>- Tách config cho dev/prod bằng DABs `targets` (cùng workspace, khác catalog) | Databricks CLI, DABs |
 | 3.5 | GitHub Actions CI/CD Pipeline | - **CI (on PR/Push)**: Lint, unit test, validate bundle<br/>- **CD (on Merge)**: Deploy bundle lên Databricks và cập nhật Jobs | GitHub Actions |
@@ -240,7 +240,7 @@ flowchart TD
     Y --> E{"Champion exists?"}
     E -->|No| P["Promote Challenger<br/>→ Champion"]
     E -->|Yes| F["Evaluate both models on<br/>same bounded rows"]
-    F --> G{"Challenger RMSE lower?"}
+    F --> G{"RMSE/MAE better<br/>and direction not worse?"}
     G -->|Yes| H["Promote Challenger<br/>→ New Champion"]
     G -->|No| I["Keep Current Champion"]
     H --> J["Predict Next 1h"]

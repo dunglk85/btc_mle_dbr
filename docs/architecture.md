@@ -8,7 +8,7 @@
 4. **Feature Selection Config** -> `02b_eda_feature_selection` writes append-only active selected-feature metadata into `<catalog>.features.feature_selection_config`.
 5. **Model Training** -> Regression-only Optuna LightGBM/XGBoost training + MLflow tracking.
 6. **Dataset Replay Validation** -> `12_training_dataset_replay` validates Delta `VERSION AS OF` reproducibility from `training_dataset_manifests`.
-7. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if Challenger RMSE is lower.
+7. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
 8. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
 9. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics` and model refresh gate decisions.
 

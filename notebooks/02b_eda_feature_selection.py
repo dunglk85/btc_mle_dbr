@@ -322,7 +322,7 @@ for f in sorted(all_drops):
 # COMMAND ----------
 
 created_at = pd.Timestamp.now(tz="UTC")
-config_id = int(created_at.timestamp())
+config_id = int(created_at.timestamp() * 1000)
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 
 spark.sql(f"""
@@ -390,18 +390,17 @@ config_df = spark.createDataFrame([{
     "mi_threshold": MI_THRESHOLD,
 }])
 
-try:
-    spark.sql(f"""
-        UPDATE {config_ref}
-        SET is_active = false
-        WHERE config_key = 'selected_features' AND is_active = true
-    """)
-except Exception as exc:
-    print(f"No existing active feature config to deactivate: {exc}")
-
 config_df.write.format("delta").mode("append").option(
     "mergeSchema", "true"
 ).saveAsTable(config_ref)
+
+spark.sql(f"""
+    UPDATE {config_ref}
+    SET is_active = false
+    WHERE config_key = 'selected_features'
+      AND is_active = true
+      AND COALESCE(config_id, config_version) != {config_id}
+""")
 
 print(f"Selected features config saved to: {config_ref}")
 print(f"Feature config id: {config_id}")

@@ -61,6 +61,7 @@ n_cv_splits = int(get_widget("n_cv_splits", "5"))
 max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
 expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
 allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
+allow_missing_feature_skip = get_widget("allow_missing_feature_skip", "false").lower() == "true"
 
 # --- Constants ---
 features_schema = "features"
@@ -91,6 +92,7 @@ print(f"n_cv_splits={n_cv_splits}")
 print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
 print(f"allow_default_feature_fallback={allow_default_feature_fallback}")
+print(f"allow_missing_feature_skip={allow_missing_feature_skip}")
 print(f"experiment_name={experiment_name}")
 print("=" * 60)
 
@@ -231,7 +233,13 @@ source = spark.table(features_ref).orderBy("open_time")
 available_features = [c for c in feature_cols if c in source.columns]
 missing_features = [c for c in feature_cols if c not in source.columns]
 if missing_features:
-    print(f"WARNING: Missing features (skipped): {missing_features}")
+    if not allow_missing_feature_skip:
+        raise ValueError(
+            f"Active feature config references missing columns in {features_ref}: "
+            f"{missing_features}. Run feature engineering/selection again or set "
+            "allow_missing_feature_skip=true explicitly for dev fallback."
+        )
+    print(f"WARNING: Missing features explicitly skipped: {missing_features}")
 feature_cols = available_features
 
 model_df = source.select("open_time", target_col, *feature_cols).dropna()

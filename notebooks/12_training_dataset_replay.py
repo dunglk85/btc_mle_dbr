@@ -8,6 +8,7 @@
 # COMMAND ----------
 
 import json
+import re
 
 from pyspark.sql import functions as F
 
@@ -86,6 +87,23 @@ def assert_delta_version_available(table_ref, version):
         ) from exc
 
 
+def interval_to_hours(value):
+    if not value:
+        return None
+    match = re.search(r"interval\s+(\d+)\s+(hour|hours|day|days|week|weeks)", value.lower())
+    if not match:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if unit.startswith("hour"):
+        return amount
+    if unit.startswith("day"):
+        return amount * 24
+    if unit.startswith("week"):
+        return amount * 24 * 7
+    return None
+
+
 def check_retention(table_ref):
     try:
         detail = spark.sql(f"DESCRIBE DETAIL {table_ref}").collect()[0].asDict()
@@ -93,8 +111,22 @@ def check_retention(table_ref):
         deleted_retention = properties.get("delta.deletedFileRetentionDuration", "interval 1 week")
         log_retention = properties.get("delta.logRetentionDuration", "interval 30 days")
         print(f"{table_ref} deletedFileRetention={deleted_retention}; logRetention={log_retention}")
+        deleted_retention_hours = interval_to_hours(deleted_retention)
+        log_retention_hours = interval_to_hours(log_retention)
+        if deleted_retention_hours is not None and deleted_retention_hours < min_delta_retention_hours:
+            raise ValueError(
+                f"Delta deleted file retention too short for replay: {table_ref} has "
+                f"{deleted_retention} ({deleted_retention_hours}h), expected >= "
+                f"{min_delta_retention_hours}h"
+            )
+        if log_retention_hours is not None and log_retention_hours < min_delta_retention_hours:
+            raise ValueError(
+                f"Delta log retention too short for replay: {table_ref} has "
+                f"{log_retention} ({log_retention_hours}h), expected >= "
+                f"{min_delta_retention_hours}h"
+            )
     except Exception as exc:
-        print(f"WARNING: Could not inspect Delta retention for {table_ref}: {exc}")
+        raise ValueError(f"Could not validate Delta retention for {table_ref}: {exc}") from exc
 
 
 for table_ref, version in [
