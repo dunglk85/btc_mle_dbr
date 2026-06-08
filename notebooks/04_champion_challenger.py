@@ -81,13 +81,10 @@ if dataset_replay_task_key:
             f"task={dataset_replay_task_key}; status={dataset_replay_status}"
         )
 else:
-    dataset_replay_status = "skipped"
-    print("WARNING: dataset replay check SKIPPED because dataset_replay_task_key is empty")
-    if catalog != "btc_dev":
-        raise ValueError(
-            "Dataset replay check cannot be skipped outside btc_dev; "
-            f"catalog={catalog}"
-        )
+    raise ValueError(
+        "Dataset replay validation is required for Champion/Challenger promotion; "
+        "dataset_replay_task_key is empty."
+    )
 
 # COMMAND ----------
 
@@ -99,7 +96,7 @@ client.set_tag(challenger_run_id, "dataset_replay_status", dataset_replay_status
 client.set_tag(
     challenger_run_id,
     "dataset_replay_check",
-    dataset_replay_task_key or "SKIPPED",
+    dataset_replay_task_key,
 )
 
 

@@ -1037,7 +1037,7 @@ Drift-triggered retraining is split across two jobs:
 - `drift_monitoring`
 - `training_gate_drift` with `trigger_mode=drift`
 - `trigger_model_refresh`
-- `btc_model_refresh_job` tasks: `eda_feature_selection`, `model_training_reg_lgbm`, `dataset_replay_reg_lgbm`, `champion_challenger_reg_lgbm`, `model_training_reg_xgb`, `dataset_replay_reg_xgb`, `champion_challenger_reg_xgb`
+- `btc_model_refresh_job` tasks: `eda_feature_selection`, `model_training_reg_lgbm`, `dataset_replay_reg_lgbm`, `model_training_reg_xgb`, `dataset_replay_reg_xgb`, `select_best_challenger`, `champion_challenger`
 
 If no drift alert exists, `training_gate_drift` records `should_retrain=false` and `trigger_model_refresh` skips the refresh job.
 
@@ -1209,10 +1209,10 @@ Examples of tasks that can fail:
 - `data_remediation`
 - `model_training_reg_lgbm`
 - `dataset_replay_reg_lgbm`
-- `champion_challenger_reg_lgbm`
 - `model_training_reg_xgb`
 - `dataset_replay_reg_xgb`
-- `champion_challenger_reg_xgb`
+- `select_best_challenger`
+- `champion_challenger`
 - `job_quality_monitoring`
 
 ### Job Quality Alert
