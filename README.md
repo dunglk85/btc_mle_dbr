@@ -5,7 +5,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 ## Architecture
 
 - **Data**: Binance Vision API -> UC Volume landing CSV -> Auto Loader -> Delta Lake (Unity Catalog)
-- **ML**: Optuna hyperparameter tuning + MLflow tracking
+- **ML**: active feature selection config + Optuna LightGBM/XGBoost training + MLflow tracking
 - **CI/CD**: GitHub Actions + Databricks Asset Bundles (DABs)
 - **Monitoring**: Data quality, model performance, job health
 
@@ -45,7 +45,15 @@ databricks bundle validate
 
 - `btc_data_prediction_job`: hourly fetch, ingestion, feature engineering, prediction, monitoring.
 - `btc_drift_monitoring_job`: drift metrics, training gate, safe data remediation, and conditional model-refresh trigger every 6 hours.
-- `btc_model_refresh_job`: trigger-only regression Optuna training, dataset replay validation, and Champion/Challenger registration, guarded by latest training-gate decision.
+- `btc_model_refresh_job`: trigger-only EDA feature selection, regression Optuna training, dataset replay validation, and serialized Champion/Challenger registration, guarded by latest training-gate decision.
+
+## Production-Like Controls
+
+- Feature selection is governed by append-only `features.feature_selection_config` with one active config.
+- Training logs raw/features/config Delta versions to MLflow and `monitoring.training_dataset_manifests`.
+- `12_training_dataset_replay.py` validates `VERSION AS OF` replay before model promotion.
+- Champion/Challenger promotion compares both models on the same bounded holdout rows.
+- Predictions store both serving-input lineage and Champion training lineage.
 
 Dashboard SQL templates are in `databricks/sql/` and use a `catalog` parameter such as `btc_dev` or `btc_prod`.
 

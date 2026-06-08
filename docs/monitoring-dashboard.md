@@ -41,6 +41,8 @@ Recommended dashboard tiles:
 - Actual vs predicted table.
 - Prediction error trend chart.
 - Model refresh decisions table.
+- Training dataset manifests and replay validation status from recent model refresh runs.
+- Prediction/model lineage table for `btc_predictions`.
 - Monitoring alerts table.
 - Job quality metrics and alerts.
 
@@ -195,4 +197,46 @@ SELECT *
 FROM IDENTIFIER(:catalog || '.monitoring.model_refresh_decisions')
 ORDER BY decision_time DESC
 LIMIT 20;
+```
+
+Latest training dataset manifests:
+
+```sql
+SELECT
+  created_at,
+  run_id,
+  model_algo,
+  target_col,
+  raw_table_version,
+  features_table_version,
+  feature_config_version,
+  feature_config_id,
+  train_rows,
+  test_rows,
+  n_features
+FROM IDENTIFIER(:catalog || '.monitoring.training_dataset_manifests')
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+Prediction lineage:
+
+```sql
+SELECT
+  prediction_time,
+  feature_open_time,
+  predicted_close,
+  predicted_return_1h,
+  model_version,
+  model_run_id,
+  model_target_col,
+  raw_table_version AS serving_raw_version,
+  features_table_version AS serving_features_version,
+  model_raw_table_version AS training_raw_version,
+  model_features_table_version AS training_features_version,
+  model_feature_config_version,
+  model_feature_config_id
+FROM IDENTIFIER(:catalog || '.predictions.btc_predictions')
+ORDER BY prediction_time DESC
+LIMIT 50;
 ```

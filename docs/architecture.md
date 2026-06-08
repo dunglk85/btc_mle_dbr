@@ -5,10 +5,12 @@
 1. **Binance Vision API** -> `00_fetch_binance_to_volume` -> UC Volume landing CSV.
 2. **Auto Loader ingestion** -> `01_data_ingestion` incrementally reads new landing files into `<catalog>.raw.btc_hourly_landing_autoloader`, then batch MERGEs into `<catalog>.raw.btc_hourly`.
 3. **Feature Engineering** -> `<catalog>.features.btc_features` with exact next-hour target `target_close_1h`.
-4. **Model Training** -> Regression-only Optuna training + MLflow tracking.
-5. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same holdout rows, then promote only if Challenger RMSE is lower.
-6. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`.
-7. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics` and model refresh gate decisions.
+4. **Feature Selection Config** -> `02b_eda_feature_selection` writes append-only active selected-feature metadata into `<catalog>.features.feature_selection_config`.
+5. **Model Training** -> Regression-only Optuna LightGBM/XGBoost training + MLflow tracking.
+6. **Dataset Replay Validation** -> `12_training_dataset_replay` validates Delta `VERSION AS OF` reproducibility from `training_dataset_manifests`.
+7. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if Challenger RMSE is lower.
+8. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
+9. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics` and model refresh gate decisions.
 
 ## Multi-Environment
 
@@ -80,4 +82,4 @@ If validation fails: block retrain and trigger remediation/manual review
 Job separation:
 - `btc_data_prediction_job` runs only the hourly serving path: fetch, ingestion, feature engineering, prediction, regular monitoring, and job quality monitoring.
 - `btc_drift_monitoring_job` runs `drift_monitoring`, `training_gate_drift`, conditional model-refresh trigger, and safe data remediation every 6 hours.
-- `btc_model_refresh_job` owns trigger-only retraining, dataset replay validation, and Champion/Challenger promotion; training notebooks require a fresh positive training-gate decision.
+- `btc_model_refresh_job` owns trigger-only feature selection, retraining, dataset replay validation, and Champion/Challenger promotion; training notebooks require a fresh positive training-gate decision. LightGBM and XGBoost training can run independently, but promotion is serialized to avoid alias races.

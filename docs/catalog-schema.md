@@ -83,3 +83,12 @@ Training reads only `is_active = true` configs unless `allow_default_feature_fal
 `data_remediation_actions` records safe auto-remediation attempts, blocked manual-required cases, and failure reasons.
 
 `predictions.btc_predictions` includes model/data lineage fields: `model_version`, `model_run_id`, prediction-input `raw_table_version`/`features_table_version`, and Champion training lineage fields `model_raw_table_version`, `model_features_table_version`, `model_feature_config_version`, `model_feature_config_id`.
+
+Important prediction columns:
+
+- `feature_open_time`: feature row timestamp used for inference.
+- `predicted_close`: next-hour close forecast used by dashboard/error monitoring.
+- `predicted_return_1h`: raw return forecast when Champion target is `target_return_1h`; derived from close forecast otherwise.
+- `model_target_col`: Champion training target, currently expected to be `target_return_1h` for regression runs.
+- `raw_table_version`, `features_table_version`: serving input table versions at prediction time.
+- `model_raw_table_version`, `model_features_table_version`, `model_feature_config_version`, `model_feature_config_id`: Champion training lineage.

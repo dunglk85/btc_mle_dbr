@@ -347,7 +347,7 @@ BTC/
 │   ├── 01_data_ingestion.py          # Auto Loader landing CSV -> staging Delta -> raw Delta MERGE
 │   ├── 02_feature_engineering.py     # Features + exact target_close_1h
 │   ├── 02b_eda_feature_selection.py  # Active feature selection config governance
-│   ├── 03_model_training.py          # Baseline training notebook
+│   ├── 03_model_training.py          # Legacy baseline notebook, not model refresh path
 │   ├── 03_optuna_training.py         # Regression Optuna LightGBM/XGBoost training
 │   ├── 04_champion_challenger.py     # Replay-gated fair Champion/Challenger promotion
 │   ├── 05_prediction.py              # Predict next 1h with @Champion

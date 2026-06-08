@@ -136,47 +136,25 @@ Purpose:
 
 ## Models
 
-### Baseline Training Notebook
+### Feature Selection Governance
 
 Notebook:
 
 ```text
-notebooks/03_model_training.py
+notebooks/02b_eda_feature_selection.py
 ```
 
-Model:
+Purpose:
+- Analyze candidate features for the regression target `target_return_1h`.
+- Use correlation analysis, mutual information, and LightGBM feature importance to select features.
+- Write append-only feature selection metadata to `<catalog>.features.feature_selection_config`.
 
-```text
-RandomForestRegressor
-```
+Current governance behavior:
+- Only one config for `config_key = selected_features` is active at a time.
+- New configs set previous active rows to `is_active = false` before appending the new row.
+- The config records `config_id`, `source_table`, `source_table_version`, `target_col`, candidate features, dropped features, and selection metrics.
 
-Default configuration:
-
-```text
-n_estimators = 100
-max_depth = 10
-random_state = 42
-```
-
-Training process:
-- Reads `<catalog>.features.btc_features`.
-- Drops rows with null values caused by lag and moving-average features.
-- Uses temporal split, not random split.
-- First 80% of time-ordered data is used for training.
-- Last 20% is used for evaluation.
-
-Metrics:
-
-```text
-rmse, mae, r2, mape
-```
-
-Why RandomForest first:
-- Simple and stable baseline.
-- Works well enough for initial pipeline validation.
-- Does not require GPU.
-- Lower operational risk on Databricks Free Edition.
-- Easier to debug than more complex boosted-tree workflows.
+Training reads only the active config unless `allow_default_feature_fallback=true` is explicitly passed.
 
 ### Optuna Training Notebook
 
@@ -186,20 +164,24 @@ Notebook:
 notebooks/03_optuna_training.py
 ```
 
-Model:
+Models:
 
 ```text
-RandomForestRegressor
+LightGBM LGBMRegressor
+XGBoost XGBRegressor
 ```
 
-Optuna tunes:
-
-```text
-n_estimators
-max_depth
-min_samples_split
-min_samples_leaf
-```
+Training process:
+- Reads `<catalog>.features.btc_features`.
+- Reads active selected features from `<catalog>.features.feature_selection_config`.
+- Uses `target_return_1h` as the regression target.
+- Drops rows with null feature or target values caused by lag, rolling windows, or unavailable next-hour labels.
+- Uses temporal split, not random split.
+- First 80% of time-ordered data is used for training.
+- Last 20% is used for evaluation.
+- Logs metrics, params, feature list, and model artifact to MLflow.
+- Logs raw/features/config Delta versions to MLflow.
+- Writes `training_dataset_manifest.json` to MLflow and appends a row to `<catalog>.monitoring.training_dataset_manifests`.
 
 Default optimization settings:
 
@@ -208,10 +190,24 @@ n_trials = 15
 ```
 
 Purpose:
-- Search for a better RandomForest configuration.
+- Search for better boosted-tree hyperparameters.
 - Minimize RMSE.
 - Log each trial to MLflow.
 - Log the best model as an MLflow model artifact.
+
+### Dataset Replay Validation
+
+Notebook:
+
+```text
+notebooks/12_training_dataset_replay.py
+```
+
+Purpose:
+- Read the manifest for the training run.
+- Validate that raw/features/config Delta versions are still available via `VERSION AS OF`.
+- Reconstruct the training dataset and compare row counts, split boundaries, feature count, and target metadata.
+- Fail promotion if the dataset cannot be reproduced.
 
 ## Metrics
 
@@ -325,12 +321,13 @@ Interpretation examples:
 
 ### Champion Promotion Metric
 
-`notebooks/04_champion_challenger.py` currently promotes a Challenger when its RMSE is lower than the current Champion's RMSE.
+`notebooks/04_champion_challenger.py` promotes a Challenger only after dataset replay validation passes and the Challenger RMSE is lower than the current Champion RMSE on the same bounded common evaluation rows.
 
 Rationale:
 - RMSE penalizes large misses more heavily than MAE.
-- For BTC price forecasting, avoiding large forecast errors is important.
+- For BTC return/price forecasting, avoiding large forecast errors is important.
 - The first valid Challenger is promoted if no Champion exists.
+- LightGBM and XGBoost promotion tasks are serialized to avoid concurrent alias updates to `@Champion`.
 
 ### Trading Metrics Caveat
 
@@ -1016,7 +1013,10 @@ schema_drift_*
 Retraining trigger alert types:
 
 ```text
+data_drift_*
 model_drift_*
+prediction_drift_*
+label_drift_*
 concept_drift_*
 ```
 
@@ -1024,20 +1024,17 @@ Monitor-only drift types:
 
 ```text
 price_level_drift_*
-data_drift_*
-label_drift_*
-prediction_drift_*
 ```
 
 These are shown in the dashboard but should not trigger retraining by themselves.
 
-Immediate drift-triggered retraining is wired into `btc_data_prediction_job`:
+Drift-triggered retraining is split across two jobs:
 - `drift_monitoring`
 - `training_gate_drift` with `trigger_mode=drift`
-- `model_training_drift`
-- `champion_challenger_drift`
+- `trigger_model_refresh`
+- `btc_model_refresh_job` tasks: `eda_feature_selection`, `model_training_reg_lgbm`, `dataset_replay_reg_lgbm`, `champion_challenger_reg_lgbm`, `model_training_reg_xgb`, `dataset_replay_reg_xgb`, `champion_challenger_reg_xgb`
 
-If no drift alert exists, `training_gate_drift` records `should_retrain=false` and training exits with `SKIP_RETRAIN`.
+If no drift alert exists, `training_gate_drift` records `should_retrain=false` and `trigger_model_refresh` skips the refresh job.
 
 ## Job Quality Metrics
 
@@ -1202,8 +1199,15 @@ Examples of tasks that can fail:
 - `prediction`
 - `monitoring`
 - `drift_monitoring`
-- `model_training_drift`
-- `champion_challenger_drift`
+- `training_gate_drift`
+- `trigger_model_refresh`
+- `data_remediation`
+- `model_training_reg_lgbm`
+- `dataset_replay_reg_lgbm`
+- `champion_challenger_reg_lgbm`
+- `model_training_reg_xgb`
+- `dataset_replay_reg_xgb`
+- `champion_challenger_reg_xgb`
 - `job_quality_monitoring`
 
 ### Job Quality Alert
@@ -1286,19 +1290,20 @@ open, high, low, close, volume, return_1h, hl_spread, oc_change
 
 If the target is also the same row's `close`, the model may learn a leaky or trivial mapping rather than a real next-hour forecast.
 
-For a true next-hour prediction task, the target is shifted forward:
+For a true next-hour prediction task, target values are shifted forward using the exact next candle:
 
 ```text
 target_close_1h = close where target.open_time = current.open_time + 1 hour
+target_return_1h = target_close_1h / current_close - 1
 ```
 
-Then the model should train on current/past features to predict the next candle's close.
+The current production-like training path uses `target_return_1h` as the regression target. Prediction converts the model's return forecast back into `predicted_close` for dashboards and error monitoring.
 
 Current adjustment:
 - `target_close_1h` is added in feature engineering.
+- `target_return_1h` is added in feature engineering and used by `03_optuna_training.py`.
 - Target generation uses an exact next-hour self-join rather than next-row `lead`, so missing hourly candles do not silently create mislabeled targets.
-- Training notebooks use `target_close_1h` as the target.
-- Prediction output represents expected close for the next hour.
+- Prediction output stores both `predicted_return_1h` and `predicted_close`.
 
 Remaining modeling caveat:
 - Current-row OHLCV features are still used to predict the next-hour close.
