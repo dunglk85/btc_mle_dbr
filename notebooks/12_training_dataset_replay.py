@@ -157,18 +157,31 @@ if replayed_count != expected_count:
         "This usually means manifest split logic and replay logic diverged."
     )
 
-bounds = replayed.agg(
-    F.min("open_time").alias("min_open_time"),
-    F.max("open_time").alias("max_open_time"),
-).collect()[0]
-
-if bounds["min_open_time"] != manifest["train_start_time"]:
+ordered_times = [row["open_time"] for row in replayed.select("open_time").orderBy("open_time").collect()]
+split_idx = int(replayed_count * 0.8)
+train_times = ordered_times[:split_idx]
+test_times = ordered_times[split_idx:]
+if not train_times or not test_times:
     raise ValueError(
-        f"Replay train_start_time mismatch: {bounds['min_open_time']} != {manifest['train_start_time']}"
+        f"Replay split produced empty train/test partition: "
+        f"train={len(train_times)}, test={len(test_times)}"
     )
-if bounds["max_open_time"] != manifest["test_end_time"]:
+
+if train_times[0] != manifest["train_start_time"]:
     raise ValueError(
-        f"Replay test_end_time mismatch: {bounds['max_open_time']} != {manifest['test_end_time']}"
+        f"Replay train_start_time mismatch: {train_times[0]} != {manifest['train_start_time']}"
+    )
+if train_times[-1] != manifest["train_end_time"]:
+    raise ValueError(
+        f"Replay train_end_time mismatch: {train_times[-1]} != {manifest['train_end_time']}"
+    )
+if test_times[0] != manifest["test_start_time"]:
+    raise ValueError(
+        f"Replay test_start_time mismatch: {test_times[0]} != {manifest['test_start_time']}"
+    )
+if test_times[-1] != manifest["test_end_time"]:
+    raise ValueError(
+        f"Replay test_end_time mismatch: {test_times[-1]} != {manifest['test_end_time']}"
     )
 
 if int(manifest["n_features"]) != len(feature_cols):

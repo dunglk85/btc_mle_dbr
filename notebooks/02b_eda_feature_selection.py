@@ -204,7 +204,10 @@ for i in range(len(corr_matrix.columns)):
                 "abs_correlation": round(corr_val, 4),
             })
 
-high_corr_df = pd.DataFrame(high_corr_pairs).sort_values("abs_correlation", ascending=False)
+high_corr_df = pd.DataFrame(
+    high_corr_pairs,
+    columns=["feature_1", "feature_2", "correlation", "abs_correlation"],
+).sort_values("abs_correlation", ascending=False)
 print(f"\nHighly correlated pairs (|r| >= {CORR_THRESHOLD}): {len(high_corr_df)}")
 display(spark.createDataFrame(high_corr_df) if len(high_corr_df) > 0 else print("No highly correlated pairs found."))
 

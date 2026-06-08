@@ -273,15 +273,19 @@ features = features.withColumn(
 
 # COMMAND ----------
 
-# Regression target: % thay đổi giá close giờ tiếp theo
+# Exact next-hour target: do not use next-row lead because missing candles would mislabel targets.
+targets = raw.select(
+    F.col("open_time").alias("target_open_time"),
+    F.col("close").alias("target_close_1h"),
+)
+features = features.join(
+    targets,
+    F.col("target_open_time") == F.col("open_time") + F.expr("INTERVAL 1 HOUR"),
+    "left",
+).drop("target_open_time")
 features = features.withColumn(
     "target_return_1h",
-    (F.lead("close", 1).over(w) / F.col("close")) - F.lit(1.0),
-)
-
-# Giữ lại target_close_1h cho backward compatibility
-features = features.withColumn(
-    "target_close_1h", F.lead("close", 1).over(w)
+    (F.col("target_close_1h") / F.col("close")) - F.lit(1.0),
 )
 
 # COMMAND ----------

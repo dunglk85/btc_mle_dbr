@@ -208,6 +208,12 @@ def load_feature_cols_for_champion(run_id, run_params):
         except Exception as config_version_exc:
             print(f"WARNING: Could not load Champion versioned feature config ({config_version_exc})")
 
+    if catalog != "btc_dev":
+        raise ValueError(
+            "Could not resolve Champion feature columns from artifact, manifest, or versioned config. "
+            f"Refusing active-config fallback outside btc_dev; catalog={catalog}"
+        )
+
     try:
         config_row = (
             spark.table(config_ref)
