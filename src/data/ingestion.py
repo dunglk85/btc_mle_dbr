@@ -217,6 +217,7 @@ def load_landing_to_raw(
     schema_subdir: str = "_schemas/btc_hourly",
     staging_retention_hours: int = 48,
 ) -> DataFrame:
+    run_started_at = datetime.now(timezone.utc)
     table_ref = f"{catalog}.{raw_schema}.{table}"
     staging_table_ref = f"{catalog}.{raw_schema}.{table}_landing_autoloader"
     landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/{landing_subdir}"
@@ -296,6 +297,7 @@ def load_landing_to_raw(
         table_ref,
         landing_path,
         staging_retention_hours=staging_retention_hours,
+        run_started_at=run_started_at,
     )
     return spark.table(table_ref)
 
@@ -306,14 +308,19 @@ def merge_landing_staging_to_raw(
     table_ref: str,
     landing_path: str,
     staging_retention_hours: int = 48,
+    run_started_at: Optional[datetime] = None,
 ) -> None:
-    raw_landing_count = spark.table(staging_table_ref).count()
+    if run_started_at is None:
+        raise ValueError("run_started_at is required to avoid merging retained staging rows")
+
+    raw = spark.table(staging_table_ref)
+    raw = raw.filter(F.col("_loaded_at") >= F.lit(run_started_at))
+    raw_landing_count = raw.count()
     print(f"merge_landing_staging_to_raw: raw_landing_count={raw_landing_count}")
     if raw_landing_count == 0:
         print("merge_landing_staging_to_raw: empty staging table, skipping merge")
         return
 
-    raw = spark.table(staging_table_ref)
     df = raw.select(
         F.coalesce(
             F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
@@ -335,6 +342,7 @@ def merge_landing_staging_to_raw(
         F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
         F.current_timestamp().alias("ingested_at"),
         F.col("_source_file"),
+        F.col("_loaded_at"),
     )
     null_open_time_count = df.filter(F.col("open_time").isNull()).count()
     print(f"merge_landing_staging_to_raw: null_open_time_count={null_open_time_count}")
@@ -344,11 +352,14 @@ def merge_landing_staging_to_raw(
             f"at {landing_path}"
         )
 
-    dedupe_window = Window.partitionBy("open_time").orderBy(F.col("_source_file").desc())
+    dedupe_window = Window.partitionBy("open_time").orderBy(
+        F.col("_loaded_at").desc(),
+        F.col("_source_file").desc(),
+    )
     df = (
         df.withColumn("_row_number", F.row_number().over(dedupe_window))
         .filter(F.col("_row_number") == 1)
-        .drop("_row_number", "_source_file")
+        .drop("_row_number", "_source_file", "_loaded_at")
     )
     landing_count = df.count()
     print(f"merge_landing_staging_to_raw: parsed_distinct_landing_count={landing_count}")

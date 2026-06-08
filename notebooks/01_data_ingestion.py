@@ -7,6 +7,8 @@
 
 # COMMAND ----------
 
+from datetime import datetime, timezone
+
 from pyspark.sql import Window, functions as F
 from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType
 
@@ -30,6 +32,7 @@ schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_schemas/btc_hourl
 table_ref = f"{catalog}.{raw_schema}.{table_name}"
 staging_table_ref = f"{catalog}.{raw_schema}.{table_name}_landing_autoloader"
 staging_retention_hours = int(get_widget("staging_retention_hours", "48"))
+run_started_at = datetime.now(timezone.utc)
 
 print("RUNNING SELF-CONTAINED AUTO LOADER INGESTION NOTEBOOK")
 print(f"landing_path={landing_path}")
@@ -37,6 +40,7 @@ print(f"checkpoint_path={checkpoint_path}")
 print(f"table_ref={table_ref}")
 print(f"staging_table_ref={staging_table_ref}")
 print(f"staging_retention_hours={staging_retention_hours}")
+print(f"run_started_at={run_started_at.isoformat()}")
 
 # COMMAND ----------
 
@@ -94,11 +98,11 @@ landing_schema = StructType(
 # COMMAND ----------
 
 def parse_and_merge_staging():
-    raw = spark.table(staging_table_ref)
+    raw = spark.table(staging_table_ref).filter(F.col("_loaded_at") >= F.lit(run_started_at))
     raw_count = raw.count()
-    print(f"staging_landing_count={raw_count}")
+    print(f"current_run_staging_landing_count={raw_count}")
     if raw_count == 0:
-        print("empty Auto Loader staging table; skipping merge")
+        print("empty current-run Auto Loader staging rows; skipping merge")
         return
 
     # Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
@@ -123,6 +127,7 @@ def parse_and_merge_staging():
         F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
         F.current_timestamp().alias("ingested_at"),
         F.col("_source_file"),
+        F.col("_loaded_at"),
     )
 
     null_open_time_count = parsed.filter(F.col("open_time").isNull()).count()
@@ -131,11 +136,14 @@ def parse_and_merge_staging():
         display(raw.filter(F.col("open_time").isNotNull()).select("open_time", "close_time").limit(20))
         raise ValueError(f"Found {null_open_time_count} rows with unparseable open_time")
 
-    dedupe_window = Window.partitionBy("open_time").orderBy(F.col("_source_file").desc())
+    dedupe_window = Window.partitionBy("open_time").orderBy(
+        F.col("_loaded_at").desc(),
+        F.col("_source_file").desc(),
+    )
     deduped = (
         parsed.withColumn("_row_number", F.row_number().over(dedupe_window))
         .filter(F.col("_row_number") == 1)
-        .drop("_row_number", "_source_file")
+        .drop("_row_number", "_source_file", "_loaded_at")
     )
     deduped_count = deduped.count()
     print(f"deduped_landing_count={deduped_count}")

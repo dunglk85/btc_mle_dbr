@@ -349,6 +349,9 @@ class FakeColumn:
     def __eq__(self, other):
         return f"{self.name} = {other}"
 
+    def __ge__(self, other):
+        return f"{self.name} >= {other}"
+
 
 class FakeWindow:
     @staticmethod
