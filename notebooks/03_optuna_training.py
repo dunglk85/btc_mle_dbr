@@ -58,6 +58,7 @@ model_algo = get_widget("model_algo", "lightgbm")  # "lightgbm" hoặc "xgboost"
 n_trials = int(get_widget("n_trials", "30"))
 timeout_seconds = int(get_widget("timeout_seconds", "1200"))
 n_cv_splits = int(get_widget("n_cv_splits", "5"))
+train_fraction = float(get_widget("train_fraction", "0.8"))
 max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
 expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
 allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
@@ -77,6 +78,7 @@ target_col = "target_return_1h"
 assert model_algo in ("lightgbm", "xgboost"), f"Invalid model_algo: {model_algo}"
 assert n_trials >= 1, f"n_trials must be >= 1, got {n_trials}"
 assert timeout_seconds > 0, f"timeout_seconds must be > 0, got {timeout_seconds}"
+assert 0.0 < train_fraction < 1.0, f"train_fraction must be between 0 and 1, got {train_fraction}"
 
 experiment_name = f"/Shared/btc_regression_{model_algo}_training"
 
@@ -89,6 +91,7 @@ print(f"target_col={target_col}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
 print(f"n_cv_splits={n_cv_splits}")
+print(f"train_fraction={train_fraction}")
 print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
 print(f"allow_default_feature_fallback={allow_default_feature_fallback}")
@@ -248,6 +251,18 @@ print(f"training_rows_after_dropna={row_count}")
 if row_count < 100:
     raise ValueError(f"Not enough training rows in {features_ref}: {row_count}")
 
+duplicate_open_time_count = (
+    model_df.groupBy("open_time")
+    .count()
+    .filter(F.col("count") > 1)
+    .count()
+)
+if duplicate_open_time_count > 0:
+    raise ValueError(
+        f"Training data contains {duplicate_open_time_count} duplicate open_time values; "
+        "dataset replay requires deterministic ordering."
+    )
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -257,8 +272,8 @@ if row_count < 100:
 
 pdf = model_df.toPandas().sort_values("open_time").reset_index(drop=True)
 
-# 80/20 split theo thời gian — KHÔNG xáo trộn
-split_idx = int(len(pdf) * 0.8)
+# Time-based split — KHÔNG xáo trộn
+split_idx = int(len(pdf) * train_fraction)
 train = pdf.iloc[:split_idx]
 test = pdf.iloc[split_idx:]
 
@@ -419,6 +434,8 @@ with mlflow.start_run(
     mlflow.log_param("n_trials_requested", n_trials)
     mlflow.log_param("n_trials_completed", len(study.trials))
     mlflow.log_param("n_cv_splits", n_cv_splits)
+    mlflow.log_param("train_fraction", train_fraction)
+    mlflow.log_param("split_idx", split_idx)
     mlflow.log_param("n_features", len(feature_cols))
     mlflow.log_param("train_rows", len(train))
     mlflow.log_param("test_rows", len(test))
@@ -440,6 +457,8 @@ with mlflow.start_run(
                 "test_end_time": str(test["open_time"].max()),
                 "train_rows": int(len(train)),
                 "test_rows": int(len(test)),
+                "train_fraction": float(train_fraction),
+                "split_idx": int(split_idx),
             },
             indent=2,
         ),
@@ -484,6 +503,8 @@ spark.sql(f"""
         test_end_time TIMESTAMP,
         train_rows BIGINT,
         test_rows BIGINT,
+        train_fraction DOUBLE,
+        split_idx BIGINT,
         n_features BIGINT,
         feature_cols_json STRING
     )
@@ -494,6 +515,11 @@ try:
     spark.sql(f"ALTER TABLE {training_manifest_ref} ADD COLUMNS (feature_config_id BIGINT)")
 except Exception as exc:
     print(f"manifest table column already exists or cannot be added: feature_config_id; {exc}")
+for column_def in ["train_fraction DOUBLE", "split_idx BIGINT"]:
+    try:
+        spark.sql(f"ALTER TABLE {training_manifest_ref} ADD COLUMNS ({column_def})")
+    except Exception as exc:
+        print(f"manifest table column already exists or cannot be added: {column_def}; {exc}")
 
 manifest_df = spark.createDataFrame(
     [
@@ -514,6 +540,8 @@ manifest_df = spark.createDataFrame(
             "test_end_time": test["open_time"].max().to_pydatetime(),
             "train_rows": int(len(train)),
             "test_rows": int(len(test)),
+            "train_fraction": float(train_fraction),
+            "split_idx": int(split_idx),
             "n_features": len(feature_cols),
             "feature_cols_json": json.dumps(feature_cols),
         }
@@ -538,6 +566,8 @@ manifest_df.select(
     "test_end_time",
     "train_rows",
     "test_rows",
+    "train_fraction",
+    "split_idx",
     "n_features",
     "feature_cols_json",
 ).write.mode("append").option("mergeSchema", "true").saveAsTable(training_manifest_ref)

@@ -9,8 +9,9 @@
 
 import json
 import re
+from datetime import timezone
 
-from pyspark.sql import functions as F
+from pyspark.sql import Window, functions as F
 
 # COMMAND ----------
 
@@ -89,44 +90,67 @@ def assert_delta_version_available(table_ref, version):
 
 def interval_to_hours(value):
     if not value:
-        return None
-    match = re.search(r"interval\s+(\d+)\s+(hour|hours|day|days|week|weeks)", value.lower())
-    if not match:
-        return None
-    amount = int(match.group(1))
-    unit = match.group(2)
-    if unit.startswith("hour"):
-        return amount
-    if unit.startswith("day"):
-        return amount * 24
-    if unit.startswith("week"):
-        return amount * 24 * 7
-    return None
+        raise ValueError("empty interval")
+
+    normalized = value.strip().strip("'").strip('"').lower()
+    if not normalized.startswith("interval"):
+        raise ValueError(f"unsupported interval format: {value}")
+
+    body = normalized[len("interval"):].strip()
+    token_pattern = re.compile(
+        r"(\d+(?:\.\d+)?)\s+"
+        r"(week|weeks|day|days|hour|hours|minute|minutes|second|seconds)"
+    )
+    total_hours = 0.0
+    consumed = []
+    for match in token_pattern.finditer(body):
+        amount = float(match.group(1))
+        unit = match.group(2)
+        consumed.append(match.group(0))
+        if unit.startswith("week"):
+            total_hours += amount * 24 * 7
+        elif unit.startswith("day"):
+            total_hours += amount * 24
+        elif unit.startswith("hour"):
+            total_hours += amount
+        elif unit.startswith("minute"):
+            total_hours += amount / 60
+        elif unit.startswith("second"):
+            total_hours += amount / 3600
+
+    remainder = body
+    for token in consumed:
+        remainder = remainder.replace(token, "", 1)
+    if not consumed or remainder.strip():
+        raise ValueError(f"unsupported interval format: {value}")
+    return total_hours
 
 
 def check_retention(table_ref):
     try:
         detail = spark.sql(f"DESCRIBE DETAIL {table_ref}").collect()[0].asDict()
-        properties = detail.get("properties") or {}
-        deleted_retention = properties.get("delta.deletedFileRetentionDuration", "interval 1 week")
-        log_retention = properties.get("delta.logRetentionDuration", "interval 30 days")
-        print(f"{table_ref} deletedFileRetention={deleted_retention}; logRetention={log_retention}")
-        deleted_retention_hours = interval_to_hours(deleted_retention)
-        log_retention_hours = interval_to_hours(log_retention)
-        if deleted_retention_hours is not None and deleted_retention_hours < min_delta_retention_hours:
-            raise ValueError(
-                f"Delta deleted file retention too short for replay: {table_ref} has "
-                f"{deleted_retention} ({deleted_retention_hours}h), expected >= "
-                f"{min_delta_retention_hours}h"
-            )
-        if log_retention_hours is not None and log_retention_hours < min_delta_retention_hours:
-            raise ValueError(
-                f"Delta log retention too short for replay: {table_ref} has "
-                f"{log_retention} ({log_retention_hours}h), expected >= "
-                f"{min_delta_retention_hours}h"
-            )
     except Exception as exc:
-        raise ValueError(f"Could not validate Delta retention for {table_ref}: {exc}") from exc
+        raise ValueError(f"Could not read Delta retention properties for {table_ref}: {exc}") from exc
+
+    properties = detail.get("properties") or {}
+    deleted_retention = properties.get("delta.deletedFileRetentionDuration", "interval 1 week")
+    log_retention = properties.get("delta.logRetentionDuration", "interval 30 days")
+    print(f"{table_ref} deletedFileRetention={deleted_retention}; logRetention={log_retention}")
+
+    deleted_retention_hours = interval_to_hours(deleted_retention)
+    log_retention_hours = interval_to_hours(log_retention)
+    if deleted_retention_hours < min_delta_retention_hours:
+        raise ValueError(
+            f"Delta deleted file retention too short for replay: {table_ref} has "
+            f"{deleted_retention} ({deleted_retention_hours}h), expected >= "
+            f"{min_delta_retention_hours}h"
+        )
+    if log_retention_hours < min_delta_retention_hours:
+        raise ValueError(
+            f"Delta log retention too short for replay: {table_ref} has "
+            f"{log_retention} ({log_retention_hours}h), expected >= "
+            f"{min_delta_retention_hours}h"
+        )
 
 
 for table_ref, version in [
@@ -134,6 +158,9 @@ for table_ref, version in [
     (manifest["features_table"], manifest["features_table_version"]),
     (manifest["feature_config_table"], manifest["feature_config_version"]),
 ]:
+    if int(version) < 0:
+        print(f"SKIP_OPTIONAL_DELTA_VERSION_CHECK: {table_ref}@v{version}")
+        continue
     assert_delta_version_available(table_ref, version)
     check_retention(table_ref)
 
@@ -157,32 +184,68 @@ if replayed_count != expected_count:
         "This usually means manifest split logic and replay logic diverged."
     )
 
-ordered_times = [row["open_time"] for row in replayed.select("open_time").orderBy("open_time").collect()]
-split_idx = int(replayed_count * 0.8)
-train_times = ordered_times[:split_idx]
-test_times = ordered_times[split_idx:]
-if not train_times or not test_times:
+duplicate_open_time_count = (
+    replayed.groupBy("open_time")
+    .count()
+    .filter(F.col("count") > 1)
+    .count()
+)
+if duplicate_open_time_count > 0:
     raise ValueError(
-        f"Replay split produced empty train/test partition: "
-        f"train={len(train_times)}, test={len(test_times)}"
+        f"Replay data contains {duplicate_open_time_count} duplicate open_time values; "
+        "train/test boundary ordering is not deterministic."
     )
 
-if train_times[0] != manifest["train_start_time"]:
+manifest_split_idx = manifest.get("split_idx")
+if manifest_split_idx is not None:
+    split_idx = int(manifest_split_idx)
+else:
+    train_fraction = float(manifest.get("train_fraction") or 0.8)
+    split_idx = int(replayed_count * train_fraction)
+if split_idx != int(manifest["train_rows"]):
+    raise ValueError(f"Replay split_idx mismatch: {split_idx} != train_rows={manifest['train_rows']}")
+
+indexed = replayed.select("open_time").withColumn(
+    "_row_number",
+    F.row_number().over(Window.orderBy("open_time")),
+)
+train_bounds = indexed.filter(F.col("_row_number") <= split_idx).agg(
+    F.min("open_time").alias("train_start_time"),
+    F.max("open_time").alias("train_end_time"),
+    F.count("*").alias("train_rows"),
+).collect()[0].asDict()
+test_bounds = indexed.filter(F.col("_row_number") > split_idx).agg(
+    F.min("open_time").alias("test_start_time"),
+    F.max("open_time").alias("test_end_time"),
+    F.count("*").alias("test_rows"),
+).collect()[0].asDict()
+if int(train_bounds["train_rows"]) == 0 or int(test_bounds["test_rows"]) == 0:
     raise ValueError(
-        f"Replay train_start_time mismatch: {train_times[0]} != {manifest['train_start_time']}"
+        f"Replay split produced empty train/test partition: "
+        f"train={train_bounds['train_rows']}, test={test_bounds['test_rows']}"
     )
-if train_times[-1] != manifest["train_end_time"]:
-    raise ValueError(
-        f"Replay train_end_time mismatch: {train_times[-1]} != {manifest['train_end_time']}"
-    )
-if test_times[0] != manifest["test_start_time"]:
-    raise ValueError(
-        f"Replay test_start_time mismatch: {test_times[0]} != {manifest['test_start_time']}"
-    )
-if test_times[-1] != manifest["test_end_time"]:
-    raise ValueError(
-        f"Replay test_end_time mismatch: {test_times[-1]} != {manifest['test_end_time']}"
-    )
+
+def timestamp_to_epoch_micros(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return int(value.timestamp() * 1_000_000)
+
+
+def assert_timestamp_match(name, replay_value, manifest_value):
+    replay_micros = timestamp_to_epoch_micros(replay_value)
+    manifest_micros = timestamp_to_epoch_micros(manifest_value)
+    if replay_micros != manifest_micros:
+        raise ValueError(f"Replay {name} mismatch: {replay_value} != {manifest_value}")
+
+
+assert_timestamp_match("train_start_time", train_bounds["train_start_time"], manifest["train_start_time"])
+assert_timestamp_match("train_end_time", train_bounds["train_end_time"], manifest["train_end_time"])
+assert_timestamp_match("test_start_time", test_bounds["test_start_time"], manifest["test_start_time"])
+assert_timestamp_match("test_end_time", test_bounds["test_end_time"], manifest["test_end_time"])
 
 if int(manifest["n_features"]) != len(feature_cols):
     raise ValueError(f"Manifest n_features mismatch: {manifest['n_features']} != {len(feature_cols)}")
