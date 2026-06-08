@@ -166,8 +166,7 @@ if not safe_actions:
 
 try:
     if "backfill_raw" in safe_actions:
-        run_notebook("00_fetch_binance_to_volume", {"catalog": catalog, "limit": backfill_limit})
-        run_notebook("01_data_ingestion", {"catalog": catalog})
+        run_notebook("01_data_ingestion", {"catalog": catalog, "limit": backfill_limit})
         run_notebook("02_feature_engineering", {"catalog": catalog})
 
     if "rebuild_features" in safe_actions and "backfill_raw" not in safe_actions:

@@ -13,8 +13,6 @@
 ```
 <catalog>/
 ├── raw/
-│   ├── landing           # UC Volume for landing CSV files plus Auto Loader checkpoints/schemas
-│   ├── btc_hourly_landing_autoloader # Auto Loader staging Delta table
 │   └── btc_hourly        # Raw OHLCV Delta table from Binance
 ├── features/
 │   ├── btc_features      # Engineered features
@@ -32,10 +30,7 @@
 
 ## btc_hourly Schema
 
-Auto Loader state for this table is stored in the `raw.landing` volume:
-
-- Checkpoint: `/Volumes/<catalog>/raw/landing/_checkpoints/btc_hourly`
-- Schema tracking: `/Volumes/<catalog>/raw/landing/_schemas/btc_hourly`
+`01_data_ingestion` fetches closed Binance hourly candles and MERGEs them directly into this table. No UC Volume landing path or Auto Loader staging table is used.
 
 | Column        | Type      | Description                |
 |---------------|-----------|----------------------------|

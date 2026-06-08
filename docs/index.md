@@ -5,7 +5,7 @@
 - **Project:** BTC Databricks MLOps
 - **Type:** Data/ML pipeline on Databricks
 - **Primary language:** Python
-- **Architecture:** Databricks Asset Bundles + Git-backed notebooks + Auto Loader + Unity Catalog Delta tables + MLflow UC Model Registry
+- **Architecture:** Databricks Asset Bundles + Git-backed notebooks + direct Binance ingestion + Unity Catalog Delta tables + MLflow UC Model Registry
 
 ## Quick Reference
 
@@ -32,8 +32,7 @@
 
 - `databricks.yml`: bundle targets and catalog variables.
 - `databricks/resources/jobs.yml`: Databricks job definitions.
-- `notebooks/00_fetch_binance_to_volume.py`: fetch closed Binance hourly candles into UC Volume.
-- `notebooks/01_data_ingestion.py`: Auto Loader landing CSV ingestion to staging Delta, then raw Delta MERGE.
+- `notebooks/01_data_ingestion.py`: fetch closed Binance hourly candles and MERGE directly into raw Delta.
 - `notebooks/02_feature_engineering.py`: features and exact next-hour target.
 - `notebooks/02b_eda_feature_selection.py`: EDA-driven active feature selection config governance.
 - `notebooks/03_optuna_training.py`: regression Optuna LightGBM/XGBoost training, MLflow logging, and dataset manifest writing.
@@ -56,6 +55,6 @@
 ```bash
 pytest
 ruff check src/ tests/ scripts/
-python -m py_compile notebooks/00_fetch_binance_to_volume.py notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/02b_eda_feature_selection.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/02b_eda_feature_selection.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py
 databricks bundle validate
 ```

@@ -4,13 +4,18 @@
 
 # MAGIC %md
 # MAGIC # 01 - Data Ingestion
+# MAGIC Fetch closed BTC hourly candles from Binance and merge directly into the raw Delta table.
 
 # COMMAND ----------
 
+import json
+import time
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 
 from pyspark.sql import Window, functions as F
-from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType
+from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType, TimestampType
 
 # COMMAND ----------
 
@@ -24,28 +29,29 @@ def get_widget(name, default):
 
 catalog = get_widget("catalog", "btc_dev")
 raw_schema = "raw"
-volume_name = "landing"
 table_name = "btc_hourly"
-landing_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/btc_hourly"
-checkpoint_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_checkpoints/btc_hourly"
-schema_path = f"/Volumes/{catalog}/{raw_schema}/{volume_name}/_schemas/btc_hourly"
 table_ref = f"{catalog}.{raw_schema}.{table_name}"
-staging_table_ref = f"{catalog}.{raw_schema}.{table_name}_landing_autoloader"
-staging_retention_hours = int(get_widget("staging_retention_hours", "48"))
+symbol = "BTCUSDT"
+interval = "1h"
+limit = int(get_widget("limit", "24"))
+start_date = get_widget("start_date", "")
+base_url = "https://data-api.binance.vision/api/v3/klines"
+max_page_size = 1000
+api_retries = 3
+api_retry_sleep_seconds = 2
 run_started_at = datetime.now(timezone.utc)
 
-print("RUNNING SELF-CONTAINED AUTO LOADER INGESTION NOTEBOOK")
-print(f"landing_path={landing_path}")
-print(f"checkpoint_path={checkpoint_path}")
+print("RUNNING DIRECT BINANCE INGESTION NOTEBOOK")
 print(f"table_ref={table_ref}")
-print(f"staging_table_ref={staging_table_ref}")
-print(f"staging_retention_hours={staging_retention_hours}")
+print(f"symbol={symbol}")
+print(f"interval={interval}")
+print(f"limit={limit}")
+print(f"start_date={start_date}")
 print(f"run_started_at={run_started_at.isoformat()}")
 
 # COMMAND ----------
 
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{raw_schema}")
-spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{raw_schema}.{volume_name}")
 spark.sql(f"""
     CREATE TABLE IF NOT EXISTS {table_ref} (
         open_time TIMESTAMP,
@@ -70,188 +76,189 @@ for column_def in ["symbol STRING", "interval STRING", "fetched_at TIMESTAMP"]:
         spark.sql(f"ALTER TABLE {table_ref} ADD COLUMNS ({column_def})")
     except Exception as exc:
         print(f"raw_column_already_exists_or_add_skipped={column_def}: {exc}")
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS {staging_table_ref} (
-        open_time STRING,
-        open DOUBLE,
-        high DOUBLE,
-        low DOUBLE,
-        close DOUBLE,
-        volume DOUBLE,
-        close_time STRING,
-        quote_volume DOUBLE,
-        trades BIGINT,
-        source STRING,
-        symbol STRING,
-        interval STRING,
-        fetched_at STRING,
-        _source_file STRING,
-        _loaded_at TIMESTAMP
-    )
-    USING DELTA
-""")
-for column_def in ["symbol STRING", "interval STRING", "fetched_at STRING"]:
-    try:
-        spark.sql(f"ALTER TABLE {staging_table_ref} ADD COLUMNS ({column_def})")
-    except Exception as exc:
-        print(f"staging_column_already_exists_or_add_skipped={column_def}: {exc}")
 
-landing_schema = StructType(
+# COMMAND ----------
+
+def latest_raw_open_time_ms():
+    try:
+        row = spark.sql(f"SELECT max(open_time) AS max_open_time FROM {table_ref}").collect()[0]
+        latest = row["max_open_time"]
+        if latest is not None:
+            return int(latest.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    except Exception as exc:
+        print(f"latest_raw_open_time_lookup_skipped={exc}")
+    return None
+
+
+start_time = None
+if start_date:
+    start_time = int(
+        datetime.strptime(start_date, "%Y-%m-%d")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+        * 1000
+    )
+else:
+    latest_open_time_ms = latest_raw_open_time_ms()
+    if latest_open_time_ms is not None:
+        start_time = latest_open_time_ms + 1
+if limit > max_page_size and start_time is None:
+    raise ValueError("start_date is required when limit > 1000 and raw table is empty")
+
+print(f"start_time={start_time}")
+
+
+def fetch_page(page_limit, page_start_time=None):
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": page_limit,
+    }
+    if page_start_time is not None:
+        params["startTime"] = page_start_time
+
+    url = f"{base_url}?{urllib.parse.urlencode(params)}"
+    for attempt in range(1, api_retries + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except Exception:
+            if attempt == api_retries:
+                raise
+            sleep_seconds = api_retry_sleep_seconds * attempt
+            print(f"binance_fetch_retry attempt={attempt} sleep_seconds={sleep_seconds}")
+            time.sleep(sleep_seconds)
+
+
+rows = []
+remaining = limit
+current_start = start_time
+while remaining > 0:
+    page_limit = min(remaining, max_page_size)
+    page = fetch_page(page_limit, current_start)
+    if not page:
+        break
+    rows.extend(page)
+    remaining -= len(page)
+    if len(page) < page_limit:
+        break
+    current_start = int(page[-1][0]) + 1
+
+print(f"fetched_rows={len(rows)}")
+if not rows:
+    raise ValueError("No Binance klines fetched")
+
+now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+closed_rows = [row for row in rows if int(row[6]) < now_ms]
+filtered_count = len(rows) - len(closed_rows)
+print(f"filtered_open_candles={filtered_count}")
+rows = closed_rows
+if not rows:
+    raise ValueError("No closed Binance klines fetched")
+
+# COMMAND ----------
+
+def validate_rows(klines):
+    seen_open_times = set()
+    errors = []
+    for idx, row in enumerate(klines):
+        try:
+            open_time = int(row[0])
+            close_time = int(row[6])
+            open_price = float(row[1])
+            high = float(row[2])
+            low = float(row[3])
+            close = float(row[4])
+            volume = float(row[5])
+            quote_volume = float(row[7])
+            trades = int(row[8])
+        except Exception as exc:
+            errors.append(f"row={idx} parse_error={exc}")
+            continue
+
+        if open_time in seen_open_times:
+            errors.append(f"row={idx} duplicate_open_time={open_time}")
+        seen_open_times.add(open_time)
+        if close_time <= open_time:
+            errors.append(f"row={idx} close_time_not_after_open_time")
+        if min(open_price, high, low, close) <= 0:
+            errors.append(f"row={idx} non_positive_price")
+        if high < max(open_price, low, close):
+            errors.append(f"row={idx} high_below_ohlc")
+        if low > min(open_price, high, close):
+            errors.append(f"row={idx} low_above_ohlc")
+        if volume < 0 or quote_volume < 0 or trades < 0:
+            errors.append(f"row={idx} negative_volume_or_trades")
+
+    if errors:
+        raise ValueError("Invalid Binance kline rows before merge: " + "; ".join(errors[:20]))
+
+
+def to_ts(ms):
+    return datetime.fromtimestamp(int(ms) / 1000, timezone.utc)
+
+
+validate_rows(rows)
+fetched_at = datetime.now(timezone.utc)
+records = [
+    {
+        "open_time": to_ts(kline[0]),
+        "open": float(kline[1]),
+        "high": float(kline[2]),
+        "low": float(kline[3]),
+        "close": float(kline[4]),
+        "volume": float(kline[5]),
+        "close_time": to_ts(kline[6]),
+        "quote_volume": float(kline[7]),
+        "trades": int(kline[8]),
+        "source": "binance",
+        "symbol": symbol,
+        "interval": interval,
+        "fetched_at": fetched_at,
+        "ingested_at": fetched_at,
+    }
+    for kline in rows
+]
+
+raw_schema_struct = StructType(
     [
-        StructField("open_time", StringType(), True),
+        StructField("open_time", TimestampType(), True),
         StructField("open", DoubleType(), True),
         StructField("high", DoubleType(), True),
         StructField("low", DoubleType(), True),
         StructField("close", DoubleType(), True),
         StructField("volume", DoubleType(), True),
-        StructField("close_time", StringType(), True),
+        StructField("close_time", TimestampType(), True),
         StructField("quote_volume", DoubleType(), True),
         StructField("trades", LongType(), True),
         StructField("source", StringType(), True),
         StructField("symbol", StringType(), True),
         StructField("interval", StringType(), True),
-        StructField("fetched_at", StringType(), True),
+        StructField("fetched_at", TimestampType(), True),
+        StructField("ingested_at", TimestampType(), True),
     ]
 )
 
-# COMMAND ----------
-
-def parse_and_merge_staging():
-    raw = spark.table(staging_table_ref).filter(F.col("_loaded_at") >= F.lit(run_started_at))
-    raw_count = raw.count()
-    print(f"current_run_staging_landing_count={raw_count}")
-    if raw_count == 0:
-        print("empty current-run Auto Loader staging rows; skipping merge")
-        return
-
-    # Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
-    parsed = raw.select(
-        F.coalesce(
-            F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
-            F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
-            F.to_timestamp("open_time"),
-        ).alias("open_time"),
-        F.col("open").cast("double").alias("open"),
-        F.col("high").cast("double").alias("high"),
-        F.col("low").cast("double").alias("low"),
-        F.col("close").cast("double").alias("close"),
-        F.col("volume").cast("double").alias("volume"),
-        F.coalesce(
-            F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            F.to_timestamp("close_time", "yyyy-MM-dd HH:mm:ss"),
-            F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
-            F.to_timestamp("close_time"),
-        ).alias("close_time"),
-        F.col("quote_volume").cast("double").alias("quote_volume"),
-        F.col("trades").cast("bigint").alias("trades"),
-        F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
-        F.coalesce(F.col("symbol"), F.lit("BTCUSDT")).alias("symbol"),
-        F.coalesce(F.col("interval"), F.lit("1h")).alias("interval"),
-        F.coalesce(
-            F.to_timestamp("fetched_at", "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            F.to_timestamp("fetched_at"),
-        ).alias("fetched_at"),
-        F.current_timestamp().alias("ingested_at"),
-        F.col("_source_file"),
-        F.col("_loaded_at"),
-    )
-
-    null_open_time_count = parsed.filter(F.col("open_time").isNull()).count()
-    print(f"null_open_time_count={null_open_time_count}")
-    if null_open_time_count > 0:
-        display(raw.filter(F.col("open_time").isNotNull()).select("open_time", "close_time").limit(20))
-        raise ValueError(f"Found {null_open_time_count} rows with unparseable open_time")
-
-    invalid_landing_count = parsed.filter("""
-        close_time IS NULL
-        OR close_time <= open_time
-        OR open <= 0
-        OR high <= 0
-        OR low <= 0
-        OR close <= 0
-        OR high < greatest(open, low, close)
-        OR low > least(open, high, close)
-        OR volume < 0
-        OR quote_volume < 0
-        OR trades < 0
-        OR symbol IS NULL
-        OR interval IS NULL
-        OR fetched_at IS NULL
-    """).count()
-    print(f"invalid_landing_count={invalid_landing_count}")
-    if invalid_landing_count > 0:
-        raise ValueError(f"Found {invalid_landing_count} invalid landing rows before raw merge")
-
-    dedupe_window = Window.partitionBy("open_time").orderBy(
-        F.col("_loaded_at").desc(),
-        F.col("_source_file").desc(),
-    )
-    deduped = (
-        parsed.withColumn("_row_number", F.row_number().over(dedupe_window))
-        .filter(F.col("_row_number") == 1)
-        .drop("_row_number", "_source_file", "_loaded_at")
-    )
-    deduped_count = deduped.count()
-    print(f"deduped_landing_count={deduped_count}")
-    if deduped_count == 0:
-        raise ValueError(f"No parsed rows available from {landing_path}")
-
-    deduped.createOrReplaceTempView("_btc_hourly_landing")
-
-    spark.sql(f"""
-        MERGE INTO {table_ref} AS target
-        USING _btc_hourly_landing AS source
-        ON target.open_time = source.open_time
-        WHEN MATCHED THEN UPDATE SET *
-        WHEN NOT MATCHED THEN INSERT *
-    """)
-
-    spark.sql(f"""
-        DELETE FROM {staging_table_ref}
-        WHERE _loaded_at < current_timestamp() - INTERVAL {staging_retention_hours} HOURS
-    """)
-    print(f"staging_rows_after_retention_cleanup={spark.table(staging_table_ref).count()}")
-
-# COMMAND ----------
-
-stream_df = (
-    spark.readStream.format("cloudFiles")
-    .option("cloudFiles.format", "csv")
-    .option("cloudFiles.schemaLocation", schema_path)
-    .option("header", True)
-    .schema(landing_schema)
-    .load(landing_path)
-    .select(
-        "open_time",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "close_time",
-        "quote_volume",
-        "trades",
-        "source",
-        "symbol",
-        "interval",
-        "fetched_at",
-        F.col("_metadata.file_path").alias("_source_file"),
-        F.current_timestamp().alias("_loaded_at"),
-    )
+incoming = spark.createDataFrame(records, schema=raw_schema_struct)
+dedupe_window = Window.partitionBy("open_time").orderBy(F.col("fetched_at").desc())
+deduped = (
+    incoming.withColumn("_row_number", F.row_number().over(dedupe_window))
+    .filter(F.col("_row_number") == 1)
+    .drop("_row_number")
 )
+deduped_count = deduped.count()
+print(f"deduped_binance_count={deduped_count}")
+if deduped_count == 0:
+    raise ValueError("No deduped Binance rows available for raw merge")
 
-# COMMAND ----------
-
-query = (
-    stream_df.writeStream.option("checkpointLocation", checkpoint_path)
-    .outputMode("append")
-    .trigger(availableNow=True)
-    .toTable(staging_table_ref)
-)
-query.awaitTermination()
-
-parse_and_merge_staging()
+deduped.createOrReplaceTempView("_btc_hourly_binance")
+spark.sql(f"""
+    MERGE INTO {table_ref} AS target
+    USING _btc_hourly_binance AS source
+    ON target.open_time = source.open_time
+    WHEN MATCHED THEN UPDATE SET *
+    WHEN NOT MATCHED THEN INSERT *
+""")
 
 result = spark.table(table_ref)
 print(f"table_count_after_merge={result.count()}")
