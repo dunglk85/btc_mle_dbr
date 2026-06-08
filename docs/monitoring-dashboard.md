@@ -43,6 +43,7 @@ Recommended dashboard tiles:
 - Model refresh decisions table.
 - Training dataset manifests and replay validation status from recent model refresh runs.
 - Prediction/model lineage table for `btc_predictions`.
+- Latest model explanation: top SHAP features and built-in feature importance.
 - Monitoring alerts table.
 - Job quality metrics and alerts.
 
@@ -240,3 +241,30 @@ FROM IDENTIFIER(:catalog || '.predictions.btc_predictions')
 ORDER BY prediction_time DESC
 LIMIT 50;
 ```
+
+Latest model SHAP explanation:
+
+```sql
+WITH latest_run AS (
+  SELECT run_id
+  FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')
+  WHERE explanation_type = 'shap_summary'
+  ORDER BY created_at DESC
+  LIMIT 1
+)
+SELECT
+  e.created_at,
+  e.run_id,
+  e.model_algo,
+  e.feature,
+  e.mean_abs_shap,
+  e.mean_shap,
+  e.sample_rows
+FROM IDENTIFIER(:catalog || '.monitoring.model_explanations') e
+JOIN latest_run r ON e.run_id = r.run_id
+WHERE e.explanation_type = 'shap_summary'
+ORDER BY e.mean_abs_shap DESC
+LIMIT 30;
+```
+
+Use this as a horizontal bar chart with `feature` on the axis and `mean_abs_shap` as the value.

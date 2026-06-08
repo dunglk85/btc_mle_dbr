@@ -195,3 +195,51 @@ WHERE open_time >= :date_range.min
   AND open_time <= :date_range.max
 GROUP BY DATE_TRUNC('day', open_time)
 ORDER BY bucket_date;
+
+-- 16. Latest Model SHAP Explanation
+WITH latest_run AS (
+  SELECT run_id
+  FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')
+  WHERE explanation_type = 'shap_summary'
+  ORDER BY created_at DESC
+  LIMIT 1
+)
+SELECT
+  e.created_at,
+  e.run_id,
+  e.model_algo,
+  e.feature,
+  e.mean_abs_shap,
+  e.mean_shap,
+  e.sample_rows,
+  e.features_table_version,
+  e.feature_config_id
+FROM IDENTIFIER(:catalog || '.monitoring.model_explanations') e
+JOIN latest_run r
+  ON e.run_id = r.run_id
+WHERE e.explanation_type = 'shap_summary'
+ORDER BY e.mean_abs_shap DESC
+LIMIT 30;
+
+-- 17. Latest Model Built-In Feature Importance
+WITH latest_run AS (
+  SELECT run_id
+  FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')
+  WHERE explanation_type = 'feature_importance'
+  ORDER BY created_at DESC
+  LIMIT 1
+)
+SELECT
+  e.created_at,
+  e.run_id,
+  e.model_algo,
+  e.feature,
+  e.importance,
+  e.features_table_version,
+  e.feature_config_id
+FROM IDENTIFIER(:catalog || '.monitoring.model_explanations') e
+JOIN latest_run r
+  ON e.run_id = r.run_id
+WHERE e.explanation_type = 'feature_importance'
+ORDER BY e.importance DESC
+LIMIT 30;

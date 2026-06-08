@@ -18,7 +18,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install optuna lightgbm xgboost
+# MAGIC %pip install optuna lightgbm xgboost shap
 
 # COMMAND ----------
 
@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 import mlflow
 import optuna
+import shap
 from mlflow.models import infer_signature
 from pyspark.sql import functions as F
 from sklearn.model_selection import TimeSeriesSplit
@@ -63,6 +64,8 @@ max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
 expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
 allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
 allow_missing_feature_skip = get_widget("allow_missing_feature_skip", "false").lower() == "true"
+enable_shap_explanation = get_widget("enable_shap_explanation", "true").lower() == "true"
+shap_sample_rows = int(get_widget("shap_sample_rows", "500"))
 
 # --- Constants ---
 features_schema = "features"
@@ -72,6 +75,7 @@ features_ref = f"{catalog}.{features_schema}.{features_table}"
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
 decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
 training_manifest_ref = f"{catalog}.monitoring.training_dataset_manifests"
+model_explanations_ref = f"{catalog}.monitoring.model_explanations"
 target_col = "target_return_1h"
 
 # Validate inputs
@@ -79,6 +83,7 @@ assert model_algo in ("lightgbm", "xgboost"), f"Invalid model_algo: {model_algo}
 assert n_trials >= 1, f"n_trials must be >= 1, got {n_trials}"
 assert timeout_seconds > 0, f"timeout_seconds must be > 0, got {timeout_seconds}"
 assert 0.0 < train_fraction < 1.0, f"train_fraction must be between 0 and 1, got {train_fraction}"
+assert shap_sample_rows >= 1, f"shap_sample_rows must be >= 1, got {shap_sample_rows}"
 
 experiment_name = f"/Shared/btc_regression_{model_algo}_training"
 
@@ -87,6 +92,7 @@ print(f"RUNNING OPTUNA REGRESSION TRAINING with {model_algo.upper()}")
 print(f"features_ref={features_ref}")
 print(f"raw_ref={raw_ref}")
 print(f"training_manifest_ref={training_manifest_ref}")
+print(f"model_explanations_ref={model_explanations_ref}")
 print(f"target_col={target_col}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
@@ -96,6 +102,8 @@ print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
 print(f"allow_default_feature_fallback={allow_default_feature_fallback}")
 print(f"allow_missing_feature_skip={allow_missing_feature_skip}")
+print(f"enable_shap_explanation={enable_shap_explanation}")
+print(f"shap_sample_rows={shap_sample_rows}")
 print(f"experiment_name={experiment_name}")
 print("=" * 60)
 
@@ -436,6 +444,8 @@ with mlflow.start_run(
     mlflow.log_param("n_cv_splits", n_cv_splits)
     mlflow.log_param("train_fraction", train_fraction)
     mlflow.log_param("split_idx", split_idx)
+    mlflow.log_param("enable_shap_explanation", enable_shap_explanation)
+    mlflow.log_param("shap_sample_rows", shap_sample_rows)
     mlflow.log_param("n_features", len(feature_cols))
     mlflow.log_param("train_rows", len(train))
     mlflow.log_param("test_rows", len(test))
@@ -464,6 +474,91 @@ with mlflow.start_run(
         ),
         "training_dataset_manifest.json",
     )
+
+    explanation_rows = []
+    if hasattr(best_model, "feature_importances_"):
+        feature_importance_df = pd.DataFrame(
+            {
+                "feature": feature_cols,
+                "importance": best_model.feature_importances_,
+            }
+        ).sort_values("importance", ascending=False)
+        mlflow.log_text(
+            feature_importance_df.to_json(orient="records", indent=2),
+            "model_explanation/feature_importance.json",
+        )
+        explanation_rows.extend(
+            {
+                "run_id": parent_run.info.run_id,
+                "model_algo": model_algo,
+                "explanation_type": "feature_importance",
+                "feature": row["feature"],
+                "importance": float(row["importance"]),
+                "mean_abs_shap": None,
+                "mean_shap": None,
+                "sample_rows": None,
+                "features_table_version": int(features_version["version"]),
+                "feature_config_id": int(feature_config_id),
+            }
+            for row in feature_importance_df.to_dict(orient="records")
+        )
+
+    if enable_shap_explanation:
+        shap_sample = test[feature_cols].head(shap_sample_rows).astype("float64")
+        if len(shap_sample) == 0:
+            raise ValueError("Cannot compute SHAP explanation: empty test sample")
+        explainer = shap.TreeExplainer(best_model)
+        shap_values = explainer.shap_values(shap_sample)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]
+        shap_values = np.asarray(shap_values, dtype="float64")
+        shap_summary_df = pd.DataFrame(
+            {
+                "feature": feature_cols,
+                "mean_abs_shap": np.abs(shap_values).mean(axis=0),
+                "mean_shap": shap_values.mean(axis=0),
+            }
+        ).sort_values("mean_abs_shap", ascending=False)
+        mlflow.log_text(
+            shap_summary_df.to_json(orient="records", indent=2),
+            "model_explanation/shap_summary.json",
+        )
+        mlflow.log_text(
+            json.dumps(
+                {
+                    "explainer": "shap.TreeExplainer",
+                    "sample_rows": int(len(shap_sample)),
+                    "source_split": "test",
+                    "feature_count": int(len(feature_cols)),
+                },
+                indent=2,
+            ),
+            "model_explanation/shap_metadata.json",
+        )
+        explanation_rows.extend(
+            {
+                "run_id": parent_run.info.run_id,
+                "model_algo": model_algo,
+                "explanation_type": "shap_summary",
+                "feature": row["feature"],
+                "importance": None,
+                "mean_abs_shap": float(row["mean_abs_shap"]),
+                "mean_shap": float(row["mean_shap"]),
+                "sample_rows": int(len(shap_sample)),
+                "features_table_version": int(features_version["version"]),
+                "feature_config_id": int(feature_config_id),
+            }
+            for row in shap_summary_df.to_dict(orient="records")
+        )
+
+    if explanation_rows:
+        spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.monitoring")
+        spark.createDataFrame(explanation_rows).withColumn(
+            "created_at",
+            F.current_timestamp(),
+        ).write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(
+            model_explanations_ref
+        )
 
     # Log model
     signature = infer_signature(
