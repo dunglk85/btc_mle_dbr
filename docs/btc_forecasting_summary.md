@@ -475,8 +475,8 @@ close_ma7_ratio
 close_ma24_ratio
 close_ma168_ratio
 
-ema_12
-ema_26
+sma_12
+sma_26
 
 macd
 macd_signal
