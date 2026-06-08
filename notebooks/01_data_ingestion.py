@@ -58,10 +58,18 @@ spark.sql(f"""
         quote_volume DOUBLE,
         trades BIGINT,
         source STRING,
+        symbol STRING,
+        interval STRING,
+        fetched_at TIMESTAMP,
         ingested_at TIMESTAMP
     )
     USING DELTA
 """)
+for column_def in ["symbol STRING", "interval STRING", "fetched_at TIMESTAMP"]:
+    try:
+        spark.sql(f"ALTER TABLE {table_ref} ADD COLUMNS ({column_def})")
+    except Exception as exc:
+        print(f"raw_column_already_exists_or_add_skipped={column_def}: {exc}")
 spark.sql(f"""
     CREATE TABLE IF NOT EXISTS {staging_table_ref} (
         open_time STRING,
@@ -74,11 +82,19 @@ spark.sql(f"""
         quote_volume DOUBLE,
         trades BIGINT,
         source STRING,
+        symbol STRING,
+        interval STRING,
+        fetched_at STRING,
         _source_file STRING,
         _loaded_at TIMESTAMP
     )
     USING DELTA
 """)
+for column_def in ["symbol STRING", "interval STRING", "fetched_at STRING"]:
+    try:
+        spark.sql(f"ALTER TABLE {staging_table_ref} ADD COLUMNS ({column_def})")
+    except Exception as exc:
+        print(f"staging_column_already_exists_or_add_skipped={column_def}: {exc}")
 
 landing_schema = StructType(
     [
@@ -92,6 +108,9 @@ landing_schema = StructType(
         StructField("quote_volume", DoubleType(), True),
         StructField("trades", LongType(), True),
         StructField("source", StringType(), True),
+        StructField("symbol", StringType(), True),
+        StructField("interval", StringType(), True),
+        StructField("fetched_at", StringType(), True),
     ]
 )
 
@@ -108,6 +127,7 @@ def parse_and_merge_staging():
     # Accept both new Spark-friendly timestamps and older ISO timestamps already in Volume.
     parsed = raw.select(
         F.coalesce(
+            F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ss'Z'"),
             F.to_timestamp("open_time", "yyyy-MM-dd HH:mm:ss"),
             F.to_timestamp("open_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
             F.to_timestamp("open_time"),
@@ -118,6 +138,7 @@ def parse_and_merge_staging():
         F.col("close").cast("double").alias("close"),
         F.col("volume").cast("double").alias("volume"),
         F.coalesce(
+            F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ss'Z'"),
             F.to_timestamp("close_time", "yyyy-MM-dd HH:mm:ss"),
             F.to_timestamp("close_time", "yyyy-MM-dd'T'HH:mm:ssXXX"),
             F.to_timestamp("close_time"),
@@ -125,6 +146,12 @@ def parse_and_merge_staging():
         F.col("quote_volume").cast("double").alias("quote_volume"),
         F.col("trades").cast("bigint").alias("trades"),
         F.coalesce(F.col("source"), F.lit("binance")).alias("source"),
+        F.coalesce(F.col("symbol"), F.lit("BTCUSDT")).alias("symbol"),
+        F.coalesce(F.col("interval"), F.lit("1h")).alias("interval"),
+        F.coalesce(
+            F.to_timestamp("fetched_at", "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+            F.to_timestamp("fetched_at"),
+        ).alias("fetched_at"),
         F.current_timestamp().alias("ingested_at"),
         F.col("_source_file"),
         F.col("_loaded_at"),
@@ -135,6 +162,26 @@ def parse_and_merge_staging():
     if null_open_time_count > 0:
         display(raw.filter(F.col("open_time").isNotNull()).select("open_time", "close_time").limit(20))
         raise ValueError(f"Found {null_open_time_count} rows with unparseable open_time")
+
+    invalid_landing_count = parsed.filter("""
+        close_time IS NULL
+        OR close_time <= open_time
+        OR open <= 0
+        OR high <= 0
+        OR low <= 0
+        OR close <= 0
+        OR high < greatest(open, low, close)
+        OR low > least(open, high, close)
+        OR volume < 0
+        OR quote_volume < 0
+        OR trades < 0
+        OR symbol IS NULL
+        OR interval IS NULL
+        OR fetched_at IS NULL
+    """).count()
+    print(f"invalid_landing_count={invalid_landing_count}")
+    if invalid_landing_count > 0:
+        raise ValueError(f"Found {invalid_landing_count} invalid landing rows before raw merge")
 
     dedupe_window = Window.partitionBy("open_time").orderBy(
         F.col("_loaded_at").desc(),
@@ -186,6 +233,9 @@ stream_df = (
         "quote_volume",
         "trades",
         "source",
+        "symbol",
+        "interval",
+        "fetched_at",
         F.col("_metadata.file_path").alias("_source_file"),
         F.current_timestamp().alias("_loaded_at"),
     )
