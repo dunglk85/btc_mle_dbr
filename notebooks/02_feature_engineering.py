@@ -85,7 +85,7 @@ features = features.withColumn("oc_change", F.col("close") - F.col("open"))
 # COMMAND ----------
 
 features = features.withColumn(
-    "return_1h", (F.col("close") / F.lag("close", 1).over(w)) - F.lit(1.0)
+    "return_1h", (F.col("close") / F.col("close_lag_1h")) - F.lit(1.0)
 )
 features = features.withColumn(
     "return_6h", (F.col("close") / F.lag("close", 6).over(w)) - F.lit(1.0)
@@ -133,18 +133,16 @@ features = features.withColumn(
 from pyspark.sql.types import DoubleType
 import pyspark.sql.functions as F
 
-# EMA12, EMA26 dùng rolling window xấp xỉ (span-based averaging)
-# Trong Databricks production, có thể dùng pandas_udf cho EMA chính xác
-# Ở đây dùng phương pháp đơn giản với rolling average có weight
+# SMA12, SMA26 dùng rolling window.
 
 # Approximate EMA using simple moving average (SMA) — đủ tốt cho tree-based models
-ema_12_window = w.rowsBetween(-12, -1)
-ema_26_window = w.rowsBetween(-26, -1)
+sma_12_window = w.rowsBetween(-12, -1)
+sma_26_window = w.rowsBetween(-26, -1)
 ema_9_window = w.rowsBetween(-9, -1)
 
-features = features.withColumn("ema_12", F.avg("close").over(ema_12_window))
-features = features.withColumn("ema_26", F.avg("close").over(ema_26_window))
-features = features.withColumn("macd", F.col("ema_12") - F.col("ema_26"))
+features = features.withColumn("sma_12", F.avg("close").over(sma_12_window))
+features = features.withColumn("sma_26", F.avg("close").over(sma_26_window))
+features = features.withColumn("macd", F.col("sma_12") - F.col("sma_26"))
 features = features.withColumn("macd_signal", F.avg("macd").over(ema_9_window))
 features = features.withColumn("macd_hist", F.col("macd") - F.col("macd_signal"))
 
@@ -159,7 +157,7 @@ features = features.withColumn("macd_hist", F.col("macd") - F.col("macd_signal")
 # RS = avg_gain / avg_loss over 14 periods
 
 features = features.withColumn(
-    "price_change", F.col("close") - F.lag("close", 1).over(w)
+    "price_change", F.col("close") - F.col("close_lag_1h")
 )
 features = features.withColumn(
     "gain", F.when(F.col("price_change") > 0, F.col("price_change")).otherwise(0.0)
@@ -192,7 +190,7 @@ features = features.drop("price_change", "gain", "loss", "avg_gain", "avg_loss")
 # COMMAND ----------
 
 # True Range = max(high - low, |high - prev_close|, |low - prev_close|)
-features = features.withColumn("prev_close", F.lag("close", 1).over(w))
+features = features.withColumn("prev_close", F.col("close_lag_1h"))
 features = features.withColumn(
     "true_range",
     F.greatest(
@@ -296,7 +294,33 @@ features = features.withColumn(
 # COMMAND ----------
 
 # Dọn các cột EMA tạm (giữ lại macd, macd_signal, macd_hist)
-features = features.drop("ema_12", "ema_26")
+features = features.drop("sma_12", "sma_26")
+
+lookback_required_cols = [
+    "close_lag_1h",
+    "close_lag_2h",
+    "close_lag_4h",
+    "close_lag_12h",
+    "close_lag_24h",
+    "return_1h",
+    "return_6h",
+    "return_24h",
+    "close_ma7_ratio",
+    "close_ma24_ratio",
+    "close_ma168_ratio",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "rsi_14",
+    "atr_14",
+    "atr_ratio",
+    "bb_width",
+    "volume_ratio",
+]
+pre_lookback_drop_count = features.count()
+features = features.dropna(subset=lookback_required_cols)
+post_lookback_drop_count = features.count()
+print(f"dropped_null_lookback_rows={pre_lookback_drop_count - post_lookback_drop_count}")
 
 feature_count = features.count()
 print(f"feature_count={feature_count}")
@@ -306,9 +330,29 @@ print(f"columns={features.columns}")
 
 # COMMAND ----------
 
-features.write.format("delta").mode("overwrite").option(
-    "overwriteSchema", "true"
-).saveAsTable(features_ref)
+features.createOrReplaceTempView("_btc_features_upsert")
+
+try:
+    spark.table(features_ref).limit(1).collect()
+    features_table_exists = True
+except Exception as exc:
+    print(f"features_table_missing={exc}")
+    features_table_exists = False
+
+if features_table_exists:
+    features.limit(0).write.format("delta").mode("append").option(
+        "mergeSchema", "true"
+    ).saveAsTable(features_ref)
+    spark.sql(f"""
+        MERGE INTO {features_ref} AS target
+        USING _btc_features_upsert AS source
+        ON target.symbol <=> source.symbol
+        AND target.open_time = source.open_time
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+    """)
+else:
+    features.write.format("delta").mode("errorifexists").saveAsTable(features_ref)
 
 # COMMAND ----------
 
