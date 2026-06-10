@@ -58,7 +58,7 @@ Important fields:
 
 - `config_key`: currently `selected_features`.
 - `config_id` / `config_version`: timestamp-derived config identifier.
-- `is_active`: only one active selected-features config should exist after `02b_eda_feature_selection` runs.
+- `is_active`: only one active selected-features config should exist after `02_feature_engineering` runs.
 - `source_table`, `source_table_version`: feature Delta table snapshot used for selection.
 - `target_col`: regression target used for selection.
 - `candidate_features_json`, `dropped_features_json`, `selection_metrics_json`: audit context for why the feature set was chosen.

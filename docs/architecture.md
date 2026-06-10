@@ -31,8 +31,7 @@ graph TB
         subgraph "Single Databricks Job"
             K["btc_data_prediction_job<br/>(hourly)"]
             K1["01_data_ingestion"]
-            K2["02_feature_engineering"]
-            K3["02b_eda_feature_selection"]
+            K2["02_feature_engineering<br/>(features + selected_features config)"]
             K4["03_optuna_training<br/>(require_training_gate=false)"]
             K5["12_training_dataset_replay"]
             K6["13_select_best_challenger"]
@@ -51,8 +50,7 @@ graph TB
     K1 -->|"Validate + dedupe + MERGE by open_time"| B
     B -->|"Feature engineering + exact target_close_1h"| K2
     K2 --> C
-    C -->|"EDA selected_features"| K3
-    K3 --> U
+    K2 -->|"Auto selected_features config"| U
     C -->|"Train on latest features"| K4
     U -->|"Active feature config"| K4
     K4 --> D
@@ -75,8 +73,7 @@ graph TB
     N --> K
     K --> K1
     K1 --> K2
-    K2 --> K3
-    K3 --> K4
+    K2 --> K4
     K4 --> K5
     K5 --> K6
     K6 --> K7
@@ -99,13 +96,12 @@ Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/mode
 ## Data Flow
 
 1. **Direct Binance ingestion** -> `01_data_ingestion` fetches closed BTC hourly candles from Binance Vision API and MERGEs them into `<catalog>.raw.btc_hourly`.
-2. **Feature Engineering** -> `<catalog>.features.btc_features` with exact next-hour target `target_close_1h`.
-3. **Feature Selection Config** -> `02b_eda_feature_selection` writes append-only active selected-feature metadata into `<catalog>.features.feature_selection_config`.
-4. **Model Training** -> Regression-only Optuna LightGBM/XGBoost training + MLflow tracking.
-5. **Dataset Replay Validation** -> `12_training_dataset_replay` validates Delta `VERSION AS OF` reproducibility from `training_dataset_manifests`.
-6. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
-7. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
-8. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics`, drift metrics, and job quality metrics.
+2. **Feature Engineering + Selection** -> `02_feature_engineering` writes `<catalog>.features.btc_features` with exact next-hour target `target_close_1h` and updates active selected-feature metadata in `<catalog>.features.feature_selection_config`.
+3. **Model Training** -> Regression-only Optuna LightGBM/XGBoost training + MLflow tracking.
+4. **Dataset Replay Validation** -> `12_training_dataset_replay` validates Delta `VERSION AS OF` reproducibility from `training_dataset_manifests`.
+5. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
+6. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
+7. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics`, drift metrics, and job quality metrics.
 
 ## Multi-Environment
 

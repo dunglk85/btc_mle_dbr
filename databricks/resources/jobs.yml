@@ -26,14 +26,6 @@ resources:
               catalog: ${var.catalog}
           depends_on:
             - task_key: data_ingestion
-        - task_key: eda_feature_selection
-          notebook_task:
-            notebook_path: notebooks/02b_eda_feature_selection
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-          depends_on:
-            - task_key: feature_engineering
         - task_key: model_training_reg_lgbm
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -45,7 +37,7 @@ resources:
               model_algo: "lightgbm"
               require_training_gate: "false"
           depends_on:
-            - task_key: eda_feature_selection
+            - task_key: feature_engineering
         - task_key: dataset_replay_reg_lgbm
           notebook_task:
             notebook_path: notebooks/12_training_dataset_replay
@@ -67,7 +59,7 @@ resources:
               model_algo: "xgboost"
               require_training_gate: "false"
           depends_on:
-            - task_key: eda_feature_selection
+            - task_key: feature_engineering
         - task_key: dataset_replay_reg_xgb
           notebook_task:
             notebook_path: notebooks/12_training_dataset_replay

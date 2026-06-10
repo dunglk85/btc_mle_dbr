@@ -20,6 +20,18 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install lightgbm scikit-learn
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+import json
+import pandas as pd
+from lightgbm import LGBMRegressor
+from sklearn.feature_selection import mutual_info_regression
 from pyspark.sql import Window, functions as F
 
 # COMMAND ----------
@@ -39,10 +51,16 @@ raw_table = "btc_hourly"
 features_table = "btc_features"
 raw_ref = f"{catalog}.{raw_schema}.{raw_table}"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
+feature_config_ref = f"{catalog}.{features_schema}.feature_selection_config"
+corr_threshold = float(get_widget("corr_threshold", "0.90"))
+mi_threshold = float(get_widget("mi_threshold", "0.001"))
 
 print("RUNNING ADVANCED FEATURE ENGINEERING NOTEBOOK")
 print(f"raw_ref={raw_ref}")
 print(f"features_ref={features_ref}")
+print(f"feature_config_ref={feature_config_ref}")
+print(f"corr_threshold={corr_threshold}")
+print(f"mi_threshold={mi_threshold}")
 
 # COMMAND ----------
 
@@ -359,6 +377,199 @@ else:
 result = spark.table(features_ref)
 print(f"features_table_count={result.count()}")
 print(f"null_target_return_1h={result.filter(F.col('target_return_1h').isNull()).count()}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 11. Feature Selection Config
+
+# COMMAND ----------
+
+candidate_features = [
+    "return_1h", "return_6h", "return_24h",
+    "ma_7", "ma_24", "ma_168",
+    "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
+    "macd", "macd_signal", "macd_hist",
+    "rsi_14",
+    "atr_14", "atr_ratio", "bb_width",
+    "volume_ratio", "log_volume",
+    "hl_spread", "oc_change",
+    "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
+    "hour", "day_of_week",
+    "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+    "open", "high", "low", "close", "volume", "quote_volume", "trades",
+]
+target_col = "target_return_1h"
+features_table_version = int(spark.sql(f"DESCRIBE HISTORY {features_ref} LIMIT 1").collect()[0]["version"])
+available_features = [column for column in candidate_features if column in result.columns]
+missing_features = [column for column in candidate_features if column not in result.columns]
+if missing_features:
+    print(f"feature_selection_missing_columns={missing_features}")
+
+selection_pdf = (
+    result.select(["open_time", target_col] + available_features)
+    .orderBy("open_time")
+    .toPandas()
+    .dropna(subset=[target_col])
+)
+selection_pdf = selection_pdf[available_features + [target_col]].dropna()
+print(f"feature_selection_rows={len(selection_pdf)}")
+if len(selection_pdf) == 0:
+    raise ValueError("No non-null rows available for feature selection")
+
+X = selection_pdf[available_features]
+y = selection_pdf[target_col]
+
+corr_matrix = X.corr(method="pearson")
+high_corr_pairs = []
+for i in range(len(corr_matrix.columns)):
+    for j in range(i + 1, len(corr_matrix.columns)):
+        corr_value = corr_matrix.iloc[i, j]
+        if pd.isna(corr_value):
+            continue
+        abs_corr = abs(corr_value)
+        if abs_corr >= corr_threshold:
+            high_corr_pairs.append({
+                "feature_1": corr_matrix.columns[i],
+                "feature_2": corr_matrix.columns[j],
+                "correlation": round(float(corr_value), 4),
+                "abs_correlation": round(float(abs_corr), 4),
+            })
+high_corr_df = pd.DataFrame(
+    high_corr_pairs,
+    columns=["feature_1", "feature_2", "correlation", "abs_correlation"],
+).sort_values("abs_correlation", ascending=False)
+
+mi_values = mutual_info_regression(X, y, random_state=42, n_neighbors=5)
+mi_df = pd.DataFrame({
+    "feature": available_features,
+    "mi_regression": mi_values,
+}).sort_values("mi_regression", ascending=False)
+
+lgbm = LGBMRegressor(n_estimators=100, max_depth=6, random_state=42, verbose=-1)
+lgbm.fit(X, y)
+importance_df = pd.DataFrame({
+    "feature": available_features,
+    "importance_regression": lgbm.feature_importances_,
+}).sort_values("importance_regression", ascending=False)
+
+ranking = pd.DataFrame({"feature": available_features})
+ranking = ranking.merge(mi_df, on="feature", how="left")
+ranking = ranking.merge(importance_df, on="feature", how="left")
+for metric_col in ["mi_regression", "importance_regression"]:
+    ranking[f"rank_{metric_col}"] = ranking[metric_col].rank(ascending=False)
+rank_cols = [column for column in ranking.columns if column.startswith("rank_")]
+ranking["avg_rank"] = ranking[rank_cols].mean(axis=1)
+ranking = ranking.sort_values("avg_rank")
+
+features_to_drop_corr = set()
+for _, row in high_corr_df.iterrows():
+    feature_1 = row["feature_1"]
+    feature_2 = row["feature_2"]
+    if feature_1 in features_to_drop_corr or feature_2 in features_to_drop_corr:
+        continue
+    rank_1 = ranking.loc[ranking["feature"] == feature_1, "avg_rank"].values
+    rank_2 = ranking.loc[ranking["feature"] == feature_2, "avg_rank"].values
+    if len(rank_1) > 0 and len(rank_2) > 0:
+        if rank_1[0] <= rank_2[0]:
+            features_to_drop_corr.add(feature_2)
+        else:
+            features_to_drop_corr.add(feature_1)
+
+low_mi_features = set(ranking[ranking["mi_regression"] < mi_threshold]["feature"].tolist())
+features_to_drop = features_to_drop_corr | low_mi_features
+selected_features = [feature for feature in available_features if feature not in features_to_drop]
+if not selected_features:
+    raise ValueError("Feature selection produced an empty selected_features list")
+
+print(f"selected_features_count={len(selected_features)}")
+print(f"selected_features={selected_features}")
+print(f"dropped_features={sorted(features_to_drop)}")
+
+created_at = pd.Timestamp.now(tz="UTC")
+config_id = int(created_at.timestamp() * 1000)
+
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {feature_config_ref} (
+        config_key STRING,
+        config_value STRING,
+        config_id BIGINT,
+        config_version BIGINT,
+        created_at STRING,
+        created_by STRING,
+        is_active BOOLEAN,
+        n_features BIGINT,
+        method STRING,
+        source_table STRING,
+        source_table_version BIGINT,
+        target_col STRING,
+        candidate_features_json STRING,
+        dropped_features_json STRING,
+        selection_metrics_json STRING,
+        corr_threshold DOUBLE,
+        mi_threshold DOUBLE
+    )
+    USING DELTA
+""")
+
+for column_spec in [
+    "config_id BIGINT",
+    "created_by STRING",
+    "is_active BOOLEAN",
+    "source_table STRING",
+    "source_table_version BIGINT",
+    "target_col STRING",
+    "candidate_features_json STRING",
+    "dropped_features_json STRING",
+    "selection_metrics_json STRING",
+    "corr_threshold DOUBLE",
+    "mi_threshold DOUBLE",
+]:
+    try:
+        spark.sql(f"ALTER TABLE {feature_config_ref} ADD COLUMNS ({column_spec})")
+    except Exception as exc:
+        print(f"feature_config_column_add_skipped={column_spec}: {exc}")
+
+selection_metrics = {
+    "top_mi_features": mi_df.head(20).to_dict(orient="records"),
+    "top_importance_features": importance_df.head(20).to_dict(orient="records"),
+    "high_corr_pairs": high_corr_df.head(50).to_dict(orient="records") if len(high_corr_df) else [],
+}
+
+config_df = spark.createDataFrame([{
+    "config_key": "selected_features",
+    "config_value": json.dumps(selected_features),
+    "config_id": config_id,
+    "config_version": config_id,
+    "created_at": created_at.isoformat(),
+    "created_by": "02_feature_engineering",
+    "is_active": True,
+    "n_features": len(selected_features),
+    "method": "feature_engineering_auto_selection",
+    "source_table": features_ref,
+    "source_table_version": features_table_version,
+    "target_col": target_col,
+    "candidate_features_json": json.dumps(available_features),
+    "dropped_features_json": json.dumps(sorted(features_to_drop)),
+    "selection_metrics_json": json.dumps(selection_metrics, default=str),
+    "corr_threshold": corr_threshold,
+    "mi_threshold": mi_threshold,
+}])
+
+config_df.write.format("delta").mode("append").option(
+    "mergeSchema", "true"
+).saveAsTable(feature_config_ref)
+
+spark.sql(f"""
+    UPDATE {feature_config_ref}
+    SET is_active = false
+    WHERE config_key = 'selected_features'
+      AND is_active = true
+      AND COALESCE(config_id, config_version) != {config_id}
+""")
+
+print(f"feature_config_saved={feature_config_ref}")
+print(f"feature_config_id={config_id}")
 
 # COMMAND ----------
 

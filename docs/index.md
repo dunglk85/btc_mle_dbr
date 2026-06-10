@@ -31,8 +31,7 @@
 - `databricks.yml`: bundle targets and catalog variables.
 - `databricks/resources/jobs.yml`: Databricks job definitions.
 - `notebooks/01_data_ingestion.py`: fetch closed Binance hourly candles and MERGE directly into raw Delta.
-- `notebooks/02_feature_engineering.py`: features and exact next-hour target.
-- `notebooks/02b_eda_feature_selection.py`: EDA-driven active feature selection config governance.
+- `notebooks/02_feature_engineering.py`: features, exact next-hour target, and active selected-feature config governance.
 - `notebooks/03_optuna_training.py`: regression Optuna LightGBM/XGBoost training, MLflow logging, and dataset manifest writing.
 - `notebooks/04_champion_challenger.py`: replay-gated, bounded fair Champion/Challenger registration and alias promotion.
 - `notebooks/05_prediction.py`: Champion prediction writes with serving-input and model-training lineage.
@@ -53,6 +52,6 @@
 ```bash
 pytest
 ruff check src/ tests/
-python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/02b_eda_feature_selection.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py notebooks/13_select_best_challenger.py
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py notebooks/13_select_best_challenger.py
 databricks bundle validate
 ```
