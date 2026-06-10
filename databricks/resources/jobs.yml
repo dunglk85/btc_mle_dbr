@@ -26,7 +26,7 @@ resources:
               catalog: ${var.catalog}
           depends_on:
             - task_key: data_ingestion
-        - task_key: model_training_reg_lgbm
+        - task_key: model_training
           notebook_task:
             notebook_path: notebooks/03_optuna_training
             source: GIT
@@ -34,67 +34,32 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
-              model_algo: "lightgbm"
+              model_algo: "both"
               require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
-        - task_key: dataset_replay_reg_lgbm
+        - task_key: dataset_replay
           notebook_task:
             notebook_path: notebooks/12_training_dataset_replay
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-              training_task_key: "model_training_reg_lgbm"
+              training_task_key: "model_training"
               min_delta_retention_hours: "168"
           depends_on:
-            - task_key: model_training_reg_lgbm
-        - task_key: model_training_reg_xgb
-          notebook_task:
-            notebook_path: notebooks/03_optuna_training
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              n_trials: "15"
-              timeout_seconds: "900"
-              model_algo: "xgboost"
-              require_training_gate: "false"
-          depends_on:
-            - task_key: feature_engineering
-        - task_key: dataset_replay_reg_xgb
-          notebook_task:
-            notebook_path: notebooks/12_training_dataset_replay
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              training_task_key: "model_training_reg_xgb"
-              min_delta_retention_hours: "168"
-          depends_on:
-            - task_key: model_training_reg_xgb
-        - task_key: select_best_challenger
-          notebook_task:
-            notebook_path: notebooks/13_select_best_challenger
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              lgbm_training_task_key: "model_training_reg_lgbm"
-              xgb_training_task_key: "model_training_reg_xgb"
-              lgbm_replay_task_key: "dataset_replay_reg_lgbm"
-              xgb_replay_task_key: "dataset_replay_reg_xgb"
-          depends_on:
-            - task_key: dataset_replay_reg_lgbm
-            - task_key: dataset_replay_reg_xgb
+            - task_key: model_training
         - task_key: champion_challenger
           notebook_task:
             notebook_path: notebooks/04_champion_challenger
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-              training_task_key: "select_best_challenger"
-              dataset_replay_task_key: "select_best_challenger"
+              training_task_key: "model_training"
+              dataset_replay_task_key: "dataset_replay"
               max_evaluation_rows: "2000"
               min_evaluation_rows: "100"
           depends_on:
-            - task_key: select_best_challenger
+            - task_key: dataset_replay
         - task_key: prediction
           notebook_task:
             notebook_path: notebooks/05_prediction

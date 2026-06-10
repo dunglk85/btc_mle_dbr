@@ -7,7 +7,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install lightgbm xgboost
+# MAGIC %pip install lightgbm xgboost scikit-learn
 
 # COMMAND ----------
 

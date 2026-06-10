@@ -22,7 +22,7 @@ graph TB
         end
 
         subgraph "MLflow"
-            D["Experiment Tracking<br/>(LightGBM + XGBoost runs)"]
+            D["Experiment Tracking<br/>(LightGBM + XGBoost + Random Forest runs)"]
             E["UC Model Registry<br/>models.btc_price_model"]
             F["@Champion"]
             G["@Challenger"]
@@ -32,9 +32,8 @@ graph TB
             K["btc_data_prediction_job<br/>(hourly)"]
             K1["01_data_ingestion"]
             K2["02_feature_engineering<br/>(features + selected_features config)"]
-            K4["03_optuna_training<br/>(require_training_gate=false)"]
+            K4["03_optuna_training<br/>(train + select best challenger)"]
             K5["12_training_dataset_replay"]
-            K6["13_select_best_challenger"]
             K7["04_champion_challenger"]
             K8["05_prediction"]
             K9["06_monitoring + 08_drift_monitoring + 09_job_quality_monitoring"]
@@ -56,9 +55,9 @@ graph TB
     K4 --> D
     K4 -->|"Write dataset manifest"| T
     K4 -->|"SHAP / explanations"| X
+    K4 -->|"Best challenger run"| K7
     T -->|"Delta VERSION AS OF replay"| K5
-    K5 -->|"Validated candidates"| K6
-    K6 -->|"Best challenger run"| K7
+    K5 -->|"Validated selected run"| K7
     K7 --> G
     G -->|"Bounded fair RMSE/MAE comparison"| F
     F -->|"Promote / retain"| E
@@ -75,13 +74,12 @@ graph TB
     K1 --> K2
     K2 --> K4
     K4 --> K5
-    K5 --> K6
-    K6 --> K7
+    K5 --> K7
     K7 --> K8
     K8 --> K9
 ```
 
-Mỗi lần chạy job sẽ lấy nến BTC hourly đã đóng từ Binance Vision API, ghi trực tiếp vào raw Delta table, rebuild feature table, chọn feature active, huấn luyện LightGBM và XGBoost trên dữ liệu mới nhất, kiểm tra khả năng replay dataset, chọn challenger tốt nhất, promotion Champion/Challenger nếu đạt điều kiện, tạo prediction, sau đó ghi monitoring và drift metrics.
+Mỗi lần chạy job sẽ lấy nến BTC hourly đã đóng từ Binance Vision API, ghi trực tiếp vào raw Delta table, rebuild feature table, chọn feature active, huấn luyện LightGBM, XGBoost và Random Forest trên dữ liệu mới nhất, kiểm tra khả năng replay dataset, chọn challenger tốt nhất, promotion Champion/Challenger nếu đạt điều kiện, tạo prediction, sau đó ghi monitoring và drift metrics.
 
 Các lớp dữ liệu chính:
 - `raw.btc_hourly`: dữ liệu OHLCV hourly từ Binance.
@@ -97,7 +95,7 @@ Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/mode
 
 1. **Direct Binance ingestion** -> `01_data_ingestion` fetches closed BTC hourly candles from Binance Vision API and MERGEs them into `<catalog>.raw.btc_hourly`.
 2. **Feature Engineering + Selection** -> `02_feature_engineering` writes `<catalog>.features.btc_features` with exact next-hour target `target_close_1h` and updates active selected-feature metadata in `<catalog>.features.feature_selection_config`.
-3. **Model Training** -> Regression-only Optuna LightGBM/XGBoost training + MLflow tracking.
+3. **Model Training** -> Regression-only Optuna LightGBM/XGBoost/Random Forest training + MLflow tracking.
 4. **Dataset Replay Validation** -> `12_training_dataset_replay` validates Delta `VERSION AS OF` reproducibility from `training_dataset_manifests`.
 5. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
 6. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
@@ -159,11 +157,11 @@ Ingest latest closed Binance candles
         ↓
 Rebuild features and selected-feature config
         ↓
-Train LightGBM and XGBoost on latest feature table
+Train LightGBM, XGBoost and Random Forest on latest feature table
         ↓
 Validate dataset replay, select best challenger, promote if evaluation passes
 ```
 
 Job structure:
-- `btc_data_prediction_job` runs the full hourly path: ingestion, feature engineering, feature selection, LightGBM/XGBoost training, dataset replay, best-challenger selection, Champion/Challenger promotion, prediction, regular monitoring, drift monitoring, and job quality monitoring.
+- `btc_data_prediction_job` runs the full hourly path: ingestion, feature engineering, feature selection, LightGBM/XGBoost/Random Forest training, dataset replay, best-challenger selection, Champion/Challenger promotion, prediction, regular monitoring, drift monitoring, and job quality monitoring.
 - Training in this job passes `require_training_gate=false`, so it trains directly on the latest feature table instead of waiting for a model-refresh decision.
