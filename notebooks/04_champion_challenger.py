@@ -396,6 +396,59 @@ else:
 
 # COMMAND ----------
 
+# --- Champion Smoke Test ---
+
+champion_smoke_passed = False
+champion_smoke_error = None
+
+try:
+    smoke_model_uri = f"models:/{full_model_name}@Champion"
+    smoke_model = mlflow.pyfunc.load_model(smoke_model_uri)
+
+    smoke_features_reader = spark.read
+    if features_table_version is not None:
+        smoke_features_reader = smoke_features_reader.option("versionAsOf", int(features_table_version))
+    smoke_source = smoke_features_reader.table(features_table)
+    smoke_row_pdf = (
+        smoke_source.select("open_time", *challenger_feature_cols)
+        .dropna(subset=challenger_feature_cols)
+        .orderBy(F.col("open_time").desc())
+        .limit(1)
+        .toPandas()
+    )
+
+    if len(smoke_row_pdf) == 0:
+        champion_smoke_error = "No valid feature rows available for smoke test"
+        print(f"CHAMPION_SMOKE_TEST: FAILED ({champion_smoke_error})")
+    else:
+        smoke_X = smoke_row_pdf[challenger_feature_cols].astype("float64")
+        smoke_pred = smoke_model.predict(smoke_X)
+        smoke_value = float(np.asarray(smoke_pred)[0])
+
+        if np.isnan(smoke_value) or np.isinf(smoke_value):
+            champion_smoke_error = f"Prediction is NaN/Inf: {smoke_value}"
+            print(f"CHAMPION_SMOKE_TEST: FAILED ({champion_smoke_error})")
+        else:
+            champion_smoke_passed = True
+            print(f"CHAMPION_SMOKE_TEST: PASSED (predicted_return_1h={smoke_value:.6f})")
+except Exception as smoke_exc:
+    champion_smoke_error = str(smoke_exc)
+    print(f"CHAMPION_SMOKE_TEST: FAILED ({champion_smoke_error})")
+
+client.log_metric(
+    challenger_run_id,
+    "champion_smoke_test_passed",
+    1.0 if champion_smoke_passed else 0.0,
+)
+client.set_tag(challenger_run_id, "champion_smoke_test", "passed" if champion_smoke_passed else "failed")
+if champion_smoke_error:
+    client.set_tag(challenger_run_id, "champion_smoke_test_error", champion_smoke_error)
+
+if not champion_smoke_passed:
+    print(f"WARNING: Champion smoke test failed; model registered but may not produce valid predictions")
+
+# COMMAND ----------
+
 history_schema = T.StructType(
     [
         T.StructField("evaluated_at", T.TimestampType(), True),
@@ -418,6 +471,8 @@ history_schema = T.StructType(
         T.StructField("challenger_data_context", T.StringType(), True),
         T.StructField("champion_data_context", T.StringType(), True),
         T.StructField("promoted", T.BooleanType(), False),
+        T.StructField("champion_smoke_test_passed", T.BooleanType(), True),
+        T.StructField("champion_smoke_test_error", T.StringType(), True),
     ]
 )
 history_row = {
@@ -449,6 +504,8 @@ history_row = {
     "challenger_data_context": str(challenger_data_context),
     "champion_data_context": str(champion_data_context) if champion_data_context is not None else None,
     "promoted": bool(promote),
+    "champion_smoke_test_passed": bool(champion_smoke_passed),
+    "champion_smoke_test_error": champion_smoke_error,
 }
 history_df = spark.createDataFrame([history_row], history_schema).withColumn(
     "evaluated_at",
