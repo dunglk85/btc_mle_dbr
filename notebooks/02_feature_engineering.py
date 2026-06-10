@@ -414,8 +414,9 @@ selection_pdf = (
 )
 selection_pdf = selection_pdf[available_features + [target_col]].dropna()
 print(f"feature_selection_rows={len(selection_pdf)}")
-if len(selection_pdf) == 0:
-    raise ValueError("No non-null rows available for feature selection")
+if len(selection_pdf) < 6:
+    print("feature_selection_skip=too_few_samples")
+    dbutils.notebook.exit("SKIPPED: Not enough samples for feature selection")
 
 X = selection_pdf[available_features]
 y = selection_pdf[target_col]
@@ -440,7 +441,8 @@ high_corr_df = pd.DataFrame(
     columns=["feature_1", "feature_2", "correlation", "abs_correlation"],
 ).sort_values("abs_correlation", ascending=False)
 
-mi_values = mutual_info_regression(X, y, random_state=42, n_neighbors=5)
+n_neighbors = min(5, max(1, len(X) - 1))
+mi_values = mutual_info_regression(X, y, random_state=42, n_neighbors=n_neighbors)
 mi_df = pd.DataFrame({
     "feature": available_features,
     "mi_regression": mi_values,
