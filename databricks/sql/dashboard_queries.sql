@@ -146,32 +146,7 @@ WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|c
 ORDER BY metric_time DESC, metric_name
 LIMIT 100;
 
--- 12. Job Quality Metrics
-SELECT
-  metric_time,
-  metric_name,
-  metric_value,
-  status,
-  details
-FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
-WHERE metric_name RLIKE '^job_quality_'
-ORDER BY metric_time DESC, metric_name
-LIMIT 300;
-
--- 13. Job Quality Alerts And Warnings
-SELECT
-  metric_time,
-  metric_name,
-  metric_value,
-  status,
-  details
-FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
-WHERE metric_name RLIKE '^job_quality_'
-  AND status IN ('alert', 'warn')
-ORDER BY metric_time DESC, metric_name
-LIMIT 100;
-
--- 14. BTC Trading Volume Trend
+-- 12. BTC Trading Volume Trend
 SELECT
   DATE_TRUNC('day', open_time) AS bucket_date,
   SUM(volume) AS btc_volume,
@@ -183,7 +158,7 @@ WHERE open_time >= :date_range.min
 GROUP BY DATE_TRUNC('day', open_time)
 ORDER BY bucket_date;
 
--- 15. Latest Model SHAP Explanation
+-- 13. Latest Model SHAP Explanation
 WITH latest_run AS (
   SELECT run_id
   FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')
@@ -208,7 +183,7 @@ WHERE e.explanation_type = 'shap_summary'
 ORDER BY e.mean_abs_shap DESC
 LIMIT 30;
 
--- 16. Latest Model Built-In Feature Importance
+-- 14. Latest Model Built-In Feature Importance
 WITH latest_run AS (
   SELECT run_id
   FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')

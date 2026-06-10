@@ -100,9 +100,5 @@ resources:
               recent_hours: "168"
               reference_hours: "720"
               fail_on_alert: "false"
-              job_name_filter: "BTC"
-              lookback_runs: "20"
-              max_duration_minutes: "180"
-              min_success_rate: "0.8"
           depends_on:
             - task_key: prediction

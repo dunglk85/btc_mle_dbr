@@ -54,29 +54,6 @@ Drift tiles:
 - Label drift for `target_close_1h`.
 - Prediction drift for `predicted_close`.
 
-Job quality tiles:
-- Job success rate.
-- Latest run duration.
-- Failed run count.
-- Failed task count.
-- Job quality alerts and warnings.
-
-Job quality alert trace query:
-
-```sql
-SELECT
-  metric_time,
-  metric_name,
-  metric_value,
-  status,
-  from_json(details, 'job_id BIGINT, job_name STRING, job_url STRING, run_id BIGINT, run_url STRING, state STRUCT<life_cycle_state:STRING,result_state:STRING,state_message:STRING>, failed_tasks ARRAY<STRUCT<task_key:STRING,run_id:BIGINT,state:STRUCT<life_cycle_state:STRING,result_state:STRING,state_message:STRING>>>>') AS trace
-FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
-WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
-  AND status = 'alert'
-  AND metric_name RLIKE '^job_quality_'
-ORDER BY metric_time DESC;
-```
-
 ## SQL Alerts
 
 SQL Alerts are managed by Databricks Asset Bundles in:
@@ -131,7 +108,6 @@ Recommended alert conditions:
 - No recent prediction: `prediction_age_hours > 3`.
 - High prediction error: at least 12 evaluated predictions and `avg_pct_error > 0.05`.
 - Feature target nulls beyond expected last row: `target_null_count > 1`.
-- Job quality alert count: `job_quality_alert_count > 0`.
 
 Drift alert conditions:
 - Data drift PSI exceeds threshold, for example `psi > 0.2`.
