@@ -17,8 +17,7 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-              limit: "24"
-          max_retries: 2
+          max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
         - task_key: feature_engineering
@@ -27,7 +26,7 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          max_retries: 2
+          max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           depends_on:
@@ -90,7 +89,7 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
               allow_default_feature_fallback: "true"
-          max_retries: 2
+          max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           depends_on:

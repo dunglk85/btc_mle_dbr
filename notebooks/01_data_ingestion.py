@@ -90,20 +90,20 @@ def latest_raw_open_time_ms():
     return None
 
 
-start_time = None
-if start_date:
+latest_open_time_ms = latest_raw_open_time_ms()
+if latest_open_time_ms is not None:
+    start_time = latest_open_time_ms + 1
+    print("mode=incremental")
+elif start_date:
     start_time = int(
         datetime.strptime(start_date, "%Y-%m-%d")
         .replace(tzinfo=timezone.utc)
         .timestamp()
         * 1000
     )
+    print("mode=backfill_from_start_date")
 else:
-    latest_open_time_ms = latest_raw_open_time_ms()
-    if latest_open_time_ms is not None:
-        start_time = latest_open_time_ms + 1
-if limit > max_page_size and start_time is None:
-    raise ValueError("start_date is required when limit > 1000 and raw table is empty")
+    raise ValueError("start_date is required when raw table is empty")
 
 print(f"start_time={start_time}")
 
