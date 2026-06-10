@@ -111,7 +111,7 @@ Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/mode
 
 | Environment | Unity Catalog | DABs Target |
 |-------------|---------------|-------------|
-| Dev         | `btc_simply`     | `dev`       |
+| Simplying   | `btc_simply`     | `simplying` |
 | Production  | `btc_prod`    | `prod`      |
 
 ## Schedules
@@ -120,7 +120,7 @@ Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/mode
 
 ## Environment Parameterization
 
-Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundles. The default is `btc_simply`; the prod target passes `btc_prod`.
+Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundles. The `simplying` target passes `btc_simply`; the `prod` target passes `btc_prod`.
 
 ## Data Correctness Rules
 

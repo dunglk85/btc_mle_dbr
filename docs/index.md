@@ -9,7 +9,7 @@
 
 ## Quick Reference
 
-- **Dev catalog:** `btc_simply`
+- **Simplying catalog:** `btc_simply`
 - **Prod catalog:** `btc_prod`
 - **Pipeline job:** `btc_data_prediction_job`, hourly full data/train/predict/monitor path
 - **Registered model:** `<catalog>.models.btc_price_model`

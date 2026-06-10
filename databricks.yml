@@ -18,7 +18,15 @@ include:
 targets:
   dev:
     mode: development
+    variables:
+      catalog: btc_simply
+      sql_warehouse_id: 632f18779c3b51ec
+      git_branch: simplying
+  simplying:
+    mode: development
     default: true
+    workspace:
+      root_path: /Workspace/Users/dunglk85@gmail.com/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: btc_simply
       sql_warehouse_id: 632f18779c3b51ec

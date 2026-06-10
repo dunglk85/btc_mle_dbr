@@ -36,7 +36,7 @@ jobs:
             echo "DATABRICKS_TARGET=prod" >> "$GITHUB_ENV"
             echo "DATABRICKS_CATALOG=btc_prod" >> "$GITHUB_ENV"
           else
-            echo "DATABRICKS_TARGET=dev" >> "$GITHUB_ENV"
+            echo "DATABRICKS_TARGET=simplying" >> "$GITHUB_ENV"
             echo "DATABRICKS_CATALOG=btc_simply" >> "$GITHUB_ENV"
           fi
       - run: databricks bundle validate --target "$DATABRICKS_TARGET"
@@ -58,7 +58,7 @@ jobs:
             echo "DATABRICKS_TARGET=prod" >> "$GITHUB_ENV"
             echo "DATABRICKS_CATALOG=btc_prod" >> "$GITHUB_ENV"
           else
-            echo "DATABRICKS_TARGET=dev" >> "$GITHUB_ENV"
+            echo "DATABRICKS_TARGET=simplying" >> "$GITHUB_ENV"
             echo "DATABRICKS_CATALOG=btc_simply" >> "$GITHUB_ENV"
           fi
       - name: Ensure Unity Catalog catalog exists

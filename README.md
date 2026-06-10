@@ -29,7 +29,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 
 | Environment | Catalog   | DABs Target |
 |-------------|-----------|-------------|
-| Dev         | `btc_simply` | `dev`       |
+| Simplying   | `btc_simply` | `simplying` |
 | Production  | `btc_prod` | `prod`      |
 
 ## Quick Start
@@ -47,9 +47,9 @@ databricks bundle validate
 
 ## CI/CD Branch Mapping
 
-- `simplying` branch deploys Databricks target `dev` with Unity Catalog `btc_simply`.
+- `simplying` branch deploys Databricks target `simplying` with Unity Catalog `btc_simply`.
 - `main` branch deploys Databricks target `prod` with Unity Catalog `btc_prod`.
-- Databricks Git-backed jobs use branch `simplying` for target `dev` and branch `main` for target `prod`.
+- Databricks Git-backed jobs use branch `simplying` for target `simplying` and branch `main` for target `prod`.
 - Create the target catalog once in the Databricks UI using Default Storage before first deploy.
 - CI/CD also creates required schemas: `raw`, `features`, `predictions`, `monitoring`, and `models`.
 

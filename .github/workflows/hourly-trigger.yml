@@ -6,9 +6,10 @@ on:
       target:
         description: Databricks bundle target to run
         required: true
-        default: dev
+        default: simplying
         type: choice
         options:
+          - simplying
           - dev
           - prod
 
