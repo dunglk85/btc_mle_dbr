@@ -26,6 +26,9 @@ catalog = get_widget("catalog", "btc_simply")
 recent_hours = int(get_widget("recent_hours", "168"))
 reference_hours = int(get_widget("reference_hours", "720"))
 fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"
+trigger_training_on_drift = get_widget("trigger_training_on_drift", "false").lower() == "true"
+training_job_id = get_widget("training_job_id", "")
+min_drift_alerts_to_trigger = int(get_widget("min_drift_alerts_to_trigger", "2"))
 
 raw_ref = f"{catalog}.raw.btc_hourly"
 features_ref = f"{catalog}.features.btc_features"
@@ -481,3 +484,54 @@ if fail_on_alert and alert_count > 0:
 
 if alert_count > 0:
     print(f"ALERTS_RECORDED: {alert_count} alert metrics written; fail_on_alert=false so job continues")
+
+# COMMAND ----------
+
+# --- Drift-Triggered Training ---
+
+if not trigger_training_on_drift:
+    print("trigger_training_on_drift=false; skipping training trigger check")
+else:
+    drift_alert_count = metrics_df.filter(
+        F.col("status") == "alert"
+    ).filter(
+        F.col("metric_name").rlike("^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_")
+    ).count()
+
+    print(f"drift_alert_count={drift_alert_count}")
+    print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
+
+    if drift_alert_count >= min_drift_alerts_to_trigger:
+        print(f"DRIFT_THRESHOLD_MET: {drift_alert_count} drift alerts >= {min_drift_alerts_to_trigger}")
+
+        if training_job_id:
+            # Trigger Job 2 (training job) via Databricks REST API
+            print(f"triggering_training_job_id={training_job_id}")
+            try:
+                ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                api_url = ctx.apiUrl().get()
+                api_token = ctx.apiToken().get()
+
+                import urllib.request
+                import urllib.error
+
+                url = f"{api_url}/api/2.1/jobs/run-now"
+                data = json.dumps({"job_id": int(training_job_id)}).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={
+                        "Authorization": f"Bearer {api_token}",
+                        "Content-Type": "application/json",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                    print(f"training_job_triggered=true run_id={result.get('run_id')}")
+            except Exception as exc:
+                print(f"training_job_trigger_failed={exc}")
+        else:
+            print("training_job_id not set; training must be triggered manually or via scheduled run")
+    else:
+        print("DRIFT_THRESHOLD_NOT_MET; no training trigger needed")

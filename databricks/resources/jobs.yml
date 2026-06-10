@@ -1,7 +1,7 @@
 resources:
   jobs:
-    btc_data_prediction_job:
-      name: "[${bundle.target}] BTC Data Prediction Job"
+    btc_inference_job:
+      name: "[${bundle.target}] BTC Inference Job"
       schedule:
         quartz_cron_expression: "0 0 * * * ?"
         timezone_id: UTC
@@ -31,6 +31,40 @@ resources:
           retry_on_timeout: true
           depends_on:
             - task_key: data_ingestion
+        - task_key: prediction
+          notebook_task:
+            notebook_path: notebooks/05_prediction
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              allow_default_feature_fallback: "true"
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          depends_on:
+            - task_key: feature_engineering
+        - task_key: monitoring
+          notebook_task:
+            notebook_path: notebooks/06_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              recent_hours: "168"
+              reference_hours: "720"
+              fail_on_alert: "false"
+              trigger_training_on_drift: "true"
+              training_job_id: ${var.training_job_id}
+              min_drift_alerts_to_trigger: "2"
+          depends_on:
+            - task_key: prediction
+
+    btc_training_job:
+      name: "[${bundle.target}] BTC Model Training Job"
+      git_source:
+        git_url: https://github.com/dunglk85/btc_mle_dbr
+        git_provider: gitHub
+        git_branch: ${var.git_branch}
+      tasks:
         - task_key: model_training_reg_lgbm
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -41,8 +75,6 @@ resources:
               timeout_seconds: "900"
               model_algo: "lightgbm"
               allow_default_feature_fallback: "true"
-          depends_on:
-            - task_key: feature_engineering
         - task_key: model_training_reg_xgb
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -53,8 +85,6 @@ resources:
               timeout_seconds: "900"
               model_algo: "xgboost"
               allow_default_feature_fallback: "true"
-          depends_on:
-            - task_key: feature_engineering
         - task_key: model_training_reg_rf
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -65,8 +95,6 @@ resources:
               timeout_seconds: "900"
               model_algo: "random_forest"
               allow_default_feature_fallback: "true"
-          depends_on:
-            - task_key: feature_engineering
         - task_key: champion_challenger
           notebook_task:
             notebook_path: notebooks/04_champion_challenger
@@ -82,26 +110,3 @@ resources:
             - task_key: model_training_reg_lgbm
             - task_key: model_training_reg_xgb
             - task_key: model_training_reg_rf
-        - task_key: prediction
-          notebook_task:
-            notebook_path: notebooks/05_prediction
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              allow_default_feature_fallback: "true"
-          max_retries: 3
-          min_retry_interval_millis: 60000
-          retry_on_timeout: true
-          depends_on:
-            - task_key: champion_challenger
-        - task_key: monitoring
-          notebook_task:
-            notebook_path: notebooks/06_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              recent_hours: "168"
-              reference_hours: "720"
-              fail_on_alert: "false"
-          depends_on:
-            - task_key: prediction
