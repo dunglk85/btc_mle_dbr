@@ -370,7 +370,7 @@ if features_table_exists:
         WHEN NOT MATCHED THEN INSERT *
     """)
 else:
-    features.write.format("delta").mode("errorifexists").saveAsTable(features_ref)
+    features.write.format("delta").mode("overwrite").saveAsTable(features_ref)
 
 # COMMAND ----------
 
