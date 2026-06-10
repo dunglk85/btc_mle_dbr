@@ -259,7 +259,8 @@ latest = source.select(*select_cols).dropna(subset=feature_cols + ["close"]).ord
 ).limit(1)
 latest_rows = latest.collect()
 if not latest_rows:
-    raise ValueError(f"No feature rows available in {features_ref}")
+    print("no_feature_rows=skip")
+    dbutils.notebook.exit("SKIPPED: No feature rows available for prediction")
 
 feature_open_time = latest_rows[0]["open_time"]
 latest_close = float(latest_rows[0]["close"])

@@ -154,7 +154,8 @@ filtered_count = len(rows) - len(closed_rows)
 print(f"filtered_open_candles={filtered_count}")
 rows = closed_rows
 if not rows:
-    raise ValueError("No closed Binance klines fetched")
+    print("no_new_closed_klines=skip")
+    dbutils.notebook.exit("SKIPPED: No closed klines to ingest")
 
 # COMMAND ----------
 
@@ -249,7 +250,8 @@ deduped = (
 deduped_count = deduped.count()
 print(f"deduped_binance_count={deduped_count}")
 if deduped_count == 0:
-    raise ValueError("No deduped Binance rows available for raw merge")
+    print("no_deduped_rows=skip")
+    dbutils.notebook.exit("SKIPPED: All rows are duplicates or empty")
 
 deduped.createOrReplaceTempView("_btc_hourly_binance")
 spark.sql(f"""
