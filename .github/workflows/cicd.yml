@@ -68,18 +68,11 @@ jobs:
             exit 0
           fi
 
-          if [ -z "$DATABRICKS_CATALOG_STORAGE_ROOT" ]; then
-            echo "::error::Catalog $DATABRICKS_CATALOG does not exist and DATABRICKS_CATALOG_STORAGE_ROOT is not set. Create the catalog once in the Databricks UI using Default Storage, or add a GitHub secret DATABRICKS_CATALOG_STORAGE_ROOT with a managed storage path."
-            exit 1
-          fi
-
-          databricks catalogs create "$DATABRICKS_CATALOG" \
-            --storage-root "${DATABRICKS_CATALOG_STORAGE_ROOT%/}/$DATABRICKS_CATALOG" \
-            --comment "Created by CI/CD for ${GITHUB_REF_NAME}"
+          echo "::error::Catalog $DATABRICKS_CATALOG does not exist. Create it once in the Databricks UI using Default Storage, then rerun CI/CD."
+          exit 1
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          DATABRICKS_CATALOG_STORAGE_ROOT: ${{ secrets.DATABRICKS_CATALOG_STORAGE_ROOT }}
       - name: Ensure Unity Catalog schemas exist
         run: |
           for schema in raw features predictions monitoring models; do
