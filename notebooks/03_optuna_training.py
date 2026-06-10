@@ -364,7 +364,7 @@ def train_candidate(algo):
             "mape": float(mape),
             "directional_accuracy": directional_accuracy,
             "n_trials_completed": int(len(study.trials)),
-            "best_params": best_params,
+            "best_params": json.dumps(best_params),
         }
 
 
