@@ -32,9 +32,9 @@ graph TB
             K["btc_data_prediction_job<br/>(hourly)"]
             K1["01_data_ingestion"]
             K2["02_feature_engineering<br/>(features + selected_features config)"]
-            K4["03_optuna_training<br/>(train + select best challenger)"]
-            K5["12_training_dataset_replay"]
-            K7["04_champion_challenger"]
+            K4["03_optuna_training<br/>(parallel LGBM/XGB/RF tasks)"]
+            K5["12_training_dataset_replay<br/>(parallel replay tasks)"]
+            K7["04_champion_challenger<br/>(select best + promote)"]
             K8["05_prediction"]
             K9["06_monitoring + 08_drift_monitoring + 09_job_quality_monitoring"]
         end
@@ -55,9 +55,8 @@ graph TB
     K4 --> D
     K4 -->|"Write dataset manifest"| T
     K4 -->|"SHAP / explanations"| X
-    K4 -->|"Best challenger run"| K7
     T -->|"Delta VERSION AS OF replay"| K5
-    K5 -->|"Validated selected run"| K7
+    K5 -->|"Validated candidates"| K7
     K7 --> G
     G -->|"Bounded fair RMSE/MAE comparison"| F
     F -->|"Promote / retain"| E

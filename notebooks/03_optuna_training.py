@@ -4,7 +4,7 @@
 
 # MAGIC %md
 # MAGIC # 03 - Optuna Model Training And Best Challenger Selection
-# MAGIC Train LightGBM/XGBoost/Random Forest regression candidates on the latest feature table, select the best challenger, and expose the selected MLflow run through task values.
+# MAGIC Train one regression candidate on the latest feature table and expose its MLflow run through task values. Databricks Jobs runs model candidates in parallel tasks.
 
 # COMMAND ----------
 
@@ -40,7 +40,7 @@ def get_widget(name, default):
 
 
 catalog = get_widget("catalog", "btc_simply")
-model_algo = get_widget("model_algo", "both")
+model_algo = get_widget("model_algo", "lightgbm")
 n_trials = int(get_widget("n_trials", "30"))
 timeout_seconds = int(get_widget("timeout_seconds", "1200"))
 n_cv_splits = int(get_widget("n_cv_splits", "5"))
@@ -53,12 +53,7 @@ allow_missing_feature_skip = get_widget("allow_missing_feature_skip", "false").l
 enable_shap_explanation = get_widget("enable_shap_explanation", "true").lower() == "true"
 shap_sample_rows = int(get_widget("shap_sample_rows", "500"))
 
-if model_algo == "both":
-    candidate_algos = ["lightgbm", "xgboost", "random_forest"]
-else:
-    candidate_algos = [model_algo]
-
-assert set(candidate_algos).issubset({"lightgbm", "xgboost", "random_forest"}), f"Invalid model_algo: {model_algo}"
+assert model_algo in {"lightgbm", "xgboost", "random_forest"}, f"Invalid model_algo: {model_algo}"
 assert n_trials >= 1, f"n_trials must be >= 1, got {n_trials}"
 assert timeout_seconds > 0, f"timeout_seconds must be > 0, got {timeout_seconds}"
 assert 0.0 < train_fraction < 1.0, f"train_fraction must be between 0 and 1, got {train_fraction}"
@@ -75,7 +70,7 @@ target_col = "target_return_1h"
 experiment_name = "/Shared/btc_regression_training"
 
 print("RUNNING OPTUNA REGRESSION TRAINING AND BEST CHALLENGER SELECTION")
-print(f"candidate_algos={candidate_algos}")
+print(f"model_algo={model_algo}")
 print(f"features_ref={features_ref}")
 print(f"raw_ref={raw_ref}")
 print(f"config_ref={config_ref}")
@@ -411,19 +406,18 @@ def train_candidate(algo):
         }
 
 
-candidate_results = [train_candidate(algo) for algo in candidate_algos]
-selected = sorted(candidate_results, key=lambda row: (row["rmse"], row["mae"], -row["directional_accuracy"]))[0]
+result = train_candidate(model_algo)
 
-print(f"selected_model_algo={selected['model_algo']}")
-print(f"selected_run_id={selected['run_id']}")
-print(f"selected_rmse={selected['rmse']}")
-print(f"selected_mae={selected['mae']}")
-print(f"selected_directional_accuracy={selected['directional_accuracy']}")
+print(f"trained_model_algo={result['model_algo']}")
+print(f"run_id={result['run_id']}")
+print(f"rmse={result['rmse']}")
+print(f"mae={result['mae']}")
+print(f"directional_accuracy={result['directional_accuracy']}")
 
 dbutils.jobs.taskValues.set(key="training_status", value="trained")
-dbutils.jobs.taskValues.set(key="run_id", value=selected["run_id"])
+dbutils.jobs.taskValues.set(key="run_id", value=result["run_id"])
 dbutils.jobs.taskValues.set(key="task_type", value="regression")
-dbutils.jobs.taskValues.set(key="selected_model_algo", value=selected["model_algo"])
+dbutils.jobs.taskValues.set(key="model_algo", value=result["model_algo"])
 
 # COMMAND ----------
 
@@ -461,31 +455,28 @@ for column_def in ["feature_config_id BIGINT", "train_fraction DOUBLE", "split_i
     except Exception as exc:
         print(f"manifest_column_add_skipped={column_def}: {exc}")
 
-manifest_rows = [
-    {
-        "run_id": result["run_id"],
-        "model_algo": result["model_algo"],
-        "target_col": target_col,
-        "raw_table": raw_ref,
-        "raw_table_version": raw_version["version"],
-        "features_table": features_ref,
-        "features_table_version": features_version["version"],
-        "feature_config_table": config_ref,
-        "feature_config_version": config_version["version"],
-        "feature_config_id": feature_config_id,
-        "train_start_time": train["open_time"].min().to_pydatetime(),
-        "train_end_time": train["open_time"].max().to_pydatetime(),
-        "test_start_time": test["open_time"].min().to_pydatetime(),
-        "test_end_time": test["open_time"].max().to_pydatetime(),
-        "train_rows": int(len(train)),
-        "test_rows": int(len(test)),
-        "train_fraction": float(train_fraction),
-        "split_idx": int(split_idx),
-        "n_features": len(feature_cols),
-        "feature_cols_json": json.dumps(feature_cols),
-    }
-    for result in candidate_results
-]
+manifest_rows = [{
+    "run_id": result["run_id"],
+    "model_algo": result["model_algo"],
+    "target_col": target_col,
+    "raw_table": raw_ref,
+    "raw_table_version": raw_version["version"],
+    "features_table": features_ref,
+    "features_table_version": features_version["version"],
+    "feature_config_table": config_ref,
+    "feature_config_version": config_version["version"],
+    "feature_config_id": feature_config_id,
+    "train_start_time": train["open_time"].min().to_pydatetime(),
+    "train_end_time": train["open_time"].max().to_pydatetime(),
+    "test_start_time": test["open_time"].min().to_pydatetime(),
+    "test_end_time": test["open_time"].max().to_pydatetime(),
+    "train_rows": int(len(train)),
+    "test_rows": int(len(test)),
+    "train_fraction": float(train_fraction),
+    "split_idx": int(split_idx),
+    "n_features": len(feature_cols),
+    "feature_cols_json": json.dumps(feature_cols),
+}]
 
 spark.createDataFrame(manifest_rows).withColumn("created_at", F.current_timestamp()).select(
     "created_at",
@@ -513,4 +504,4 @@ spark.createDataFrame(manifest_rows).withColumn("created_at", F.current_timestam
 
 # COMMAND ----------
 
-display(spark.createDataFrame(candidate_results).orderBy(F.col("rmse"), F.col("mae")))
+display(spark.createDataFrame([result]))

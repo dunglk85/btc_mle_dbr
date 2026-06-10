@@ -35,8 +35,12 @@ def get_widget(name, default):
 
 
 catalog = get_widget("catalog", "btc_simply")
-training_task_key = get_widget("training_task_key", "model_training")
-dataset_replay_task_key = get_widget("dataset_replay_task_key", "")
+lgbm_training_task_key = get_widget("lgbm_training_task_key", "model_training_reg_lgbm")
+xgb_training_task_key = get_widget("xgb_training_task_key", "model_training_reg_xgb")
+rf_training_task_key = get_widget("rf_training_task_key", "model_training_reg_rf")
+lgbm_replay_task_key = get_widget("lgbm_replay_task_key", "dataset_replay_reg_lgbm")
+xgb_replay_task_key = get_widget("xgb_replay_task_key", "dataset_replay_reg_xgb")
+rf_replay_task_key = get_widget("rf_replay_task_key", "dataset_replay_reg_rf")
 max_evaluation_rows = int(get_widget("max_evaluation_rows", "2000"))
 min_evaluation_rows = int(get_widget("min_evaluation_rows", "100"))
 model_schema = "models"
@@ -49,42 +53,80 @@ training_manifest_ref = f"{catalog}.monitoring.training_dataset_manifests"
 print("RUNNING SELF-CONTAINED CHAMPION/CHALLENGER NOTEBOOK")
 print(f"full_model_name={full_model_name}")
 print(f"experiment_name={experiment_name}")
-print(f"dataset_replay_task_key={dataset_replay_task_key}")
+print(f"lgbm_training_task_key={lgbm_training_task_key}")
+print(f"xgb_training_task_key={xgb_training_task_key}")
+print(f"rf_training_task_key={rf_training_task_key}")
+print(f"lgbm_replay_task_key={lgbm_replay_task_key}")
+print(f"xgb_replay_task_key={xgb_replay_task_key}")
+print(f"rf_replay_task_key={rf_replay_task_key}")
 print(f"max_evaluation_rows={max_evaluation_rows}")
 
-training_status = dbutils.jobs.taskValues.get(
-    taskKey=training_task_key,
-    key="training_status",
-    default="unknown",
-)
-if training_status != "trained":
-    print(f"SKIP_REGISTRY: training_status={training_status}")
-    dbutils.notebook.exit("SKIP_REGISTRY")
+def read_candidate(label, training_task_key, replay_task_key):
+    training_status = dbutils.jobs.taskValues.get(
+        taskKey=training_task_key,
+        key="training_status",
+        default="unknown",
+    )
+    if training_status != "trained":
+        raise ValueError(f"Candidate {label} did not train successfully: status={training_status}")
 
-challenger_run_id = dbutils.jobs.taskValues.get(
-    taskKey=training_task_key,
-    key="run_id",
-    default="",
-)
-if not challenger_run_id:
-    raise ValueError("Missing run_id task value from model_training")
-
-if dataset_replay_task_key:
     dataset_replay_status = dbutils.jobs.taskValues.get(
-        taskKey=dataset_replay_task_key,
+        taskKey=replay_task_key,
         key="dataset_replay_status",
         default="unknown",
     )
     if dataset_replay_status != "validated":
         raise ValueError(
-            f"Dataset replay validation did not pass: "
-            f"task={dataset_replay_task_key}; status={dataset_replay_status}"
+            f"Candidate {label} dataset replay did not pass: "
+            f"task={replay_task_key}; status={dataset_replay_status}"
         )
-else:
-    raise ValueError(
-        "Dataset replay validation is required for Champion/Challenger promotion; "
-        "dataset_replay_task_key is empty."
+
+    run_id = dbutils.jobs.taskValues.get(
+        taskKey=training_task_key,
+        key="run_id",
+        default="",
     )
+    if not run_id:
+        raise ValueError(f"Candidate {label} missing run_id from {training_task_key}")
+
+    run = mlflow.get_run(run_id)
+    metrics = run.data.metrics
+    missing_metrics = [name for name in ["rmse", "mae", "directional_accuracy"] if name not in metrics]
+    if missing_metrics:
+        raise ValueError(f"Candidate {label} run {run_id} missing metrics: {missing_metrics}")
+
+    return {
+        "label": label,
+        "training_task_key": training_task_key,
+        "replay_task_key": replay_task_key,
+        "run_id": run_id,
+        "model_algo": run.data.params.get("model_algo", label),
+        "rmse": float(metrics["rmse"]),
+        "mae": float(metrics["mae"]),
+        "directional_accuracy": float(metrics["directional_accuracy"]),
+        "dataset_replay_status": dataset_replay_status,
+    }
+
+
+candidates = [
+    read_candidate("lightgbm", lgbm_training_task_key, lgbm_replay_task_key),
+    read_candidate("xgboost", xgb_training_task_key, xgb_replay_task_key),
+    read_candidate("random_forest", rf_training_task_key, rf_replay_task_key),
+]
+selected_candidate = sorted(
+    candidates,
+    key=lambda row: (row["rmse"], row["mae"], -row["directional_accuracy"]),
+)[0]
+
+challenger_run_id = selected_candidate["run_id"]
+dataset_replay_status = selected_candidate["dataset_replay_status"]
+dataset_replay_task_key = selected_candidate["replay_task_key"]
+
+print(f"selected_model_algo={selected_candidate['model_algo']}")
+print(f"selected_run_id={challenger_run_id}")
+print(f"selected_rmse={selected_candidate['rmse']}")
+print(f"selected_mae={selected_candidate['mae']}")
+print(f"selected_directional_accuracy={selected_candidate['directional_accuracy']}")
 
 # COMMAND ----------
 
