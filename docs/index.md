@@ -36,7 +36,6 @@
 - `notebooks/04_champion_challenger.py`: best-candidate selection, bounded fair Champion/Challenger registration, and alias promotion.
 - `notebooks/05_prediction.py`: Champion prediction writes with serving-input and model-training lineage.
 - `notebooks/06_monitoring.py`: pipeline, drift, and job quality metrics.
-- `notebooks/10_data_remediation.py`: optional safe auto-remediation for stale raw data, stale features, and stale predictions.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
 - `databricks/resources/dashboards.yml`: CI/CD-managed AI/BI dashboard resource.
@@ -47,6 +46,6 @@
 ```bash
 pytest
 ruff check src/ tests/
-python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/10_data_remediation.py
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py
 databricks bundle validate
 ```

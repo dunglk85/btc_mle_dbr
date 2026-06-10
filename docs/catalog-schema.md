@@ -21,8 +21,7 @@
 │   └── btc_predictions   # Model predictions
 ├── monitoring/
 │   ├── pipeline_metrics
-│   ├── training_dataset_manifests
-│   └── data_remediation_actions
+│   └── training_dataset_manifests
 └── models/
     └── btc_price_model   # UC registered model with Champion/Challenger aliases
 ```
@@ -69,8 +68,6 @@ Training reads only `is_active = true` configs unless `allow_default_feature_fal
 `pipeline_metrics` records pipeline health metrics with `metric_time`, `metric_name`, `metric_value`, `status`, and `details`.
 
 `training_dataset_manifests` records the raw/features/config Delta versions, feature config ID, feature columns, split boundaries, and row counts used for each MLflow training run.
-
-`data_remediation_actions` records safe auto-remediation attempts, blocked manual-required cases, and failure reasons.
 
 `predictions.btc_predictions` includes model/data lineage fields: `model_version`, `model_run_id`, prediction-input `raw_table_version`/`features_table_version`, and Champion training lineage fields `model_raw_table_version`, `model_features_table_version`, `model_feature_config_version`, `model_feature_config_id`.
 

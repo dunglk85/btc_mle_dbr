@@ -18,12 +18,18 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
               limit: "24"
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
         - task_key: feature_engineering
           notebook_task:
             notebook_path: notebooks/02_feature_engineering
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
           depends_on:
             - task_key: data_ingestion
         - task_key: model_training_reg_lgbm
@@ -80,6 +86,9 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
           depends_on:
             - task_key: champion_challenger
         - task_key: monitoring
