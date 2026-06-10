@@ -98,20 +98,7 @@ WHERE predicted_close <= 1000.0 OR predicted_close IS NULL
 ORDER BY prediction_time DESC
 LIMIT 100;
 
--- 8. Model Refresh Decisions Table
-SELECT
-  decision_time,
-  should_retrain,
-  reason,
-  trigger_mode,
-  raw_freshness_hours,
-  alert_count,
-  champion_exists
-FROM IDENTIFIER(:catalog || '.monitoring.model_refresh_decisions')
-ORDER BY decision_time DESC
-LIMIT 50;
-
--- 9. Monitoring Alerts Table
+-- 8. Monitoring Alerts Table
 SELECT
   metric_time,
   metric_name,
@@ -123,7 +110,7 @@ WHERE status IN ('alert', 'warn')
 ORDER BY metric_time DESC
 LIMIT 100;
 
--- 10. Monitoring Metrics Timeline
+-- 9. Monitoring Metrics Timeline
 SELECT
   metric_time,
   metric_name,
@@ -134,7 +121,7 @@ FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 ORDER BY metric_time DESC, metric_name
 LIMIT 500;
 
--- 11. Latest Drift Metrics
+-- 10. Latest Drift Metrics
 SELECT
   metric_time,
   metric_name,
@@ -146,7 +133,7 @@ WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|c
 ORDER BY metric_time DESC, metric_name
 LIMIT 300;
 
--- 12. Drift Alerts And Warnings
+-- 11. Drift Alerts And Warnings
 SELECT
   metric_time,
   metric_name,
@@ -159,7 +146,7 @@ WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|c
 ORDER BY metric_time DESC, metric_name
 LIMIT 100;
 
--- 13. Job Quality Metrics
+-- 12. Job Quality Metrics
 SELECT
   metric_time,
   metric_name,
@@ -171,7 +158,7 @@ WHERE metric_name RLIKE '^job_quality_'
 ORDER BY metric_time DESC, metric_name
 LIMIT 300;
 
--- 14. Job Quality Alerts And Warnings
+-- 13. Job Quality Alerts And Warnings
 SELECT
   metric_time,
   metric_name,
@@ -184,7 +171,7 @@ WHERE metric_name RLIKE '^job_quality_'
 ORDER BY metric_time DESC, metric_name
 LIMIT 100;
 
--- 15. BTC Trading Volume Trend
+-- 14. BTC Trading Volume Trend
 SELECT
   DATE_TRUNC('day', open_time) AS bucket_date,
   SUM(volume) AS btc_volume,
@@ -196,7 +183,7 @@ WHERE open_time >= :date_range.min
 GROUP BY DATE_TRUNC('day', open_time)
 ORDER BY bucket_date;
 
--- 16. Latest Model SHAP Explanation
+-- 15. Latest Model SHAP Explanation
 WITH latest_run AS (
   SELECT run_id
   FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')
@@ -221,7 +208,7 @@ WHERE e.explanation_type = 'shap_summary'
 ORDER BY e.mean_abs_shap DESC
 LIMIT 30;
 
--- 17. Latest Model Built-In Feature Importance
+-- 16. Latest Model Built-In Feature Importance
 WITH latest_run AS (
   SELECT run_id
   FROM IDENTIFIER(:catalog || '.monitoring.model_explanations')

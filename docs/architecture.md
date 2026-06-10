@@ -85,7 +85,7 @@ Các lớp dữ liệu chính:
 - `monitoring.*`: metrics, manifests, decisions, explanations và audit tables.
 - `models.btc_price_model`: UC registered model với alias `@Champion` và `@Challenger`.
 
-Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/model-refresh tách riêng, không còn UC Volume landing hay Auto Loader staging. Training chạy trực tiếp trên feature table mới nhất trong cùng hourly job bằng `require_training_gate=false`; monitoring/drift vẫn được ghi sau prediction để theo dõi chất lượng pipeline và model.
+Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/model-refresh tách riêng, không còn UC Volume landing hay Auto Loader staging. Training chạy trực tiếp trên feature table mới nhất trong cùng hourly job; monitoring/drift vẫn được ghi sau prediction để theo dõi chất lượng pipeline và model.
 
 ## Data Flow
 
@@ -158,4 +158,4 @@ Select best challenger, promote if evaluation passes
 
 Job structure:
 - `btc_data_prediction_job` runs the full hourly path: ingestion, feature engineering, feature selection, parallel LightGBM/XGBoost/Random Forest training, best-challenger selection, Champion/Challenger promotion, prediction, regular monitoring, drift monitoring, and job quality monitoring.
-- Training in this job passes `require_training_gate=false`, so it trains directly on the latest feature table instead of waiting for a model-refresh decision.
+- Training in this job trains directly on the latest feature table each hourly run.

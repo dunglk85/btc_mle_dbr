@@ -35,7 +35,6 @@ resources:
               n_trials: "15"
               timeout_seconds: "900"
               model_algo: "lightgbm"
-              require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
         - task_key: model_training_reg_xgb
@@ -47,7 +46,6 @@ resources:
               n_trials: "15"
               timeout_seconds: "900"
               model_algo: "xgboost"
-              require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
         - task_key: model_training_reg_rf
@@ -59,7 +57,6 @@ resources:
               n_trials: "15"
               timeout_seconds: "900"
               model_algo: "random_forest"
-              require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
         - task_key: champion_challenger

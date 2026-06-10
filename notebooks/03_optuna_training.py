@@ -17,7 +17,7 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 import mlflow
 import numpy as np
@@ -45,9 +45,6 @@ n_trials = int(get_widget("n_trials", "30"))
 timeout_seconds = int(get_widget("timeout_seconds", "1200"))
 n_cv_splits = int(get_widget("n_cv_splits", "5"))
 train_fraction = float(get_widget("train_fraction", "0.8"))
-max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
-expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
-require_training_gate = get_widget("require_training_gate", "true").lower() == "true"
 allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
 allow_missing_feature_skip = get_widget("allow_missing_feature_skip", "false").lower() == "true"
 enable_shap_explanation = get_widget("enable_shap_explanation", "true").lower() == "true"
@@ -63,7 +60,6 @@ features_schema = "features"
 raw_ref = f"{catalog}.raw.btc_hourly"
 features_ref = f"{catalog}.{features_schema}.btc_features"
 config_ref = f"{catalog}.{features_schema}.feature_selection_config"
-decisions_ref = f"{catalog}.monitoring.model_refresh_decisions"
 training_manifest_ref = f"{catalog}.monitoring.training_dataset_manifests"
 model_explanations_ref = f"{catalog}.monitoring.model_explanations"
 target_col = "target_return_1h"
@@ -78,7 +74,6 @@ print(f"training_manifest_ref={training_manifest_ref}")
 print(f"target_col={target_col}")
 print(f"n_trials={n_trials}")
 print(f"timeout_seconds={timeout_seconds}")
-print(f"require_training_gate={require_training_gate}")
 
 # COMMAND ----------
 
@@ -97,39 +92,6 @@ try:
 except Exception as exc:
     print(f"WARNING: Could not resolve config table version: {exc}")
     config_version = {"table": config_ref, "version": -1, "timestamp": None}
-
-# COMMAND ----------
-
-if require_training_gate:
-    skip_reason = None
-    try:
-        latest_decision = (
-            spark.table(decisions_ref)
-            .orderBy("decision_time", ascending=False)
-            .limit(1)
-            .collect()
-        )
-        if not latest_decision:
-            skip_reason = "missing training gate decision"
-        else:
-            decision = latest_decision[0]
-            decision_time = decision["decision_time"].replace(tzinfo=timezone.utc)
-            decision_age_hours = (datetime.now(timezone.utc) - decision_time).total_seconds() / 3600
-            if decision_age_hours > max_decision_age_hours:
-                skip_reason = f"stale training gate decision: {decision_age_hours:.2f}h"
-            elif decision["trigger_mode"] != expected_trigger_mode:
-                skip_reason = f"unexpected trigger_mode={decision['trigger_mode']}; expected={expected_trigger_mode}"
-            elif not decision["should_retrain"]:
-                skip_reason = decision["reason"]
-    except Exception as exc:
-        skip_reason = f"could not read training gate decision: {exc}"
-
-    if skip_reason:
-        print(f"SKIP_RETRAIN: {skip_reason}")
-        dbutils.jobs.taskValues.set(key="training_status", value="skipped")
-        dbutils.notebook.exit("SKIP_RETRAIN")
-else:
-    print("training_gate_check=disabled; training directly on latest feature table")
 
 # COMMAND ----------
 

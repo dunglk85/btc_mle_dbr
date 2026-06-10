@@ -21,7 +21,6 @@
 │   └── btc_predictions   # Model predictions
 ├── monitoring/
 │   ├── pipeline_metrics
-│   ├── model_refresh_decisions
 │   ├── training_dataset_manifests
 │   └── data_remediation_actions
 └── models/
@@ -68,8 +67,6 @@ Training reads only `is_active = true` configs unless `allow_default_feature_fal
 ## Monitoring Tables
 
 `pipeline_metrics` records pipeline health metrics with `metric_time`, `metric_name`, `metric_value`, `status`, and `details`.
-
-`model_refresh_decisions` records optional gated refresh decisions, including the reason, latest raw freshness, alert count, Champion existence, table versions, and JSON decision details.
 
 `training_dataset_manifests` records the raw/features/config Delta versions, feature config ID, feature columns, split boundaries, and row counts used for each MLflow training run.
 

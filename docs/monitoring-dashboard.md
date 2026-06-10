@@ -40,7 +40,6 @@ Recommended dashboard tiles:
 - Latest predictions table.
 - Actual vs predicted table.
 - Prediction error trend chart.
-- Model refresh decisions table.
 - Training dataset manifests from recent model refresh runs.
 - Prediction/model lineage table for `btc_predictions`.
 - Latest model explanation: top SHAP features and built-in feature importance.
@@ -189,15 +188,6 @@ SELECT *
 FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
 WHERE status IN ('alert', 'warn')
 ORDER BY metric_time DESC;
-```
-
-Latest model refresh decisions, if the optional gated refresh flow is used:
-
-```sql
-SELECT *
-FROM IDENTIFIER(:catalog || '.monitoring.model_refresh_decisions')
-ORDER BY decision_time DESC
-LIMIT 20;
 ```
 
 Latest training dataset manifests:
