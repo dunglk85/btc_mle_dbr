@@ -353,7 +353,6 @@
       "catalog": "btc_simply",
       "schema": "predictions"
     },
-
     {
       "name": "btc_trading_volume_trend",
       "displayName": "BTC Trading Volume Trend",
@@ -395,10 +394,9 @@
       "catalog": "btc_simply",
       "schema": "raw"
     },
-
     {
       "name": "r_squared_metric",
-      "displayName": "R² Metric",
+      "displayName": "R\u00c2\u00b2 Metric",
       "queryLines": [
         "WITH predictions AS (\n",
         "  SELECT\n",
@@ -564,8 +562,7 @@
       ],
       "catalog": "btc_simply",
       "schema": "monitoring"
-    },
-
+    }
   ],
   "pages": [
     {
@@ -1561,7 +1558,7 @@
             "spec": {
               "version": 2,
               "frame": {
-                "title": "R² Score",
+                "title": "R\u00c2\u00b2 Score",
                 "showTitle": true
               },
               "format": {
@@ -1583,282 +1580,6 @@
             "y": 18,
             "width": 3,
             "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "n_trials_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "latest_training_run",
-                  "fields": [
-                    {
-                      "name": "n_trials",
-                      "expression": "`n_trials`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Total Trials",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "n_trials"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 18,
-            "width": 2,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "early_stopped_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "latest_training_run",
-                  "fields": [
-                    {
-                      "name": "n_early_stopped",
-                      "expression": "`n_early_stopped`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Early Stopped",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "n_early_stopped"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 8,
-            "y": 18,
-            "width": 2,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "training_time_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "latest_training_run",
-                  "fields": [
-                    {
-                      "name": "training_time_seconds",
-                      "expression": "`training_time_seconds`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Training Time (s)",
-                "showTitle": true
-              },
-              "format": {
-                "numberFormat": {
-                  "formatType": "numeral",
-                  "format": "0,0"
-                }
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "training_time_seconds"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 10,
-            "y": 18,
-            "width": 2,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "training_runs_comparison",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "training_runs_history",
-                  "fields": [
-                    {
-                      "name": "run_timestamp",
-                      "expression": "`run_timestamp`"
-                    },
-                    {
-                      "name": "model_type",
-                      "expression": "`model_type`"
-                    },
-                    {
-                      "name": "training_time_seconds",
-                      "expression": "`training_time_seconds`"
-                    },
-                    {
-                      "name": "n_trials",
-                      "expression": "`n_trials`"
-                    },
-                    {
-                      "name": "n_early_stopped",
-                      "expression": "`n_early_stopped`"
-                    },
-                    {
-                      "name": "best_trial_number",
-                      "expression": "`best_trial_number`"
-                    },
-                    {
-                      "name": "rmse",
-                      "expression": "`rmse`"
-                    },
-                    {
-                      "name": "mae",
-                      "expression": "`mae`"
-                    },
-                    {
-                      "name": "mape",
-                      "expression": "`mape`"
-                    },
-                    {
-                      "name": "r_squared",
-                      "expression": "`r_squared`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Training Runs Comparison",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "run_timestamp",
-                    "displayName": "Run Time"
-                  },
-                  {
-                    "fieldName": "model_type",
-                    "displayName": "Model"
-                  },
-                  {
-                    "fieldName": "training_time_seconds",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 1
-                      }
-                    },
-                    "displayName": "Time (s)"
-                  },
-                  {
-                    "fieldName": "n_trials",
-                    "displayName": "Trials"
-                  },
-                  {
-                    "fieldName": "n_early_stopped",
-                    "displayName": "Early Stop"
-                  },
-                  {
-                    "fieldName": "best_trial_number",
-                    "displayName": "Best Trial"
-                  },
-                  {
-                    "fieldName": "rmse",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "RMSE"
-                  },
-                  {
-                    "fieldName": "mae",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "MAE"
-                  },
-                  {
-                    "fieldName": "mape",
-                    "format": {
-                      "type": "number-percent",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "MAPE"
-                  },
-                  {
-                    "fieldName": "r_squared",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 4
-                      }
-                    },
-                    "displayName": "R²"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 22,
-            "width": 12,
-            "height": 8
           }
         }
       ],
@@ -2058,1035 +1779,6 @@
       "layoutVersion": "GRID_V1"
     },
     {
-      "name": "data_quality",
-      "displayName": "Data Quality",
-      "layout": [
-        {
-          "widget": {
-            "name": "quality_score",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_quality_score",
-                  "fields": [
-                    {
-                      "name": "quality_score",
-                      "expression": "`quality_score`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Overall Data Quality Score",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "quality_score"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 0,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "total_records",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_completeness",
-                  "fields": [
-                    {
-                      "name": "total_records",
-                      "expression": "`total_records`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Total Records",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "total_records"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 3,
-            "y": 0,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "pred_completeness",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "prediction_data_quality",
-                  "fields": [
-                    {
-                      "name": "predicted_completeness_pct",
-                      "expression": "`predicted_completeness_pct`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "format": {
-                "numberFormat": {
-                  "formatType": "numeral",
-                  "format": "0.00%"
-                }
-              },
-              "frame": {
-                "title": "Prediction Completeness",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "predicted_completeness_pct"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 0,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "model_uri_completeness",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "prediction_data_quality",
-                  "fields": [
-                    {
-                      "name": "model_uri_completeness_pct",
-                      "expression": "`model_uri_completeness_pct`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "format": {
-                "numberFormat": {
-                  "formatType": "numeral",
-                  "format": "0.00%"
-                }
-              },
-              "frame": {
-                "title": "Model URI Completeness",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "model_uri_completeness_pct"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 9,
-            "y": 0,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "missing_values_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "missing_values",
-                  "fields": [
-                    {
-                      "name": "field_name",
-                      "expression": "`field_name`"
-                    },
-                    {
-                      "name": "missing_count",
-                      "expression": "`missing_count`"
-                    },
-                    {
-                      "name": "total_count",
-                      "expression": "`total_count`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Missing Values Analysis",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "field_name"
-                  },
-                  {
-                    "fieldName": "missing_count"
-                  },
-                  {
-                    "fieldName": "total_count"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 4,
-            "width": 6,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "completeness_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_completeness",
-                  "fields": [
-                    {
-                      "name": "open_completeness_pct",
-                      "expression": "`open_completeness_pct`"
-                    },
-                    {
-                      "name": "high_completeness_pct",
-                      "expression": "`high_completeness_pct`"
-                    },
-                    {
-                      "name": "low_completeness_pct",
-                      "expression": "`low_completeness_pct`"
-                    },
-                    {
-                      "name": "close_completeness_pct",
-                      "expression": "`close_completeness_pct`"
-                    },
-                    {
-                      "name": "volume_completeness_pct",
-                      "expression": "`volume_completeness_pct`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Data Completeness Details",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "open_completeness_pct",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Open %",
-                    "formatTemplate": "{{ @formatted }}%"
-                  },
-                  {
-                    "fieldName": "high_completeness_pct",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "High %",
-                    "formatTemplate": "{{ @formatted }}%"
-                  },
-                  {
-                    "fieldName": "low_completeness_pct",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Low %",
-                    "formatTemplate": "{{ @formatted }}%"
-                  },
-                  {
-                    "fieldName": "close_completeness_pct",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Close %",
-                    "formatTemplate": "{{ @formatted }}%"
-                  },
-                  {
-                    "fieldName": "volume_completeness_pct",
-                    "format": {
-                      "type": "number-plain",
-                      "abbreviation": "none",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Volume %",
-                    "formatTemplate": "{{ @formatted }}%"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 4,
-            "width": 6,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "volume_trend",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_volume_trend",
-                  "fields": [
-                    {
-                      "name": "date",
-                      "expression": "`date`"
-                    },
-                    {
-                      "name": "record_count",
-                      "expression": "`record_count`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "frame": {
-                "title": "Daily Record Volume Trend",
-                "showTitle": true
-              },
-              "widgetType": "line",
-              "encodings": {
-                "x": {
-                  "fieldName": "date",
-                  "scale": {
-                    "type": "temporal"
-                  }
-                },
-                "y": {
-                  "fieldName": "record_count",
-                  "displayName": "Record Count",
-                  "scale": {
-                    "type": "quantitative"
-                  }
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 10,
-            "width": 12,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "outliers_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "outlier_detection",
-                  "fields": [
-                    {
-                      "name": "open_time",
-                      "expression": "`open_time`"
-                    },
-                    {
-                      "name": "close",
-                      "expression": "`close`"
-                    },
-                    {
-                      "name": "outlier_status",
-                      "expression": "`outlier_status`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Detected Outliers",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "open_time"
-                  },
-                  {
-                    "fieldName": "close"
-                  },
-                  {
-                    "fieldName": "outlier_status"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 16,
-            "width": 12,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "consistency_score_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_consistency",
-                  "fields": [
-                    {
-                      "name": "consistency_score",
-                      "expression": "`consistency_score`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Data Consistency Score",
-                "showTitle": true
-              },
-              "format": {
-                "numberFormat": {
-                  "formatType": "numeral",
-                  "format": "0.00%"
-                }
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "consistency_score"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 22,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "valid_price_pct_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "price_validation",
-                  "fields": [
-                    {
-                      "name": "valid_price_pct",
-                      "expression": "`valid_price_pct`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Valid Price %",
-                "showTitle": true
-              },
-              "format": {
-                "numberFormat": {
-                  "formatType": "numeral",
-                  "format": "0.00%"
-                }
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "valid_price_pct"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 3,
-            "y": 22,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "high_low_violations_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_consistency",
-                  "fields": [
-                    {
-                      "name": "high_low_violations",
-                      "expression": "`high_low_violations`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "High-Low Violations",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "high_low_violations"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 22,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "total_invalid_prices_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "price_validation",
-                  "fields": [
-                    {
-                      "name": "invalid_open",
-                      "expression": "`invalid_open`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Total Invalid Prices",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "invalid_open"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 9,
-            "y": 22,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "consistency_violations_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "data_consistency",
-                  "fields": [
-                    {
-                      "name": "high_low_violations",
-                      "expression": "`high_low_violations`"
-                    },
-                    {
-                      "name": "high_close_violations",
-                      "expression": "`high_close_violations`"
-                    },
-                    {
-                      "name": "low_close_violations",
-                      "expression": "`low_close_violations`"
-                    },
-                    {
-                      "name": "high_open_violations",
-                      "expression": "`high_open_violations`"
-                    },
-                    {
-                      "name": "low_open_violations",
-                      "expression": "`low_open_violations`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Consistency Violations Details",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "high_low_violations",
-                    "displayName": "High < Low"
-                  },
-                  {
-                    "fieldName": "high_close_violations",
-                    "displayName": "High < Close"
-                  },
-                  {
-                    "fieldName": "low_close_violations",
-                    "displayName": "Low > Close"
-                  },
-                  {
-                    "fieldName": "high_open_violations",
-                    "displayName": "High < Open"
-                  },
-                  {
-                    "fieldName": "low_open_violations",
-                    "displayName": "Low > Open"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 26,
-            "width": 6,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "price_validation_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "price_validation",
-                  "fields": [
-                    {
-                      "name": "invalid_open",
-                      "expression": "`invalid_open`"
-                    },
-                    {
-                      "name": "invalid_high",
-                      "expression": "`invalid_high`"
-                    },
-                    {
-                      "name": "invalid_low",
-                      "expression": "`invalid_low`"
-                    },
-                    {
-                      "name": "invalid_close",
-                      "expression": "`invalid_close`"
-                    },
-                    {
-                      "name": "invalid_volume",
-                      "expression": "`invalid_volume`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Price Validation Details",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "invalid_open",
-                    "displayName": "Invalid Open"
-                  },
-                  {
-                    "fieldName": "invalid_high",
-                    "displayName": "Invalid High"
-                  },
-                  {
-                    "fieldName": "invalid_low",
-                    "displayName": "Invalid Low"
-                  },
-                  {
-                    "fieldName": "invalid_close",
-                    "displayName": "Invalid Close"
-                  },
-                  {
-                    "fieldName": "invalid_volume",
-                    "displayName": "Invalid Volume"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 26,
-            "width": 6,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "time_gaps_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "time_gaps",
-                  "fields": [
-                    {
-                      "name": "open_time",
-                      "expression": "`open_time`"
-                    },
-                    {
-                      "name": "next_time",
-                      "expression": "`next_time`"
-                    },
-                    {
-                      "name": "hours_gap",
-                      "expression": "`hours_gap`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Time Gaps Detected",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "open_time",
-                    "displayName": "Start Time"
-                  },
-                  {
-                    "fieldName": "next_time",
-                    "displayName": "Next Time"
-                  },
-                  {
-                    "fieldName": "hours_gap",
-                    "displayName": "Gap (Hours)"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 32,
-            "width": 6,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "duplicates_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "duplicate_records",
-                  "fields": [
-                    {
-                      "name": "open_time",
-                      "expression": "`open_time`"
-                    },
-                    {
-                      "name": "duplicate_count",
-                      "expression": "`duplicate_count`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Duplicate Records Detected",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "open_time",
-                    "displayName": "Timestamp"
-                  },
-                  {
-                    "fieldName": "duplicate_count",
-                    "displayName": "Duplicate Count"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 32,
-            "width": 6,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "null_rate_trend_chart",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "null_rate_trend",
-                  "fields": [
-                    {
-                      "name": "date",
-                      "expression": "`date`"
-                    },
-                    {
-                      "name": "open_null_pct",
-                      "expression": "`open_null_pct`"
-                    },
-                    {
-                      "name": "high_null_pct",
-                      "expression": "`high_null_pct`"
-                    },
-                    {
-                      "name": "low_null_pct",
-                      "expression": "`low_null_pct`"
-                    },
-                    {
-                      "name": "close_null_pct",
-                      "expression": "`close_null_pct`"
-                    },
-                    {
-                      "name": "volume_null_pct",
-                      "expression": "`volume_null_pct`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "frame": {
-                "title": "Null Rate Trend by Field",
-                "showTitle": true
-              },
-              "widgetType": "line",
-              "encodings": {
-                "x": {
-                  "fieldName": "date",
-                  "scale": {
-                    "type": "temporal"
-                  }
-                },
-                "y": {
-                  "fields": [
-                    {
-                      "fieldName": "open_null_pct",
-                      "displayName": "Open"
-                    },
-                    {
-                      "fieldName": "high_null_pct",
-                      "displayName": "High"
-                    },
-                    {
-                      "fieldName": "low_null_pct",
-                      "displayName": "Low"
-                    },
-                    {
-                      "fieldName": "close_null_pct",
-                      "displayName": "Close"
-                    },
-                    {
-                      "fieldName": "volume_null_pct",
-                      "displayName": "Volume"
-                    }
-                  ],
-                  "scale": {
-                    "type": "quantitative"
-                  }
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 38,
-            "width": 12,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "prediction_latency_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "prediction_latency",
-                  "fields": [
-                    {
-                      "name": "prediction_time",
-                      "expression": "`prediction_time`"
-                    },
-                    {
-                      "name": "feature_open_time",
-                      "expression": "`feature_open_time`"
-                    },
-                    {
-                      "name": "latency_minutes",
-                      "expression": "`latency_minutes`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Prediction Latency Analysis",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "prediction_time",
-                    "displayName": "Prediction Time"
-                  },
-                  {
-                    "fieldName": "feature_open_time",
-                    "displayName": "Feature Time"
-                  },
-                  {
-                    "fieldName": "latency_minutes",
-                    "displayName": "Latency (Minutes)"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 44,
-            "width": 12,
-            "height": 6
-          }
-        }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
-    },
-    {
       "name": "drift_monitoring",
       "displayName": "Drift Monitoring",
       "layout": [
@@ -3099,11 +1791,26 @@
                 "query": {
                   "datasetName": "drift_alerts_warnings",
                   "fields": [
-                    { "name": "metric_time", "expression": "`metric_time`" },
-                    { "name": "metric_name", "expression": "`metric_name`" },
-                    { "name": "metric_value", "expression": "`metric_value`" },
-                    { "name": "status", "expression": "`status`" },
-                    { "name": "details", "expression": "`details`" }
+                    {
+                      "name": "metric_time",
+                      "expression": "`metric_time`"
+                    },
+                    {
+                      "name": "metric_name",
+                      "expression": "`metric_name`"
+                    },
+                    {
+                      "name": "metric_value",
+                      "expression": "`metric_value`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "details",
+                      "expression": "`details`"
+                    }
                   ],
                   "disaggregated": true
                 }
@@ -3111,20 +1818,38 @@
             ],
             "spec": {
               "version": 2,
-              "frame": { "title": "Drift Alerts and Warnings", "showTitle": true },
+              "frame": {
+                "title": "Drift Alerts and Warnings",
+                "showTitle": true
+              },
               "widgetType": "table",
               "encodings": {
                 "columns": [
-                  { "fieldName": "metric_time" },
-                  { "fieldName": "metric_name" },
-                  { "fieldName": "metric_value" },
-                  { "fieldName": "status" },
-                  { "fieldName": "details" }
+                  {
+                    "fieldName": "metric_time"
+                  },
+                  {
+                    "fieldName": "metric_name"
+                  },
+                  {
+                    "fieldName": "metric_value"
+                  },
+                  {
+                    "fieldName": "status"
+                  },
+                  {
+                    "fieldName": "details"
+                  }
                 ]
               }
             }
           },
-          "position": { "x": 0, "y": 0, "width": 12, "height": 6 }
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 6
+          }
         },
         {
           "widget": {
@@ -3135,11 +1860,26 @@
                 "query": {
                   "datasetName": "drift_metrics_latest",
                   "fields": [
-                    { "name": "metric_time", "expression": "`metric_time`" },
-                    { "name": "metric_name", "expression": "`metric_name`" },
-                    { "name": "metric_value", "expression": "`metric_value`" },
-                    { "name": "status", "expression": "`status`" },
-                    { "name": "details", "expression": "`details`" }
+                    {
+                      "name": "metric_time",
+                      "expression": "`metric_time`"
+                    },
+                    {
+                      "name": "metric_name",
+                      "expression": "`metric_name`"
+                    },
+                    {
+                      "name": "metric_value",
+                      "expression": "`metric_value`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "details",
+                      "expression": "`details`"
+                    }
                   ],
                   "disaggregated": true
                 }
@@ -3147,20 +1887,38 @@
             ],
             "spec": {
               "version": 2,
-              "frame": { "title": "Latest Drift Metrics", "showTitle": true },
+              "frame": {
+                "title": "Latest Drift Metrics",
+                "showTitle": true
+              },
               "widgetType": "table",
               "encodings": {
                 "columns": [
-                  { "fieldName": "metric_time" },
-                  { "fieldName": "metric_name" },
-                  { "fieldName": "metric_value" },
-                  { "fieldName": "status" },
-                  { "fieldName": "details" }
+                  {
+                    "fieldName": "metric_time"
+                  },
+                  {
+                    "fieldName": "metric_name"
+                  },
+                  {
+                    "fieldName": "metric_value"
+                  },
+                  {
+                    "fieldName": "status"
+                  },
+                  {
+                    "fieldName": "details"
+                  }
                 ]
               }
             }
           },
-          "position": { "x": 0, "y": 6, "width": 12, "height": 8 }
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 12,
+            "height": 8
+          }
         },
         {
           "widget": {
@@ -3171,10 +1929,22 @@
                 "query": {
                   "datasetName": "drift_performance_trend",
                   "fields": [
-                    { "name": "metric_time", "expression": "`metric_time`" },
-                    { "name": "metric_name", "expression": "`metric_name`" },
-                    { "name": "metric_value", "expression": "`metric_value`" },
-                    { "name": "status", "expression": "`status`" }
+                    {
+                      "name": "metric_time",
+                      "expression": "`metric_time`"
+                    },
+                    {
+                      "name": "metric_name",
+                      "expression": "`metric_name`"
+                    },
+                    {
+                      "name": "metric_value",
+                      "expression": "`metric_value`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
                   ],
                   "disaggregated": true
                 }
@@ -3182,99 +1952,35 @@
             ],
             "spec": {
               "version": 2,
-              "frame": { "title": "Model and Concept Drift Performance Metrics", "showTitle": true },
+              "frame": {
+                "title": "Model and Concept Drift Performance Metrics",
+                "showTitle": true
+              },
               "widgetType": "table",
               "encodings": {
                 "columns": [
-                  { "fieldName": "metric_time" },
-                  { "fieldName": "metric_name" },
-                  { "fieldName": "metric_value" },
-                  { "fieldName": "status" }
+                  {
+                    "fieldName": "metric_time"
+                  },
+                  {
+                    "fieldName": "metric_name"
+                  },
+                  {
+                    "fieldName": "metric_value"
+                  },
+                  {
+                    "fieldName": "status"
+                  }
                 ]
               }
             }
           },
-          "position": { "x": 0, "y": 14, "width": 12, "height": 6 }
-        }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
-    },
-    {
-      "name": "job_quality_monitoring",
-      "displayName": "Job Quality Monitoring",
-      "layout": [
-        {
-          "widget": {
-            "name": "job_quality_alerts_warnings_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "job_quality_alerts_warnings",
-                  "fields": [
-                    { "name": "metric_time", "expression": "`metric_time`" },
-                    { "name": "metric_name", "expression": "`metric_name`" },
-                    { "name": "metric_value", "expression": "`metric_value`" },
-                    { "name": "status", "expression": "`status`" },
-                    { "name": "details", "expression": "`details`" }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": { "title": "Job Quality Alerts and Warnings", "showTitle": true },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  { "fieldName": "metric_time" },
-                  { "fieldName": "metric_name" },
-                  { "fieldName": "metric_value" },
-                  { "fieldName": "status" },
-                  { "fieldName": "details" }
-                ]
-              }
-            }
-          },
-          "position": { "x": 0, "y": 0, "width": 12, "height": 6 }
-        },
-        {
-          "widget": {
-            "name": "job_quality_metrics_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "job_quality_metrics",
-                  "fields": [
-                    { "name": "metric_time", "expression": "`metric_time`" },
-                    { "name": "metric_name", "expression": "`metric_name`" },
-                    { "name": "metric_value", "expression": "`metric_value`" },
-                    { "name": "status", "expression": "`status`" },
-                    { "name": "details", "expression": "`details`" }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": { "title": "Latest Job Quality Metrics", "showTitle": true },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  { "fieldName": "metric_time" },
-                  { "fieldName": "metric_name" },
-                  { "fieldName": "metric_value" },
-                  { "fieldName": "status" },
-                  { "fieldName": "details" }
-                ]
-              }
-            }
-          },
-          "position": { "x": 0, "y": 6, "width": 12, "height": 8 }
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 12,
+            "height": 6
+          }
         }
       ],
       "pageType": "PAGE_TYPE_CANVAS",
