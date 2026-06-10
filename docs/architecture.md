@@ -35,7 +35,7 @@ graph TB
             K4["03_optuna_training<br/>(parallel LGBM/XGB/RF tasks)"]
             K7["04_champion_challenger<br/>(select best + promote)"]
             K8["05_prediction"]
-            K9["06_monitoring + 08_drift_monitoring + 09_job_quality_monitoring"]
+            K9["06_monitoring"]
         end
     end
 
@@ -135,7 +135,7 @@ Implemented now:
 - Job quality metrics, including success rate, failed runs, failed tasks, and latest run duration.
 
 Implemented drift monitoring:
-- `notebooks/08_drift_monitoring.py` writes drift metrics into `<catalog>.monitoring.pipeline_metrics`.
+- `notebooks/06_monitoring.py` writes drift metrics into `<catalog>.monitoring.pipeline_metrics`.
 - Data drift: PSI and approximate KS for selected features.
 - Label drift: PSI/KS for `target_close_1h`.
 - Prediction drift: PSI/KS for `predicted_close`.

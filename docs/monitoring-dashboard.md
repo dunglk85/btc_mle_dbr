@@ -141,7 +141,7 @@ Drift alert conditions:
 Drift metrics are written by:
 
 ```text
-notebooks/08_drift_monitoring.py
+notebooks/06_monitoring.py
 ```
 
 Drift metrics are produced by the `drift_monitoring` task inside the hourly `btc_data_prediction_job`.

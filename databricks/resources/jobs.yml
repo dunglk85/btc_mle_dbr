@@ -88,29 +88,12 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-          depends_on:
-            - task_key: prediction
-        - task_key: drift_monitoring
-          notebook_task:
-            notebook_path: notebooks/08_drift_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
               recent_hours: "168"
               reference_hours: "720"
               fail_on_alert: "false"
-          depends_on:
-            - task_key: monitoring
-        - task_key: job_quality_monitoring
-          notebook_task:
-            notebook_path: notebooks/09_job_quality_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
               job_name_filter: "BTC"
               lookback_runs: "20"
               max_duration_minutes: "180"
               min_success_rate: "0.8"
-              fail_on_alert: "false"
           depends_on:
-            - task_key: drift_monitoring
+            - task_key: prediction
