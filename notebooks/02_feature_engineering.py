@@ -32,7 +32,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 raw_schema = "raw"
 features_schema = "features"
 raw_table = "btc_hourly"

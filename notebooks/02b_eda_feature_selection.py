@@ -44,7 +44,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 features_schema = "features"
 features_table = "btc_features"
 features_ref = f"{catalog}.{features_schema}.{features_table}"

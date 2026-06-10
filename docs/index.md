@@ -9,11 +9,9 @@
 
 ## Quick Reference
 
-- **Dev catalog:** `btc_dev`
+- **Dev catalog:** `btc_simply`
 - **Prod catalog:** `btc_prod`
-- **Data job:** `btc_data_prediction_job`, hourly
-- **Drift monitoring job:** `btc_drift_monitoring_job`, every 6 hours
-- **Model refresh job:** `btc_model_refresh_job`, trigger-only from drift decisions
+- **Pipeline job:** `btc_data_prediction_job`, hourly full data/train/predict/monitor path
 - **Registered model:** `<catalog>.models.btc_price_model`
 - **Champion alias:** `@Champion`
 - **Challenger alias:** `@Challenger`
@@ -39,11 +37,11 @@
 - `notebooks/04_champion_challenger.py`: replay-gated, bounded fair Champion/Challenger registration and alias promotion.
 - `notebooks/05_prediction.py`: Champion prediction writes with serving-input and model-training lineage.
 - `notebooks/06_monitoring.py`: pipeline metrics.
-- `notebooks/07_training_gate.py`: training/retraining gate decisions.
+- `notebooks/07_training_gate.py`: optional training/retraining gate decisions for gated refresh flows.
 - `notebooks/08_drift_monitoring.py`: data, label, prediction, model, and concept-drift proxy metrics.
 - `notebooks/09_job_quality_monitoring.py`: Databricks job quality metrics.
-- `notebooks/10_data_remediation.py`: safe auto-remediation for stale raw data, stale features, and stale predictions.
-- `notebooks/11_trigger_model_refresh.py`: conditional trigger for model refresh when training gate allows retraining.
+- `notebooks/10_data_remediation.py`: optional safe auto-remediation for stale raw data, stale features, and stale predictions.
+- `notebooks/11_trigger_model_refresh.py`: optional conditional trigger for separated model refresh flows.
 - `notebooks/12_training_dataset_replay.py`: production-like replay validation for training dataset manifests before model promotion.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
@@ -54,7 +52,7 @@
 
 ```bash
 pytest
-ruff check src/ tests/ scripts/
-python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/02b_eda_feature_selection.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py
+ruff check src/ tests/
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/02b_eda_feature_selection.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py notebooks/13_select_best_challenger.py
 databricks bundle validate
 ```

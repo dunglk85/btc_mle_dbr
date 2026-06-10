@@ -24,7 +24,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 backfill_limit = get_widget("backfill_limit", "168")
 notebook_timeout_seconds = int(get_widget("notebook_timeout_seconds", "1800"))
 

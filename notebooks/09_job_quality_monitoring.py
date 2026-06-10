@@ -25,7 +25,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 job_name_filter = get_widget("job_name_filter", "BTC")
 lookback_runs = int(get_widget("lookback_runs", "20"))
 max_duration_minutes = float(get_widget("max_duration_minutes", "60"))

@@ -48,16 +48,16 @@ def test_initial_ingest_uses_backfill_start_and_creates_table(monkeypatch):
 
     result = ingestion.incremental_ingest(
         spark,
-        catalog="btc_dev",
+        catalog="btc_simply",
         schema="raw",
         table="btc_hourly",
         backfill_start_ms=12345,
     )
 
     assert calls["fetch_kwargs"]["start_time"] == 12345
-    assert spark.saved_table == "btc_dev.raw.btc_hourly"
+    assert spark.saved_table == "btc_simply.raw.btc_hourly"
     assert not any("CREATE VOLUME" in sql for sql in spark.sql_calls)
-    assert result == "table:btc_dev.raw.btc_hourly"
+    assert result == "table:btc_simply.raw.btc_hourly"
 
 
 def test_incremental_ingest_merges_existing_table(monkeypatch):
@@ -86,10 +86,10 @@ def test_incremental_ingest_merges_existing_table(monkeypatch):
 
     spark = FakeSpark(table_missing=False)
 
-    ingestion.incremental_ingest(spark, catalog="btc_dev", schema="raw", table="btc_hourly")
+    ingestion.incremental_ingest(spark, catalog="btc_simply", schema="raw", table="btc_hourly")
 
     assert calls["fetch_kwargs"]["start_time"] == 1700003600001
-    assert any("MERGE INTO btc_dev.raw.btc_hourly" in sql for sql in spark.sql_calls)
+    assert any("MERGE INTO btc_simply.raw.btc_hourly" in sql for sql in spark.sql_calls)
     assert not any("_landing_autoloader" in sql for sql in spark.sql_calls)
     assert not any("/Volumes" in sql for sql in spark.sql_calls)
 

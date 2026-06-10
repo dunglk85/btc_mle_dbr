@@ -54,7 +54,7 @@ def get_widget(name, default):
 
 
 # --- Widgets ---
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 model_algo = get_widget("model_algo", "lightgbm")  # "lightgbm" hoặc "xgboost"
 n_trials = int(get_widget("n_trials", "30"))
 timeout_seconds = int(get_widget("timeout_seconds", "1200"))
@@ -62,6 +62,7 @@ n_cv_splits = int(get_widget("n_cv_splits", "5"))
 train_fraction = float(get_widget("train_fraction", "0.8"))
 max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))
 expected_trigger_mode = get_widget("expected_trigger_mode", "drift")
+require_training_gate = get_widget("require_training_gate", "true").lower() == "true"
 allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
 allow_missing_feature_skip = get_widget("allow_missing_feature_skip", "false").lower() == "true"
 enable_shap_explanation = get_widget("enable_shap_explanation", "true").lower() == "true"
@@ -100,6 +101,7 @@ print(f"n_cv_splits={n_cv_splits}")
 print(f"train_fraction={train_fraction}")
 print(f"max_decision_age_hours={max_decision_age_hours}")
 print(f"expected_trigger_mode={expected_trigger_mode}")
+print(f"require_training_gate={require_training_gate}")
 print(f"allow_default_feature_fallback={allow_default_feature_fallback}")
 print(f"allow_missing_feature_skip={allow_missing_feature_skip}")
 print(f"enable_shap_explanation={enable_shap_explanation}")
@@ -140,47 +142,50 @@ print(f"feature_config_version={config_version}")
 
 # COMMAND ----------
 
-skip_reason = None
-try:
-    latest_decision = (
-        spark.table(decisions_ref)
-        .orderBy("decision_time", ascending=False)
-        .limit(1)
-        .collect()
-    )
-    if not latest_decision:
-        skip_reason = "missing training gate decision"
-    else:
-        decision = latest_decision[0]
-        decision_time = decision["decision_time"]
-        decision_time_utc = decision_time.replace(tzinfo=timezone.utc)
-        decision_age_hours = (
-            datetime.now(timezone.utc) - decision_time_utc
-        ).total_seconds() / 3600
-        print(f"decision_time={decision_time}")
-        print(f"decision_age_hours={decision_age_hours:.2f}")
-        print(f"decision_trigger_mode={decision['trigger_mode']}")
-        print(f"decision_should_retrain={decision['should_retrain']}")
-        print(f"decision_reason={decision['reason']}")
-        if decision_age_hours > max_decision_age_hours:
-            skip_reason = (
-                f"stale training gate decision: {decision_age_hours:.2f}h > "
-                f"{max_decision_age_hours:.2f}h"
-            )
-        elif decision["trigger_mode"] != expected_trigger_mode:
-            skip_reason = (
-                f"unexpected trigger_mode={decision['trigger_mode']}; "
-                f"expected={expected_trigger_mode}"
-            )
-        elif not decision["should_retrain"]:
-            skip_reason = decision["reason"]
-except Exception as exc:
-    skip_reason = f"could not read training gate decision: {exc}"
+if require_training_gate:
+    skip_reason = None
+    try:
+        latest_decision = (
+            spark.table(decisions_ref)
+            .orderBy("decision_time", ascending=False)
+            .limit(1)
+            .collect()
+        )
+        if not latest_decision:
+            skip_reason = "missing training gate decision"
+        else:
+            decision = latest_decision[0]
+            decision_time = decision["decision_time"]
+            decision_time_utc = decision_time.replace(tzinfo=timezone.utc)
+            decision_age_hours = (
+                datetime.now(timezone.utc) - decision_time_utc
+            ).total_seconds() / 3600
+            print(f"decision_time={decision_time}")
+            print(f"decision_age_hours={decision_age_hours:.2f}")
+            print(f"decision_trigger_mode={decision['trigger_mode']}")
+            print(f"decision_should_retrain={decision['should_retrain']}")
+            print(f"decision_reason={decision['reason']}")
+            if decision_age_hours > max_decision_age_hours:
+                skip_reason = (
+                    f"stale training gate decision: {decision_age_hours:.2f}h > "
+                    f"{max_decision_age_hours:.2f}h"
+                )
+            elif decision["trigger_mode"] != expected_trigger_mode:
+                skip_reason = (
+                    f"unexpected trigger_mode={decision['trigger_mode']}; "
+                    f"expected={expected_trigger_mode}"
+                )
+            elif not decision["should_retrain"]:
+                skip_reason = decision["reason"]
+    except Exception as exc:
+        skip_reason = f"could not read training gate decision: {exc}"
 
-if skip_reason:
-    print(f"SKIP_RETRAIN: {skip_reason}")
-    dbutils.jobs.taskValues.set(key="training_status", value="skipped")
-    dbutils.notebook.exit("SKIP_RETRAIN")
+    if skip_reason:
+        print(f"SKIP_RETRAIN: {skip_reason}")
+        dbutils.jobs.taskValues.set(key="training_status", value="skipped")
+        dbutils.notebook.exit("SKIP_RETRAIN")
+else:
+    print("training_gate_check=disabled; training directly on latest feature table")
 
 # COMMAND ----------
 

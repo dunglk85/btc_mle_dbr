@@ -34,7 +34,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 training_task_key = get_widget("training_task_key", "model_training")
 dataset_replay_task_key = get_widget("dataset_replay_task_key", "")
 max_evaluation_rows = int(get_widget("max_evaluation_rows", "2000"))

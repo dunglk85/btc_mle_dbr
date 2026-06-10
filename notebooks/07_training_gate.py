@@ -24,7 +24,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 monitoring_schema = "monitoring"
 model_schema = "models"
 model_name = "btc_price_model"

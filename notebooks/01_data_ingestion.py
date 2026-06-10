@@ -27,7 +27,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 raw_schema = "raw"
 table_name = "btc_hourly"
 table_ref = f"{catalog}.{raw_schema}.{table_name}"

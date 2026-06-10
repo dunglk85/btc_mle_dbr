@@ -212,7 +212,7 @@ def table_exists(spark: SparkSession, table: str) -> bool:
 
 def incremental_ingest(
     spark: SparkSession,
-    catalog: str = "btc_dev",
+    catalog: str = "btc_simply",
     schema: str = "raw",
     table: str = "btc_hourly",
     backfill_start_ms: int = DEFAULT_BACKFILL_START_MS,

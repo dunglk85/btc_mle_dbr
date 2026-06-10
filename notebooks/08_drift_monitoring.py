@@ -23,7 +23,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 recent_hours = int(get_widget("recent_hours", "168"))
 reference_hours = int(get_widget("reference_hours", "720"))
 fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"

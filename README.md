@@ -29,7 +29,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 
 | Environment | Catalog   | DABs Target |
 |-------------|-----------|-------------|
-| Dev         | `btc_dev` | `dev`       |
+| Dev         | `btc_simply` | `dev`       |
 | Production  | `btc_prod` | `prod`      |
 
 ## Quick Start
@@ -37,15 +37,20 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 ```bash
 pip install -r requirements.txt
 pytest
-ruff check src/ tests/ scripts/
+ruff check src/ tests/
 databricks bundle validate
 ```
 
 ## Databricks Jobs
 
-- `btc_data_prediction_job`: hourly ingestion, feature engineering, prediction, monitoring.
-- `btc_drift_monitoring_job`: drift metrics, training gate, safe data remediation, and conditional model-refresh trigger every 6 hours.
-- `btc_model_refresh_job`: trigger-only EDA feature selection, regression Optuna training, dataset replay validation, and serialized Champion/Challenger registration, guarded by latest training-gate decision.
+- `btc_data_prediction_job`: hourly ingestion, feature engineering, feature selection, LightGBM/XGBoost training, dataset replay, Champion/Challenger promotion, prediction, and monitoring.
+
+## CI/CD Branch Mapping
+
+- `simplying` branch deploys Databricks target `dev` with Unity Catalog `btc_simply`.
+- `main` branch deploys Databricks target `prod` with Unity Catalog `btc_prod`.
+- Databricks Git-backed jobs use branch `simplying` for target `dev` and branch `main` for target `prod`.
+- CI/CD creates the target catalog if it does not already exist before bundle deploy.
 
 ## Production-Like Controls
 
@@ -55,7 +60,7 @@ databricks bundle validate
 - Champion/Challenger promotion compares both models on the same bounded holdout rows.
 - Predictions store both serving-input lineage and Champion training lineage.
 
-Dashboard SQL templates are in `databricks/sql/` and use a `catalog` parameter such as `btc_dev` or `btc_prod`.
+Dashboard SQL templates are in `databricks/sql/` and use a `catalog` parameter such as `btc_simply` or `btc_prod`.
 
 SQL alerts are managed by DAB in `databricks/resources/alerts.yml`. Deploy them with `sql_warehouse_id` set:
 

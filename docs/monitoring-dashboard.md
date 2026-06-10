@@ -20,7 +20,7 @@ Confirm prediction table exists after a Champion model is available:
 SELECT COUNT(*) FROM IDENTIFIER(:catalog || '.predictions.btc_predictions');
 ```
 
-Set query parameter `catalog` to `btc_dev` or `btc_prod`.
+Set query parameter `catalog` to `btc_simply` or `btc_prod`.
 
 ## Dashboard Queries
 
@@ -30,7 +30,7 @@ Use the SQL queries in:
 databricks/sql/dashboard_queries.sql
 ```
 
-Create a query/dashboard parameter named `catalog` and set it to `btc_dev` or `btc_prod`.
+Create a query/dashboard parameter named `catalog` and set it to `btc_simply` or `btc_prod`.
 
 Recommended dashboard tiles:
 - Data freshness: latest `raw_freshness_hours`.
@@ -100,7 +100,7 @@ Use the SQL queries in:
 databricks/sql/alert_queries.sql
 ```
 
-For manual alert creation, create an alert query parameter named `catalog` and set it to `btc_dev` or `btc_prod`.
+For manual alert creation, create an alert query parameter named `catalog` and set it to `btc_simply` or `btc_prod`.
 
 ## Dashboard CI/CD
 
@@ -124,7 +124,7 @@ Current SQL warehouse:
 632f18779c3b51ec  Serverless Starter Warehouse
 ```
 
-Note: the exported dashboard currently contains `btc_dev` table references. It is suitable for dev deployment. For prod, export a prod dashboard or parameterize the dashboard JSON before deploying to `prod`.
+Note: the exported dashboard currently contains `btc_simply` table references. It is suitable for dev deployment. For prod, export a prod dashboard or parameterize the dashboard JSON before deploying to `prod`.
 
 Recommended alert conditions:
 - Raw data stale: `raw_freshness_hours > 3`.
@@ -145,7 +145,7 @@ Drift metrics are written by:
 notebooks/08_drift_monitoring.py
 ```
 
-Drift metrics are produced by `btc_drift_monitoring_job`, which runs separately from the hourly prediction job.
+Drift metrics are produced by the `drift_monitoring` task inside the hourly `btc_data_prediction_job`.
 
 ## Fallback If SQL Alerts Are Not Available
 
@@ -191,7 +191,7 @@ WHERE status IN ('alert', 'warn')
 ORDER BY metric_time DESC;
 ```
 
-Latest model refresh decisions:
+Latest model refresh decisions, if the optional gated refresh flow is used:
 
 ```sql
 SELECT *

@@ -21,7 +21,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 model_refresh_job_id = get_widget("model_refresh_job_id", "")
 model_refresh_job_name = get_widget("model_refresh_job_name", "")
 max_decision_age_hours = float(get_widget("max_decision_age_hours", "12"))

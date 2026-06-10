@@ -21,7 +21,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 lgbm_training_task_key = get_widget("lgbm_training_task_key", "model_training_reg_lgbm")
 xgb_training_task_key = get_widget("xgb_training_task_key", "model_training_reg_xgb")
 lgbm_replay_task_key = get_widget("lgbm_replay_task_key", "dataset_replay_reg_lgbm")

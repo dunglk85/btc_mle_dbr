@@ -11,7 +11,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  status IN ('alert', 'warn')\n",
         "  AND (\n",
@@ -50,7 +50,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     },
     {
@@ -62,7 +62,7 @@
         "  metric_value AS prediction_count,\n",
         "  status\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name = 'prediction_count'\n",
         "ORDER BY\n",
@@ -80,7 +80,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name = 'raw_freshness_hours'\n",
         "ORDER BY\n",
@@ -103,8 +103,8 @@
         "  ABS(r.close - p.predicted_close) AS abs_error,\n",
         "  ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error\n",
         "FROM\n",
-        "  btc_dev.predictions.btc_predictions p\n",
-        "    LEFT JOIN btc_dev.raw.btc_hourly r\n",
+        "  btc_simply.predictions.btc_predictions p\n",
+        "    LEFT JOIN btc_simply.raw.btc_hourly r\n",
         "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
         "WHERE\n",
         "  p.prediction_time >= :date_range.min\n",
@@ -133,7 +133,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "predictions"
     },
     {
@@ -145,7 +145,7 @@
         "  metric_value AS features_count,\n",
         "  status\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name = 'features_count'\n",
         "ORDER BY\n",
@@ -164,7 +164,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  (\n",
         "    CARDINALITY(:status_filter) = 0\n",
@@ -203,7 +203,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     },
     {
@@ -215,7 +215,7 @@
         "  metric_value AS raw_count,\n",
         "  status\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name = 'raw_count'\n",
         "ORDER BY\n",
@@ -235,7 +235,7 @@
         "  model_target_col,\n",
         "  model_uri\n",
         "FROM\n",
-        "  btc_dev.predictions.btc_predictions\n",
+        "  btc_simply.predictions.btc_predictions\n",
         "WHERE\n",
         "  (\n",
         "    CARDINALITY(:model_uri_filter) = 0\n",
@@ -258,7 +258,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "predictions"
     },
     {
@@ -272,8 +272,8 @@
         "  ABS(r.close - p.predicted_close) AS abs_error,\n",
         "  ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error\n",
         "FROM\n",
-        "  btc_dev.predictions.btc_predictions p\n",
-        "    JOIN btc_dev.raw.btc_hourly r\n",
+        "  btc_simply.predictions.btc_predictions p\n",
+        "    JOIN btc_simply.raw.btc_hourly r\n",
         "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
         "WHERE\n",
         "  p.feature_open_time >= :date_range.min\n",
@@ -301,7 +301,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "predictions"
     },
     {
@@ -322,8 +322,8 @@
         "      ABS(r.close - p.predicted_close) AS abs_error,\n",
         "      ABS(r.close - p.predicted_close) / ABS(r.close) AS pct_error\n",
         "    FROM\n",
-        "      btc_dev.predictions.btc_predictions p\n",
-        "        JOIN btc_dev.raw.btc_hourly r\n",
+        "      btc_simply.predictions.btc_predictions p\n",
+        "        JOIN btc_simply.raw.btc_hourly r\n",
         "          ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
         "    WHERE\n",
         "      p.feature_open_time >= :date_range.min\n",
@@ -350,7 +350,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "predictions"
     },
     {
@@ -366,7 +366,7 @@
         "FROM\n",
         "  btc_predictions"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "predictions"
     },
     {
@@ -425,7 +425,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -464,7 +464,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -477,7 +477,7 @@
         "  SUM(quote_volume) AS quote_volume_usdt,\n",
         "  COUNT(*) AS candle_count\n",
         "FROM\n",
-        "  btc_dev.raw.btc_hourly\n",
+        "  btc_simply.raw.btc_hourly\n",
         "WHERE\n",
         "  open_time >= :date_range.min\n",
         "  AND open_time <= :date_range.max\n",
@@ -505,7 +505,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -525,7 +525,7 @@
         "FROM\n",
         "  completeness"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -567,7 +567,7 @@
         "FROM\n",
         "  btc_hourly"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -589,7 +589,7 @@
         "FROM\n",
         "  btc_hourly"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -638,7 +638,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -719,7 +719,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -761,7 +761,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -842,7 +842,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -886,7 +886,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "raw"
     },
     {
@@ -925,7 +925,7 @@
           }
         }
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "predictions"
     },
     {
@@ -937,8 +937,8 @@
         "    r.close AS actual,\n",
         "    p.predicted_close AS predicted\n",
         "  FROM\n",
-        "    btc_dev.predictions.btc_predictions p\n",
-        "      JOIN btc_dev.raw.btc_hourly r\n",
+        "    btc_simply.predictions.btc_predictions p\n",
+        "      JOIN btc_simply.raw.btc_hourly r\n",
         "        ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
         "  WHERE\n",
         "    p.feature_open_time >= :date_range.min\n",
@@ -1005,7 +1005,7 @@
         "  mape,\n",
         "  r_squared\n",
         "FROM\n",
-        "  btc_dev.monitoring.model_training_runs\n",
+        "  btc_simply.monitoring.model_training_runs\n",
         "ORDER BY\n",
         "  run_timestamp DESC\n",
         "LIMIT 1"
@@ -1018,8 +1018,8 @@
         "SELECT\n",
         "  SQRT(AVG(POWER(r.close - p.predicted_close, 2))) AS rmse\n",
         "FROM\n",
-        "  btc_dev.predictions.btc_predictions p\n",
-        "    JOIN btc_dev.raw.btc_hourly r\n",
+        "  btc_simply.predictions.btc_predictions p\n",
+        "    JOIN btc_simply.raw.btc_hourly r\n",
         "      ON r.open_time = p.feature_open_time + INTERVAL 1 HOUR\n",
         "WHERE\n",
         "  p.feature_open_time >= :date_range.min\n",
@@ -1062,7 +1062,7 @@
         "  r_squared,\n",
         "  best_trial_number\n",
         "FROM\n",
-        "  btc_dev.monitoring.model_training_runs\n",
+        "  btc_simply.monitoring.model_training_runs\n",
         "ORDER BY\n",
         "  run_timestamp DESC\n",
         "LIMIT 10"
@@ -1079,7 +1079,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'\n",
         "ORDER BY\n",
@@ -1087,7 +1087,7 @@
         "  metric_name\n",
         "LIMIT 300"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     },
     {
@@ -1101,7 +1101,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'\n",
         "  AND status IN ('alert', 'warn')\n",
@@ -1110,7 +1110,7 @@
         "  metric_name\n",
         "LIMIT 100"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     },
     {
@@ -1123,7 +1123,7 @@
         "  metric_value,\n",
         "  status\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name IN (\n",
         "    'model_drift_rmse_24h',\n",
@@ -1138,7 +1138,7 @@
         "  metric_name\n",
         "LIMIT 300"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     },
     {
@@ -1152,7 +1152,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name RLIKE '^job_quality_'\n",
         "ORDER BY\n",
@@ -1160,7 +1160,7 @@
         "  metric_name\n",
         "LIMIT 300"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     },
     {
@@ -1174,7 +1174,7 @@
         "  status,\n",
         "  details\n",
         "FROM\n",
-        "  btc_dev.monitoring.pipeline_metrics\n",
+        "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name RLIKE '^job_quality_'\n",
         "  AND status IN ('alert', 'warn')\n",
@@ -1183,7 +1183,7 @@
         "  metric_name\n",
         "LIMIT 100"
       ],
-      "catalog": "btc_dev",
+      "catalog": "btc_simply",
       "schema": "monitoring"
     }
   ],

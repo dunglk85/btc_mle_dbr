@@ -2,6 +2,15 @@ name: Manual Data Fetch
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Databricks bundle target to run
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
 
 jobs:
   fetch-and-run-data-pipeline:
@@ -22,4 +31,4 @@ jobs:
           test -n "$DATABRICKS_TOKEN" || (echo "Missing DATABRICKS_TOKEN secret" && exit 1)
 
       - name: Run Databricks data prediction job
-        run: databricks bundle run btc_data_prediction_job --target dev
+        run: databricks bundle run btc_data_prediction_job --target "${{ inputs.target }}"

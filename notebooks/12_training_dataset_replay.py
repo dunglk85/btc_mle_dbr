@@ -24,7 +24,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 training_task_key = get_widget("training_task_key", "model_training")
 min_delta_retention_hours = int(get_widget("min_delta_retention_hours", "168"))
 

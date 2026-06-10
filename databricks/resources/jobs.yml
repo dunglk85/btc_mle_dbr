@@ -9,7 +9,7 @@ resources:
       git_source:
         git_url: https://github.com/dunglk85/btc_mle_dbr
         git_provider: gitHub
-        git_branch: main
+        git_branch: ${var.git_branch}
       tasks:
         - task_key: data_ingestion
           notebook_task:
@@ -26,99 +26,14 @@ resources:
               catalog: ${var.catalog}
           depends_on:
             - task_key: data_ingestion
-        - task_key: prediction
-          notebook_task:
-            notebook_path: notebooks/05_prediction
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-          depends_on:
-            - task_key: feature_engineering
-        - task_key: monitoring
-          notebook_task:
-            notebook_path: notebooks/06_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-          depends_on:
-            - task_key: prediction
-        - task_key: job_quality_monitoring
-          notebook_task:
-            notebook_path: notebooks/09_job_quality_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              job_name_filter: "BTC"
-              lookback_runs: "20"
-              max_duration_minutes: "60"
-              min_success_rate: "0.8"
-              fail_on_alert: "false"
-          depends_on:
-            - task_key: monitoring
-    btc_drift_monitoring_job:
-      name: "[${bundle.target}] BTC Drift Monitoring Job"
-      schedule:
-        quartz_cron_expression: "0 0 */6 * * ?"
-        timezone_id: UTC
-        pause_status: UNPAUSED
-      git_source:
-        git_url: https://github.com/dunglk85/btc_mle_dbr
-        git_provider: gitHub
-        git_branch: main
-      tasks:
-        - task_key: drift_monitoring
-          notebook_task:
-            notebook_path: notebooks/08_drift_monitoring
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              recent_hours: "168"
-              reference_hours: "720"
-              fail_on_alert: "false"
-        - task_key: training_gate_drift
-          notebook_task:
-            notebook_path: notebooks/07_training_gate
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              trigger_mode: "drift"
-          depends_on:
-            - task_key: drift_monitoring
-        - task_key: trigger_model_refresh
-          notebook_task:
-            notebook_path: notebooks/11_trigger_model_refresh
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              model_refresh_job_id: ${resources.jobs.btc_model_refresh_job.id}
-              model_refresh_job_name: "[${bundle.target}] BTC Model Refresh Job"
-              max_decision_age_hours: "12"
-              expected_trigger_mode: "drift"
-          depends_on:
-            - task_key: training_gate_drift
-        - task_key: data_remediation
-          notebook_task:
-            notebook_path: notebooks/10_data_remediation
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              backfill_limit: "168"
-              notebook_timeout_seconds: "1800"
-          depends_on:
-            - task_key: training_gate_drift
-    btc_model_refresh_job:
-      name: "[${bundle.target}] BTC Model Refresh Job"
-      git_source:
-        git_url: https://github.com/dunglk85/btc_mle_dbr
-        git_provider: gitHub
-        git_branch: main
-      tasks:
         - task_key: eda_feature_selection
           notebook_task:
             notebook_path: notebooks/02b_eda_feature_selection
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+          depends_on:
+            - task_key: feature_engineering
         - task_key: model_training_reg_lgbm
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -127,9 +42,8 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
-              max_decision_age_hours: "12"
-              expected_trigger_mode: "drift"
               model_algo: "lightgbm"
+              require_training_gate: "false"
           depends_on:
             - task_key: eda_feature_selection
         - task_key: dataset_replay_reg_lgbm
@@ -150,9 +64,8 @@ resources:
               catalog: ${var.catalog}
               n_trials: "15"
               timeout_seconds: "900"
-              max_decision_age_hours: "12"
-              expected_trigger_mode: "drift"
               model_algo: "xgboost"
+              require_training_gate: "false"
           depends_on:
             - task_key: eda_feature_selection
         - task_key: dataset_replay_reg_xgb
@@ -190,3 +103,43 @@ resources:
               min_evaluation_rows: "100"
           depends_on:
             - task_key: select_best_challenger
+        - task_key: prediction
+          notebook_task:
+            notebook_path: notebooks/05_prediction
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          depends_on:
+            - task_key: champion_challenger
+        - task_key: monitoring
+          notebook_task:
+            notebook_path: notebooks/06_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+          depends_on:
+            - task_key: prediction
+        - task_key: drift_monitoring
+          notebook_task:
+            notebook_path: notebooks/08_drift_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              recent_hours: "168"
+              reference_hours: "720"
+              fail_on_alert: "false"
+          depends_on:
+            - task_key: monitoring
+        - task_key: job_quality_monitoring
+          notebook_task:
+            notebook_path: notebooks/09_job_quality_monitoring
+            source: GIT
+            base_parameters:
+              catalog: ${var.catalog}
+              job_name_filter: "BTC"
+              lookback_runs: "20"
+              max_duration_minutes: "180"
+              min_success_rate: "0.8"
+              fail_on_alert: "false"
+          depends_on:
+            - task_key: drift_monitoring

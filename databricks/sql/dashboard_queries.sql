@@ -1,6 +1,6 @@
 -- BTC MLOps AI/BI Dashboard Queries
 -- Use these queries as dashboard datasets/tiles in Databricks SQL or AI/BI Dashboard.
--- Create a query/dashboard parameter named catalog, e.g. btc_dev or btc_prod.
+-- Create a query/dashboard parameter named catalog, e.g. btc_simply or btc_prod.
 
 -- 1. Data Freshness Tile
 SELECT

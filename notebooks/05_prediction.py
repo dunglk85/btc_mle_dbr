@@ -32,7 +32,7 @@ def get_widget(name, default):
         return str(default)
 
 
-catalog = get_widget("catalog", "btc_dev")
+catalog = get_widget("catalog", "btc_simply")
 features_schema = "features"
 predictions_schema = "predictions"
 features_table = "btc_features"
@@ -208,10 +208,10 @@ def load_feature_cols_for_champion(run_id, run_params):
         except Exception as config_version_exc:
             print(f"WARNING: Could not load Champion versioned feature config ({config_version_exc})")
 
-    if catalog != "btc_dev":
+    if catalog != "btc_simply":
         raise ValueError(
             "Could not resolve Champion feature columns from artifact, manifest, or versioned config. "
-            f"Refusing active-config fallback outside btc_dev; catalog={catalog}"
+            f"Refusing active-config fallback outside btc_simply; catalog={catalog}"
         )
 
     try:

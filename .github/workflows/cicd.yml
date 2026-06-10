@@ -3,9 +3,9 @@ name: CI/CD
 on:
   workflow_dispatch:
   pull_request:
-    branches: [main, dev]
+    branches: [main, simplying]
   push:
-    branches: [main, dev]
+    branches: [main, simplying]
 
 jobs:
   lint-and-test:
@@ -29,20 +29,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
-      - run: databricks bundle validate --target dev
+      - name: Resolve Databricks target
+        run: |
+          BRANCH="${GITHUB_BASE_REF:-${GITHUB_REF_NAME}}"
+          if [ "$BRANCH" = "main" ]; then
+            echo "DATABRICKS_TARGET=prod" >> "$GITHUB_ENV"
+            echo "DATABRICKS_CATALOG=btc_prod" >> "$GITHUB_ENV"
+          else
+            echo "DATABRICKS_TARGET=dev" >> "$GITHUB_ENV"
+            echo "DATABRICKS_CATALOG=btc_simply" >> "$GITHUB_ENV"
+          fi
+      - run: databricks bundle validate --target "$DATABRICKS_TARGET"
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
 
-  deploy-dev:
-    name: Deploy to Databricks dev
+  deploy:
+    name: Deploy to Databricks
     needs: [lint-and-test, validate-bundle]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/simplying') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
-      - run: databricks bundle deploy --target dev
+      - name: Resolve Databricks target
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "DATABRICKS_TARGET=prod" >> "$GITHUB_ENV"
+            echo "DATABRICKS_CATALOG=btc_prod" >> "$GITHUB_ENV"
+          else
+            echo "DATABRICKS_TARGET=dev" >> "$GITHUB_ENV"
+            echo "DATABRICKS_CATALOG=btc_simply" >> "$GITHUB_ENV"
+          fi
+      - name: Ensure Unity Catalog catalog exists
+        run: |
+          databricks catalogs get "$DATABRICKS_CATALOG" >/dev/null 2>&1 || \
+            databricks catalogs create "$DATABRICKS_CATALOG" \
+              --comment "Created by CI/CD for ${GITHUB_REF_NAME}"
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      - run: databricks bundle deploy --target "$DATABRICKS_TARGET"
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}

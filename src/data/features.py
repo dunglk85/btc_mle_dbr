@@ -36,7 +36,7 @@ def compute_features(
 
 def write_features_table(
     spark,
-    catalog: str = "btc_dev",
+    catalog: str = "btc_simply",
     raw_schema: str = "raw",
     features_schema: str = "features",
     raw_table: str = "btc_hourly",

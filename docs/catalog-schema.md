@@ -4,7 +4,7 @@
 
 | Catalog    | Purpose      |
 |------------|-------------|
-| `btc_dev`  | Development  |
+| `btc_simply`  | Development  |
 | `btc_stg`  | Staging      |
 | `btc_prod` | Production   |
 
@@ -69,7 +69,7 @@ Training reads only `is_active = true` configs unless `allow_default_feature_fal
 
 `pipeline_metrics` records pipeline health metrics with `metric_time`, `metric_name`, `metric_value`, `status`, and `details`.
 
-`model_refresh_decisions` records whether the model refresh job should train, including the reason, latest raw freshness, alert count, Champion existence, table versions, and JSON decision details.
+`model_refresh_decisions` records optional gated refresh decisions, including the reason, latest raw freshness, alert count, Champion existence, table versions, and JSON decision details.
 
 `training_dataset_manifests` records the raw/features/config Delta versions, feature config ID, feature columns, split boundaries, and row counts used for each MLflow training run.
 

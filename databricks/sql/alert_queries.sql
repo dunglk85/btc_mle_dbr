@@ -1,6 +1,6 @@
 -- BTC MLOps SQL Alert Queries
 -- Create Databricks SQL Alerts from these queries if SQL Alerts are available.
--- Create a query/alert parameter named catalog, e.g. btc_dev or btc_prod.
+-- Create a query/alert parameter named catalog, e.g. btc_simply or btc_prod.
 
 -- Alert 1: Raw Data Stale
 -- Condition: raw_freshness_hours > 3
