@@ -39,6 +39,7 @@ features_table = "btc_features"
 predictions_table = "btc_predictions"
 model_schema = "models"
 model_name = "btc_price_model"
+allow_default_feature_fallback = get_widget("allow_default_feature_fallback", "false").lower() == "true"
 
 raw_ref = f"{catalog}.raw.btc_hourly"
 features_ref = f"{catalog}.{features_schema}.{features_table}"
@@ -234,6 +235,17 @@ def load_feature_cols_for_champion(run_id, run_params):
             return cols
         raise ValueError("Empty feature selection config table")
     except Exception as config_exc:
+        if allow_default_feature_fallback:
+            print(f"WARNING: Using default feature fallback because active config could not be loaded: {config_exc}")
+            return [
+                "return_1h", "return_6h", "return_24h",
+                "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
+                "macd", "macd_signal", "macd_hist",
+                "rsi_14", "atr_14", "atr_ratio", "bb_width",
+                "volume_ratio", "log_volume", "hl_spread", "oc_change",
+                "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
+                "hour", "day_of_week", "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+            ]
         raise ValueError(
             "Could not resolve prediction feature columns from Champion artifact or feature config"
         ) from config_exc

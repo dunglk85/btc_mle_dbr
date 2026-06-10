@@ -41,6 +41,7 @@ resources:
               n_trials: "15"
               timeout_seconds: "900"
               model_algo: "lightgbm"
+              allow_default_feature_fallback: "true"
           depends_on:
             - task_key: feature_engineering
         - task_key: model_training_reg_xgb
@@ -52,6 +53,7 @@ resources:
               n_trials: "15"
               timeout_seconds: "900"
               model_algo: "xgboost"
+              allow_default_feature_fallback: "true"
           depends_on:
             - task_key: feature_engineering
         - task_key: model_training_reg_rf
@@ -63,6 +65,7 @@ resources:
               n_trials: "15"
               timeout_seconds: "900"
               model_algo: "random_forest"
+              allow_default_feature_fallback: "true"
           depends_on:
             - task_key: feature_engineering
         - task_key: champion_challenger
@@ -86,6 +89,7 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
+              allow_default_feature_fallback: "true"
           max_retries: 2
           min_retry_interval_millis: 60000
           retry_on_timeout: true
