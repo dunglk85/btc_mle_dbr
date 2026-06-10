@@ -51,6 +51,7 @@ databricks bundle validate
 - `main` branch deploys Databricks target `prod` with Unity Catalog `btc_prod`.
 - Databricks Git-backed jobs use branch `simplying` for target `dev` and branch `main` for target `prod`.
 - CI/CD creates the target catalog if it does not already exist before bundle deploy.
+- CI/CD also creates required schemas: `raw`, `features`, `predictions`, `monitoring`, and `models`.
 - If Databricks CLI cannot create catalogs with account Default Storage, either create the catalog once in the Databricks UI or set GitHub secret `DATABRICKS_CATALOG_STORAGE_ROOT` to a managed storage root; CI/CD will create `${DATABRICKS_CATALOG_STORAGE_ROOT}/<catalog>`.
 
 ## Production-Like Controls
