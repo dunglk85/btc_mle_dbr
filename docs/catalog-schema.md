@@ -73,8 +73,6 @@ Training reads only `is_active = true` configs unless `allow_default_feature_fal
 
 `training_dataset_manifests` records the raw/features/config Delta versions, feature config ID, feature columns, split boundaries, and row counts used for each MLflow training run.
 
-`12_training_dataset_replay` uses `training_dataset_manifests` to read `VERSION AS OF` snapshots and fail promotion if the training dataset cannot be reproduced.
-
 `data_remediation_actions` records safe auto-remediation attempts, blocked manual-required cases, and failure reasons.
 
 `predictions.btc_predictions` includes model/data lineage fields: `model_version`, `model_run_id`, prediction-input `raw_table_version`/`features_table_version`, and Champion training lineage fields `model_raw_table_version`, `model_features_table_version`, `model_feature_config_version`, `model_feature_config_id`.

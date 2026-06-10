@@ -38,16 +38,6 @@ resources:
               require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
-        - task_key: dataset_replay_reg_lgbm
-          notebook_task:
-            notebook_path: notebooks/12_training_dataset_replay
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              training_task_key: "model_training_reg_lgbm"
-              min_delta_retention_hours: "168"
-          depends_on:
-            - task_key: model_training_reg_lgbm
         - task_key: model_training_reg_xgb
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -60,16 +50,6 @@ resources:
               require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
-        - task_key: dataset_replay_reg_xgb
-          notebook_task:
-            notebook_path: notebooks/12_training_dataset_replay
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              training_task_key: "model_training_reg_xgb"
-              min_delta_retention_hours: "168"
-          depends_on:
-            - task_key: model_training_reg_xgb
         - task_key: model_training_reg_rf
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -82,16 +62,6 @@ resources:
               require_training_gate: "false"
           depends_on:
             - task_key: feature_engineering
-        - task_key: dataset_replay_reg_rf
-          notebook_task:
-            notebook_path: notebooks/12_training_dataset_replay
-            source: GIT
-            base_parameters:
-              catalog: ${var.catalog}
-              training_task_key: "model_training_reg_rf"
-              min_delta_retention_hours: "168"
-          depends_on:
-            - task_key: model_training_reg_rf
         - task_key: champion_challenger
           notebook_task:
             notebook_path: notebooks/04_champion_challenger
@@ -101,15 +71,12 @@ resources:
               lgbm_training_task_key: "model_training_reg_lgbm"
               xgb_training_task_key: "model_training_reg_xgb"
               rf_training_task_key: "model_training_reg_rf"
-              lgbm_replay_task_key: "dataset_replay_reg_lgbm"
-              xgb_replay_task_key: "dataset_replay_reg_xgb"
-              rf_replay_task_key: "dataset_replay_reg_rf"
               max_evaluation_rows: "2000"
               min_evaluation_rows: "100"
           depends_on:
-            - task_key: dataset_replay_reg_lgbm
-            - task_key: dataset_replay_reg_xgb
-            - task_key: dataset_replay_reg_rf
+            - task_key: model_training_reg_lgbm
+            - task_key: model_training_reg_xgb
+            - task_key: model_training_reg_rf
         - task_key: prediction
           notebook_task:
             notebook_path: notebooks/05_prediction

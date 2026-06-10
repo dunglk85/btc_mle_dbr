@@ -38,9 +38,6 @@ catalog = get_widget("catalog", "btc_simply")
 lgbm_training_task_key = get_widget("lgbm_training_task_key", "model_training_reg_lgbm")
 xgb_training_task_key = get_widget("xgb_training_task_key", "model_training_reg_xgb")
 rf_training_task_key = get_widget("rf_training_task_key", "model_training_reg_rf")
-lgbm_replay_task_key = get_widget("lgbm_replay_task_key", "dataset_replay_reg_lgbm")
-xgb_replay_task_key = get_widget("xgb_replay_task_key", "dataset_replay_reg_xgb")
-rf_replay_task_key = get_widget("rf_replay_task_key", "dataset_replay_reg_rf")
 max_evaluation_rows = int(get_widget("max_evaluation_rows", "2000"))
 min_evaluation_rows = int(get_widget("min_evaluation_rows", "100"))
 model_schema = "models"
@@ -56,12 +53,9 @@ print(f"experiment_name={experiment_name}")
 print(f"lgbm_training_task_key={lgbm_training_task_key}")
 print(f"xgb_training_task_key={xgb_training_task_key}")
 print(f"rf_training_task_key={rf_training_task_key}")
-print(f"lgbm_replay_task_key={lgbm_replay_task_key}")
-print(f"xgb_replay_task_key={xgb_replay_task_key}")
-print(f"rf_replay_task_key={rf_replay_task_key}")
 print(f"max_evaluation_rows={max_evaluation_rows}")
 
-def read_candidate(label, training_task_key, replay_task_key):
+def read_candidate(label, training_task_key):
     training_status = dbutils.jobs.taskValues.get(
         taskKey=training_task_key,
         key="training_status",
@@ -69,17 +63,6 @@ def read_candidate(label, training_task_key, replay_task_key):
     )
     if training_status != "trained":
         raise ValueError(f"Candidate {label} did not train successfully: status={training_status}")
-
-    dataset_replay_status = dbutils.jobs.taskValues.get(
-        taskKey=replay_task_key,
-        key="dataset_replay_status",
-        default="unknown",
-    )
-    if dataset_replay_status != "validated":
-        raise ValueError(
-            f"Candidate {label} dataset replay did not pass: "
-            f"task={replay_task_key}; status={dataset_replay_status}"
-        )
 
     run_id = dbutils.jobs.taskValues.get(
         taskKey=training_task_key,
@@ -98,20 +81,18 @@ def read_candidate(label, training_task_key, replay_task_key):
     return {
         "label": label,
         "training_task_key": training_task_key,
-        "replay_task_key": replay_task_key,
         "run_id": run_id,
         "model_algo": run.data.params.get("model_algo", label),
         "rmse": float(metrics["rmse"]),
         "mae": float(metrics["mae"]),
         "directional_accuracy": float(metrics["directional_accuracy"]),
-        "dataset_replay_status": dataset_replay_status,
     }
 
 
 candidates = [
-    read_candidate("lightgbm", lgbm_training_task_key, lgbm_replay_task_key),
-    read_candidate("xgboost", xgb_training_task_key, xgb_replay_task_key),
-    read_candidate("random_forest", rf_training_task_key, rf_replay_task_key),
+    read_candidate("lightgbm", lgbm_training_task_key),
+    read_candidate("xgboost", xgb_training_task_key),
+    read_candidate("random_forest", rf_training_task_key),
 ]
 selected_candidate = sorted(
     candidates,
@@ -119,8 +100,6 @@ selected_candidate = sorted(
 )[0]
 
 challenger_run_id = selected_candidate["run_id"]
-dataset_replay_status = selected_candidate["dataset_replay_status"]
-dataset_replay_task_key = selected_candidate["replay_task_key"]
 
 print(f"selected_model_algo={selected_candidate['model_algo']}")
 print(f"selected_run_id={challenger_run_id}")
@@ -134,12 +113,6 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{model_schema}")
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.monitoring")
 mlflow.set_registry_uri("databricks-uc")
 client = MlflowClient()
-client.set_tag(challenger_run_id, "dataset_replay_status", dataset_replay_status)
-client.set_tag(
-    challenger_run_id,
-    "dataset_replay_check",
-    dataset_replay_task_key,
-)
 
 
 def tag_feature_cols_source(run_id, label, source):
@@ -442,7 +415,6 @@ history_schema = T.StructType(
         T.StructField("training_mode", T.StringType(), True),
         T.StructField("features_table", T.StringType(), True),
         T.StructField("features_table_version", T.StringType(), True),
-        T.StructField("dataset_replay_status", T.StringType(), True),
         T.StructField("challenger_data_context", T.StringType(), True),
         T.StructField("champion_data_context", T.StringType(), True),
         T.StructField("promoted", T.BooleanType(), False),
@@ -474,7 +446,6 @@ history_row = {
     "training_mode": training_mode,
     "features_table": features_table,
     "features_table_version": str(features_table_version) if features_table_version is not None else None,
-    "dataset_replay_status": dataset_replay_status,
     "challenger_data_context": str(challenger_data_context),
     "champion_data_context": str(champion_data_context) if champion_data_context is not None else None,
     "promoted": bool(promote),

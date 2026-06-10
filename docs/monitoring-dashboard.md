@@ -41,7 +41,7 @@ Recommended dashboard tiles:
 - Actual vs predicted table.
 - Prediction error trend chart.
 - Model refresh decisions table.
-- Training dataset manifests and replay validation status from recent model refresh runs.
+- Training dataset manifests from recent model refresh runs.
 - Prediction/model lineage table for `btc_predictions`.
 - Latest model explanation: top SHAP features and built-in feature importance.
 - Monitoring alerts table.

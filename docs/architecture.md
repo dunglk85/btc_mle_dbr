@@ -33,7 +33,6 @@ graph TB
             K1["01_data_ingestion"]
             K2["02_feature_engineering<br/>(features + selected_features config)"]
             K4["03_optuna_training<br/>(parallel LGBM/XGB/RF tasks)"]
-            K5["12_training_dataset_replay<br/>(parallel replay tasks)"]
             K7["04_champion_challenger<br/>(select best + promote)"]
             K8["05_prediction"]
             K9["06_monitoring + 08_drift_monitoring + 09_job_quality_monitoring"]
@@ -55,8 +54,7 @@ graph TB
     K4 --> D
     K4 -->|"Write dataset manifest"| T
     K4 -->|"SHAP / explanations"| X
-    T -->|"Delta VERSION AS OF replay"| K5
-    K5 -->|"Validated candidates"| K7
+    K4 -->|"Candidate metrics + task values"| K7
     K7 --> G
     G -->|"Bounded fair RMSE/MAE comparison"| F
     F -->|"Promote / retain"| E
@@ -72,13 +70,12 @@ graph TB
     K --> K1
     K1 --> K2
     K2 --> K4
-    K4 --> K5
-    K5 --> K7
+    K4 --> K7
     K7 --> K8
     K8 --> K9
 ```
 
-Mỗi lần chạy job sẽ lấy nến BTC hourly đã đóng từ Binance Vision API, ghi trực tiếp vào raw Delta table, rebuild feature table, chọn feature active, huấn luyện LightGBM, XGBoost và Random Forest trên dữ liệu mới nhất, kiểm tra khả năng replay dataset, chọn challenger tốt nhất, promotion Champion/Challenger nếu đạt điều kiện, tạo prediction, sau đó ghi monitoring và drift metrics.
+Mỗi lần chạy job sẽ lấy nến BTC hourly đã đóng từ Binance Vision API, ghi trực tiếp vào raw Delta table, rebuild feature table, chọn feature active, huấn luyện LightGBM, XGBoost và Random Forest trên dữ liệu mới nhất, chọn challenger tốt nhất, promotion Champion/Challenger nếu đạt điều kiện, tạo prediction, sau đó ghi monitoring và drift metrics.
 
 Các lớp dữ liệu chính:
 - `raw.btc_hourly`: dữ liệu OHLCV hourly từ Binance.
@@ -95,10 +92,9 @@ Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/mode
 1. **Direct Binance ingestion** -> `01_data_ingestion` fetches closed BTC hourly candles from Binance Vision API and MERGEs them into `<catalog>.raw.btc_hourly`.
 2. **Feature Engineering + Selection** -> `02_feature_engineering` writes `<catalog>.features.btc_features` with exact next-hour target `target_close_1h` and updates active selected-feature metadata in `<catalog>.features.feature_selection_config`.
 3. **Model Training** -> Regression-only Optuna LightGBM/XGBoost/Random Forest training + MLflow tracking.
-4. **Dataset Replay Validation** -> `12_training_dataset_replay` validates Delta `VERSION AS OF` reproducibility from `training_dataset_manifests`.
-5. **Champion vs Challenger** -> Register current training run as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
-6. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
-7. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics`, drift metrics, and job quality metrics.
+4. **Champion vs Challenger** -> Select the best candidate run, register it as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
+5. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
+6. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics`, drift metrics, and job quality metrics.
 
 ## Multi-Environment
 
@@ -123,7 +119,6 @@ Databricks notebooks read the `catalog` widget passed by Databricks Asset Bundle
 - Ingestion reads from the latest raw `open_time` by default and can backfill from a `start_date` widget.
 - Ingestion deduplicates overlapping Binance candles by `open_time` before MERGE.
 - Training logs Delta versions for raw/features/config tables into MLflow and `monitoring.training_dataset_manifests`.
-- `12_training_dataset_replay` validates that manifest versions are still available with Delta time travel and that the replayed training dataset matches the manifest before model promotion.
 - Champion/Challenger evaluation uses a bounded latest common holdout window so both models are compared on identical rows without loading the full feature table.
 - Predictions store model version/run ID, prediction-input raw/features Delta versions, and Champion training data/config versions for traceability.
 
@@ -158,9 +153,9 @@ Rebuild features and selected-feature config
         ↓
 Train LightGBM, XGBoost and Random Forest on latest feature table
         ↓
-Validate dataset replay, select best challenger, promote if evaluation passes
+Select best challenger, promote if evaluation passes
 ```
 
 Job structure:
-- `btc_data_prediction_job` runs the full hourly path: ingestion, feature engineering, feature selection, LightGBM/XGBoost/Random Forest training, dataset replay, best-challenger selection, Champion/Challenger promotion, prediction, regular monitoring, drift monitoring, and job quality monitoring.
+- `btc_data_prediction_job` runs the full hourly path: ingestion, feature engineering, feature selection, parallel LightGBM/XGBoost/Random Forest training, best-challenger selection, Champion/Challenger promotion, prediction, regular monitoring, drift monitoring, and job quality monitoring.
 - Training in this job passes `require_training_gate=false`, so it trains directly on the latest feature table instead of waiting for a model-refresh decision.

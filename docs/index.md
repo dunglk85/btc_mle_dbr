@@ -33,7 +33,7 @@
 - `notebooks/01_data_ingestion.py`: fetch closed Binance hourly candles and MERGE directly into raw Delta.
 - `notebooks/02_feature_engineering.py`: features, exact next-hour target, and active selected-feature config governance.
 - `notebooks/03_optuna_training.py`: regression Optuna LightGBM/XGBoost/Random Forest training, best-challenger selection, MLflow logging, and dataset manifest writing.
-- `notebooks/04_champion_challenger.py`: replay-gated, bounded fair Champion/Challenger registration and alias promotion.
+- `notebooks/04_champion_challenger.py`: best-candidate selection, bounded fair Champion/Challenger registration, and alias promotion.
 - `notebooks/05_prediction.py`: Champion prediction writes with serving-input and model-training lineage.
 - `notebooks/06_monitoring.py`: pipeline metrics.
 - `notebooks/07_training_gate.py`: optional training/retraining gate decisions for gated refresh flows.
@@ -41,7 +41,6 @@
 - `notebooks/09_job_quality_monitoring.py`: Databricks job quality metrics.
 - `notebooks/10_data_remediation.py`: optional safe auto-remediation for stale raw data, stale features, and stale predictions.
 - `notebooks/11_trigger_model_refresh.py`: optional conditional trigger for separated model refresh flows.
-- `notebooks/12_training_dataset_replay.py`: production-like replay validation for training dataset manifests before model promotion.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
 - `databricks/resources/dashboards.yml`: CI/CD-managed AI/BI dashboard resource.
@@ -52,6 +51,6 @@
 ```bash
 pytest
 ruff check src/ tests/
-python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py notebooks/12_training_dataset_replay.py
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/07_training_gate.py notebooks/08_drift_monitoring.py notebooks/09_job_quality_monitoring.py notebooks/10_data_remediation.py notebooks/11_trigger_model_refresh.py
 databricks bundle validate
 ```
