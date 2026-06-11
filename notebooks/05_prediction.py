@@ -247,6 +247,13 @@ def load_feature_cols_for_champion(run_id, run_params):
                 "volume_ratio", "log_volume", "hl_spread", "oc_change",
                 "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
                 "hour", "day_of_week", "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+                "volatility_12h", "volatility_24h", "volatility_168h",
+                "volatility_zscore",
+                "roc_3h", "roc_6h", "roc_12h",
+                "price_acceleration",
+                "vol_price_divergence",
+                "return_skew_168h", "return_kurt_168h",
+                "vol_ratio_12_168",
             ]
         raise ValueError(
             "Could not resolve prediction feature columns from Champion artifact or feature config"

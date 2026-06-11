@@ -125,6 +125,13 @@ except Exception as exc:
         "volume_ratio", "log_volume", "hl_spread", "oc_change",
         "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
         "hour", "day_of_week", "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+        "volatility_12h", "volatility_24h", "volatility_168h",
+        "volatility_zscore",
+        "roc_3h", "roc_6h", "roc_12h",
+        "price_acceleration",
+        "vol_price_divergence",
+        "return_skew_168h", "return_kurt_168h",
+        "vol_ratio_12_168",
     ]
 
 source = spark.table(features_ref).orderBy("open_time")
@@ -171,11 +178,11 @@ def create_model(trial, algo):
             "max_depth": trial.suggest_int("max_depth", 3, 12),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "num_leaves": trial.suggest_int("num_leaves", 15, 127),
-            "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
+            "min_child_samples": trial.suggest_int("min_child_samples", 1, 50),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
-            "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 1.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 1.0, log=True),
             "random_state": 42,
             "verbose": -1,
         }
@@ -202,11 +209,11 @@ def create_model(trial, algo):
         "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
         "max_depth": trial.suggest_int("max_depth", 3, 12),
         "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
-        "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+        "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
         "subsample": trial.suggest_float("subsample", 0.6, 1.0),
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-        "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
-        "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+        "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 1.0, log=True),
+        "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 1.0, log=True),
         "random_state": 42,
         "verbosity": 0,
     }

@@ -285,7 +285,72 @@ features = features.withColumn(
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Targets
+# MAGIC ## 9. Volatility Regime & Momentum Features
+
+# COMMAND ----------
+
+# --- Volatility Regime: rolling std of returns ---
+for vol_window in [12, 24, 168]:
+    vol_w = w.rowsBetween(-vol_window, -1)
+    features = features.withColumn(
+        f"volatility_{vol_window}h",
+        F.stddev("return_1h").over(vol_w),
+    )
+
+# Volatility z-score: current vol relative to 168h baseline
+features = features.withColumn(
+    "volatility_zscore",
+    (F.col("volatility_24h") - F.avg("volatility_24h").over(w.rowsBetween(-168, -1)))
+    / F.stddev("volatility_24h").over(w.rowsBetween(-168, -1)),
+)
+
+# --- Momentum: Rate of Change (ROC) ---
+for roc_period in [3, 6, 12]:
+    features = features.withColumn(
+        f"roc_{roc_period}h",
+        (F.col("close") - F.lag("close", roc_period).over(w))
+        / F.lag("close", roc_period).over(w),
+    )
+
+# --- Price Acceleration: second derivative of price ---
+features = features.withColumn(
+    "price_acceleration",
+    F.col("close") - 2 * F.lag("close", 1).over(w) + F.lag("close", 2).over(w),
+)
+
+# --- Volume-Price Divergence ---
+# Compare volume trend (24h) vs price trend (24h)
+features = features.withColumn(
+    "volume_trend_24h",
+    (F.col("volume") - F.lag("volume", 24).over(w)) / F.lag("volume", 24).over(w),
+)
+features = features.withColumn(
+    "price_trend_24h",
+    (F.col("close") - F.lag("close", 24).over(w)) / F.lag("close", 24).over(w),
+)
+features = features.withColumn(
+    "vol_price_divergence",
+    F.col("volume_trend_24h") - F.col("price_trend_24h"),
+)
+
+# --- Return Skewness & Kurtosis (168h window) ---
+dist_window = w.rowsBetween(-168, -1)
+features = features.withColumn("return_skew_168h", F.skewness("return_1h").over(dist_window))
+features = features.withColumn("return_kurt_168h", F.kurtosis("return_1h").over(dist_window))
+
+# --- Intraday Volatility Pattern: ratio of recent vol to long-term vol ---
+features = features.withColumn(
+    "vol_ratio_12_168",
+    F.col("volatility_12h") / F.col("volatility_168h"),
+)
+
+# Dọn cột tạm
+features = features.drop("volume_trend_24h", "price_trend_24h")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 10. Targets
 
 # COMMAND ----------
 
@@ -334,6 +399,15 @@ lookback_required_cols = [
     "atr_ratio",
     "bb_width",
     "volume_ratio",
+    "volatility_24h",
+    "volatility_zscore",
+    "roc_3h",
+    "roc_6h",
+    "roc_12h",
+    "vol_price_divergence",
+    "return_skew_168h",
+    "return_kurt_168h",
+    "vol_ratio_12_168",
 ]
 pre_lookback_drop_count = features.count()
 features = features.dropna(subset=lookback_required_cols)
@@ -397,6 +471,13 @@ candidate_features = [
     "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
     "hour", "day_of_week",
     "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+    "volatility_12h", "volatility_24h", "volatility_168h",
+    "volatility_zscore",
+    "roc_3h", "roc_6h", "roc_12h",
+    "price_acceleration",
+    "vol_price_divergence",
+    "return_skew_168h", "return_kurt_168h",
+    "vol_ratio_12_168",
     "open", "high", "low", "close", "volume", "quote_volume", "trades",
 ]
 target_col = "target_return_1h"
@@ -424,6 +505,13 @@ if len(selection_pdf) < 6:
         "volume_ratio", "log_volume", "hl_spread", "oc_change",
         "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
         "hour", "day_of_week", "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+        "volatility_12h", "volatility_24h", "volatility_168h",
+        "volatility_zscore",
+        "roc_3h", "roc_6h", "roc_12h",
+        "price_acceleration",
+        "vol_price_divergence",
+        "return_skew_168h", "return_kurt_168h",
+        "vol_ratio_12_168",
     ]
     selected_features = [column for column in fallback_feature_candidates if column in available_features]
     if not selected_features:

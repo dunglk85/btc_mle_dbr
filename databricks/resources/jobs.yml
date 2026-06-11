@@ -68,8 +68,8 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-              n_trials: "15"
-              timeout_seconds: "900"
+              n_trials: "50"
+              timeout_seconds: "1800"
               model_algo: "lightgbm"
               allow_default_feature_fallback: "true"
           max_retries: 3
@@ -84,8 +84,8 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-              n_trials: "15"
-              timeout_seconds: "900"
+              n_trials: "50"
+              timeout_seconds: "1800"
               model_algo: "xgboost"
               allow_default_feature_fallback: "true"
           max_retries: 3
@@ -100,8 +100,8 @@ resources:
             source: GIT
             base_parameters:
               catalog: ${var.catalog}
-              n_trials: "15"
-              timeout_seconds: "900"
+              n_trials: "50"
+              timeout_seconds: "1800"
               model_algo: "random_forest"
               allow_default_feature_fallback: "true"
           max_retries: 3
