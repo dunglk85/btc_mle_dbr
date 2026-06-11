@@ -517,6 +517,13 @@ else:
                 api_url = ctx.apiUrl().get()
                 api_token = ctx.apiToken().get()
 
+                if not api_token:
+                    raise RuntimeError(
+                        "API token not available. "
+                        "This is expected when running manually in a notebook session. "
+                        "The training trigger works when monitoring runs as part of the scheduled inference job."
+                    )
+
                 import urllib.request
                 import urllib.parse
 
@@ -565,7 +572,7 @@ else:
                 append_metric(
                     "training_trigger_status",
                     0,
-                    "alert",
+                    "warn",
                     f"Failed to trigger training_job_name='{training_job_name}': {exc}",
                 )
         else:
