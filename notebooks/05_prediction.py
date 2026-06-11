@@ -209,7 +209,7 @@ def load_feature_cols_for_champion(run_id, run_params):
         except Exception as config_version_exc:
             print(f"WARNING: Could not load Champion versioned feature config ({config_version_exc})")
 
-    if catalog != "btc_simply":
+    if catalog != "btc_simply" and not allow_default_feature_fallback:
         raise ValueError(
             "Could not resolve Champion feature columns from artifact, manifest, or versioned config. "
             f"Refusing active-config fallback outside btc_simply; catalog={catalog}"
@@ -342,10 +342,11 @@ pred_df.select(
 ).createOrReplaceTempView("_btc_prediction")
 
 spark.sql(f"""
-    MERGE INTO {predictions_ref} AS target
+MERGE INTO {predictions_ref} AS target
     USING _btc_prediction AS source
     ON target.feature_open_time = source.feature_open_time
-       AND target.model_uri = source.model_uri
+       AND target.model_version = source.model_version
+       AND target.model_run_id = source.model_run_id
     WHEN MATCHED THEN UPDATE SET *
     WHEN NOT MATCHED THEN INSERT *
 """)

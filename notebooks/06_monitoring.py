@@ -29,6 +29,7 @@ fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"
 trigger_training_on_drift = get_widget("trigger_training_on_drift", "false").lower() == "true"
 training_job_id = get_widget("training_job_id", "")
 min_drift_alerts_to_trigger = int(get_widget("min_drift_alerts_to_trigger", "2"))
+expected_feature_lookback_loss = int(get_widget("expected_feature_lookback_loss", "168"))
 
 raw_ref = f"{catalog}.raw.btc_hourly"
 features_ref = f"{catalog}.features.btc_features"
@@ -55,6 +56,9 @@ print(f"metrics_ref={metrics_ref}")
 print(f"recent_hours={recent_hours}")
 print(f"reference_hours={reference_hours}")
 print(f"fail_on_alert={fail_on_alert}")
+print(f"trigger_training_on_drift={trigger_training_on_drift}")
+print(f"training_job_id={training_job_id}")
+print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
 
 # COMMAND ----------
 
@@ -221,7 +225,8 @@ append_metric(
 append_metric(
     "raw_features_row_count_delta",
     raw_count - features_count,
-    "ok" if abs(raw_count - features_count) <= 1 else "alert",
+    "ok" if 0 <= (raw_count - features_count) <= expected_feature_lookback_loss + 1 else "alert",
+    f"Expected feature lookback loss <= {expected_feature_lookback_loss + 1} rows.",
 )
 
 # COMMAND ----------
@@ -402,7 +407,7 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
         invalid_close_predictions = scored.filter(F.col("predicted_close") <= 1000.0).count()
         if invalid_close_predictions:
             append_metric(
-                "model_drift_invalid_predicted_close_count_24h",
+                f"model_drift_invalid_predicted_close_count_{recent_hours}h",
                 invalid_close_predictions,
                 "warn",
                 "Ignored predictions that are too small to be BTC close prices; likely legacy return-as-close rows",
@@ -424,14 +429,14 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
             F.percentile_approx("abs_error", 0.95).alias("p95_abs_error"),
         ).collect()[0]
         append_metric("model_drift_joined_prediction_count", perf["count"], "ok")
-        append_metric("model_drift_rmse_24h", perf["rmse"], "ok")
-        append_metric("model_drift_mae_24h", perf["mae"], "ok")
+        append_metric(f"model_drift_rmse_{recent_hours}h", perf["rmse"], "ok")
+        append_metric(f"model_drift_mae_{recent_hours}h", perf["mae"], "ok")
         append_metric(
-            "model_drift_mape_24h",
+            f"model_drift_mape_{recent_hours}h",
             perf["mape"],
             status_by_threshold(perf["mape"], mape_warn_threshold, mape_alert_threshold),
         )
-        append_metric("model_drift_p95_abs_error_24h", perf["p95_abs_error"], "ok")
+        append_metric(f"model_drift_p95_abs_error_{recent_hours}h", perf["p95_abs_error"], "ok")
         append_metric(
             "concept_drift_mean_error_bias_24h",
             perf["mean_error"],
@@ -459,7 +464,7 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
             F.avg((F.col("actual_direction") == F.col("predicted_direction")).cast("double")).alias("accuracy")
         ).collect()[0]["accuracy"]
         append_metric(
-            "model_drift_direction_accuracy_24h",
+            f"model_drift_direction_accuracy_{recent_hours}h",
             direction_accuracy,
             status_by_threshold(direction_accuracy, direction_warn_threshold, direction_alert_threshold, higher_is_worse=False),
         )
@@ -467,6 +472,83 @@ else:
     append_metric("model_drift_joined_prediction_count", 0, "warn", "Predictions or raw table missing")
 
 # COMMAND ----------
+
+# --- Drift-Triggered Training ---
+
+pre_trigger_metrics_df = spark.createDataFrame(metrics)
+pre_trigger_alert_count = pre_trigger_metrics_df.filter(F.col("status") == "alert").count()
+
+if not trigger_training_on_drift:
+    append_metric("training_trigger_status", 0, "ok", "trigger_training_on_drift=false")
+    print("trigger_training_on_drift=false; skipping training trigger check")
+else:
+    drift_alert_count = pre_trigger_metrics_df.filter(
+        F.col("status") == "alert"
+    ).filter(
+        F.col("metric_name").rlike("^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_")
+    ).count()
+
+    print(f"drift_alert_count={drift_alert_count}")
+    print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
+
+    append_metric(
+        "training_trigger_drift_alert_count",
+        drift_alert_count,
+        "ok" if drift_alert_count < min_drift_alerts_to_trigger else "warn",
+        f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}",
+    )
+
+    if drift_alert_count >= min_drift_alerts_to_trigger:
+        print(f"DRIFT_THRESHOLD_MET: {drift_alert_count} drift alerts >= {min_drift_alerts_to_trigger}")
+
+        if training_job_id:
+            print(f"triggering_training_job_id={training_job_id}")
+            try:
+                ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                api_url = ctx.apiUrl().get()
+                api_token = ctx.apiToken().get()
+
+                import urllib.request
+
+                url = f"{api_url}/api/2.1/jobs/run-now"
+                data = json.dumps({"job_id": int(training_job_id)}).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={
+                        "Authorization": f"Bearer {api_token}",
+                        "Content-Type": "application/json",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                    triggered_run_id = result.get("run_id")
+                    print(f"training_job_triggered=true run_id={triggered_run_id}")
+                    append_metric(
+                        "training_trigger_status",
+                        1,
+                        "ok",
+                        f"Triggered training_job_id={training_job_id}; run_id={triggered_run_id}",
+                    )
+            except Exception as exc:
+                print(f"training_job_trigger_failed={exc}")
+                append_metric(
+                    "training_trigger_status",
+                    0,
+                    "alert",
+                    f"Failed to trigger training_job_id={training_job_id}: {exc}",
+                )
+        else:
+            message = "training_job_id not set; training must be triggered manually or via scheduled run"
+            print(message)
+            append_metric("training_trigger_status", 0, "alert", message)
+    else:
+        append_metric("training_trigger_status", 0, "ok", "DRIFT_THRESHOLD_NOT_MET")
+        print("DRIFT_THRESHOLD_NOT_MET; no training trigger needed")
+
+# COMMAND ----------
+
 metrics_df = spark.createDataFrame(metrics)
 metrics_df.write.mode("append").saveAsTable(metrics_ref)
 
@@ -484,54 +566,3 @@ if fail_on_alert and alert_count > 0:
 
 if alert_count > 0:
     print(f"ALERTS_RECORDED: {alert_count} alert metrics written; fail_on_alert=false so job continues")
-
-# COMMAND ----------
-
-# --- Drift-Triggered Training ---
-
-if not trigger_training_on_drift:
-    print("trigger_training_on_drift=false; skipping training trigger check")
-else:
-    drift_alert_count = metrics_df.filter(
-        F.col("status") == "alert"
-    ).filter(
-        F.col("metric_name").rlike("^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_")
-    ).count()
-
-    print(f"drift_alert_count={drift_alert_count}")
-    print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
-
-    if drift_alert_count >= min_drift_alerts_to_trigger:
-        print(f"DRIFT_THRESHOLD_MET: {drift_alert_count} drift alerts >= {min_drift_alerts_to_trigger}")
-
-        if training_job_id:
-            # Trigger Job 2 (training job) via Databricks REST API
-            print(f"triggering_training_job_id={training_job_id}")
-            try:
-                ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-                api_url = ctx.apiUrl().get()
-                api_token = ctx.apiToken().get()
-
-                import urllib.request
-                import urllib.error
-
-                url = f"{api_url}/api/2.1/jobs/run-now"
-                data = json.dumps({"job_id": int(training_job_id)}).encode("utf-8")
-                req = urllib.request.Request(
-                    url,
-                    data=data,
-                    headers={
-                        "Authorization": f"Bearer {api_token}",
-                        "Content-Type": "application/json",
-                    },
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=30) as response:
-                    result = json.loads(response.read().decode("utf-8"))
-                    print(f"training_job_triggered=true run_id={result.get('run_id')}")
-            except Exception as exc:
-                print(f"training_job_trigger_failed={exc}")
-        else:
-            print("training_job_id not set; training must be triggered manually or via scheduled run")
-    else:
-        print("DRIFT_THRESHOLD_NOT_MET; no training trigger needed")

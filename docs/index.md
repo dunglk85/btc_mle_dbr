@@ -11,7 +11,8 @@
 
 - **Simplying catalog:** `btc_simply`
 - **Prod catalog:** `btc_prod`
-- **Pipeline job:** `btc_data_prediction_job`, hourly full data/train/predict/monitor path
+- **Inference job:** `btc_inference_job`, hourly ingest/features/predict/monitor path
+- **Training job:** `btc_training_job`, manual or drift-triggered train/promote path
 - **Registered model:** `<catalog>.models.btc_price_model`
 - **Champion alias:** `@Champion`
 - **Challenger alias:** `@Challenger`
@@ -35,7 +36,8 @@
 - `notebooks/03_optuna_training.py`: regression Optuna LightGBM/XGBoost/Random Forest training, best-challenger selection, MLflow logging, and dataset manifest writing.
 - `notebooks/04_champion_challenger.py`: best-candidate selection, bounded fair Champion/Challenger registration, and alias promotion.
 - `notebooks/05_prediction.py`: Champion prediction writes with serving-input and model-training lineage.
-- `notebooks/06_monitoring.py`: pipeline, drift, and job quality metrics.
+- `notebooks/06_monitoring.py`: pipeline and drift metrics, plus optional drift-triggered training job launch.
+- `notebooks/test_drift_thresholds.py`: manual historical PSI/KS threshold validation notebook.
 - `databricks/sql/`: dashboard and alert SQL templates.
 - `databricks/resources/alerts.yml`: CI/CD-managed Databricks SQL alerts.
 - `databricks/resources/dashboards.yml`: CI/CD-managed AI/BI dashboard resource.

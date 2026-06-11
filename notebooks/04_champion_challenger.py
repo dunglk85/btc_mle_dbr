@@ -400,6 +400,11 @@ else:
 
 champion_smoke_passed = False
 champion_smoke_error = None
+active_champion_feature_cols = challenger_feature_cols if promote else None
+if active_champion_feature_cols is None and champion_version is not None:
+    active_champion_feature_cols = champion_feature_cols
+if active_champion_feature_cols is None:
+    active_champion_feature_cols = challenger_feature_cols
 
 try:
     smoke_model_uri = f"models:/{full_model_name}@Champion"
@@ -410,8 +415,8 @@ try:
         smoke_features_reader = smoke_features_reader.option("versionAsOf", int(features_table_version))
     smoke_source = smoke_features_reader.table(features_table)
     smoke_row_pdf = (
-        smoke_source.select("open_time", *challenger_feature_cols)
-        .dropna(subset=challenger_feature_cols)
+        smoke_source.select("open_time", *active_champion_feature_cols)
+        .dropna(subset=active_champion_feature_cols)
         .orderBy(F.col("open_time").desc())
         .limit(1)
         .toPandas()
@@ -421,7 +426,7 @@ try:
         champion_smoke_error = "No valid feature rows available for smoke test"
         print(f"CHAMPION_SMOKE_TEST: FAILED ({champion_smoke_error})")
     else:
-        smoke_X = smoke_row_pdf[challenger_feature_cols].astype("float64")
+        smoke_X = smoke_row_pdf[active_champion_feature_cols].astype("float64")
         smoke_pred = smoke_model.predict(smoke_X)
         smoke_value = float(np.asarray(smoke_pred)[0])
 

@@ -2,7 +2,7 @@
 
 ## Tổng Quan Kiến Trúc
 
-BTC Databricks MLOps là pipeline dự đoán giá Bitcoin theo chu kỳ hourly, chạy trên Databricks Asset Bundles và Unity Catalog. Kiến trúc hiện tại được đơn giản hóa thành một job duy nhất: `btc_data_prediction_job`.
+BTC Databricks MLOps là pipeline dự đoán giá Bitcoin theo chu kỳ hourly, chạy trên Databricks Asset Bundles và Unity Catalog. Kiến trúc hiện tại tách hourly inference khỏi training để giảm compute: `btc_inference_job` chạy theo giờ, còn `btc_training_job` chạy manual hoặc khi monitoring trigger drift.
 
 ```mermaid
 graph TB
@@ -28,14 +28,18 @@ graph TB
             G["@Challenger"]
         end
 
-        subgraph "Single Databricks Job"
-            K["btc_data_prediction_job<br/>(hourly)"]
+        subgraph "Inference Job"
+            K["btc_inference_job<br/>(hourly)"]
             K1["01_data_ingestion"]
             K2["02_feature_engineering<br/>(features + selected_features config)"]
-            K4["03_optuna_training<br/>(parallel LGBM/XGB/RF tasks)"]
-            K7["04_champion_challenger<br/>(select best + promote)"]
             K8["05_prediction"]
             K9["06_monitoring"]
+        end
+
+        subgraph "Training Job"
+            K10["btc_training_job<br/>(manual / drift-triggered)"]
+            K4["03_optuna_training<br/>(parallel LGBM/XGB/RF tasks)"]
+            K7["04_champion_challenger<br/>(select best + promote)"]
         end
     end
 
@@ -65,36 +69,38 @@ graph TB
     C --> K9
     P --> K9
     K9 --> Q
+    K9 -->|"Optional drift trigger"| K10
     M --> N
     N --> K
+    N --> K10
     K --> K1
     K1 --> K2
-    K2 --> K4
+    K2 --> K8
+    K10 --> K4
     K4 --> K7
-    K7 --> K8
     K8 --> K9
 ```
 
-Mỗi lần chạy job sẽ lấy nến BTC hourly đã đóng từ Binance Vision API, ghi trực tiếp vào raw Delta table, rebuild feature table, chọn feature active, huấn luyện LightGBM, XGBoost và Random Forest trên dữ liệu mới nhất, chọn challenger tốt nhất, promotion Champion/Challenger nếu đạt điều kiện, tạo prediction, sau đó ghi monitoring và drift metrics.
+Mỗi lần chạy inference job sẽ lấy nến BTC hourly đã đóng từ Binance Vision API, ghi trực tiếp vào raw Delta table, rebuild feature table, tạo prediction bằng Champion hiện tại, sau đó ghi monitoring và drift metrics. Training job huấn luyện LightGBM, XGBoost và Random Forest trên feature table mới nhất, chọn challenger tốt nhất, rồi promotion Champion/Challenger nếu đạt điều kiện.
 
 Các lớp dữ liệu chính:
 - `raw.btc_hourly`: dữ liệu OHLCV hourly từ Binance.
 - `features.btc_features`: feature table và target next-hour.
 - `features.feature_selection_config`: cấu hình feature active dùng cho training.
 - `predictions.btc_predictions`: prediction output kèm lineage.
-- `monitoring.*`: metrics, manifests, decisions, explanations và audit tables.
+- `monitoring.*`: metrics, manifests, explanations và audit tables.
 - `models.btc_price_model`: UC registered model với alias `@Champion` và `@Challenger`.
 
-Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/model-refresh tách riêng, không còn UC Volume landing hay Auto Loader staging. Training chạy trực tiếp trên feature table mới nhất trong cùng hourly job; monitoring/drift vẫn được ghi sau prediction để theo dõi chất lượng pipeline và model.
+Thiết kế ưu tiên serving path ngắn và chi phí thấp: không còn UC Volume landing hay Auto Loader staging. Training được tách khỏi hourly inference và chỉ chạy manual hoặc khi drift trigger đủ ngưỡng.
 
 ## Data Flow
 
 1. **Direct Binance ingestion** -> `01_data_ingestion` fetches closed BTC hourly candles from Binance Vision API and MERGEs them into `<catalog>.raw.btc_hourly`.
 2. **Feature Engineering + Selection** -> `02_feature_engineering` writes `<catalog>.features.btc_features` with exact next-hour target `target_close_1h` and updates active selected-feature metadata in `<catalog>.features.feature_selection_config`.
-3. **Model Training** -> Regression-only Optuna LightGBM/XGBoost/Random Forest training + MLflow tracking.
-4. **Champion vs Challenger** -> Select the best candidate run, register it as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
-5. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
-6. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics`, drift metrics, and job quality metrics.
+3. **Prediction** -> `<catalog>.predictions.btc_predictions` using `@Champion`; return forecasts are converted to `predicted_close` for monitoring.
+4. **Monitoring** -> `<catalog>.monitoring.pipeline_metrics`, pipeline metrics, drift metrics, and optional training-trigger metrics.
+5. **Model Training** -> On-demand regression-only Optuna LightGBM/XGBoost/Random Forest training + MLflow tracking.
+6. **Champion vs Challenger** -> Select the best candidate run, register it as Challenger, evaluate Challenger and current Champion on the same bounded holdout rows, then promote only if RMSE and MAE improve and directional accuracy does not regress.
 
 ## Multi-Environment
 
@@ -105,7 +111,8 @@ Thiết kế ưu tiên sự đơn giản vận hành: không còn job drift/mode
 
 ## Schedules
 
-- **Data prediction job**: every hour; runs the full data, training, prediction, and monitoring path.
+- **Inference job**: every hour; runs ingestion, feature engineering, Champion prediction, and monitoring.
+- **Training job**: manual or drift-triggered; runs parallel model training and Champion/Challenger promotion.
 
 ## Environment Parameterization
 
@@ -145,11 +152,9 @@ Implemented drift monitoring:
 Retraining flow:
 
 ```text
-New scheduled hourly run
+Manual run or drift-triggered run
         ↓
-Ingest latest closed Binance candles
-        ↓
-Rebuild features and selected-feature config
+Read latest feature table and active feature config
         ↓
 Train LightGBM, XGBoost and Random Forest on latest feature table
         ↓
@@ -157,5 +162,6 @@ Select best challenger, promote if evaluation passes
 ```
 
 Job structure:
-- `btc_data_prediction_job` runs the full hourly path: ingestion, feature engineering, feature selection, parallel LightGBM/XGBoost/Random Forest training, best-challenger selection, Champion/Challenger promotion, prediction, regular monitoring, drift monitoring, and job quality monitoring.
-- Training in this job trains directly on the latest feature table each hourly run.
+- `btc_inference_job` runs hourly: ingestion, feature engineering, Champion prediction, and monitoring.
+- `btc_training_job` runs manually or when monitoring triggers it: parallel LightGBM/XGBoost/Random Forest training followed by Champion/Challenger promotion.
+- Training is decoupled from hourly inference to avoid retraining on the full feature table every hour.

@@ -416,6 +416,74 @@ selection_pdf = selection_pdf[available_features + [target_col]].dropna()
 print(f"feature_selection_rows={len(selection_pdf)}")
 if len(selection_pdf) < 6:
     print("feature_selection_skip=too_few_samples")
+    fallback_feature_candidates = [
+        "return_1h", "return_6h", "return_24h",
+        "close_ma7_ratio", "close_ma24_ratio", "close_ma168_ratio",
+        "macd", "macd_signal", "macd_hist",
+        "rsi_14", "atr_14", "atr_ratio", "bb_width",
+        "volume_ratio", "log_volume", "hl_spread", "oc_change",
+        "close_lag_1h", "close_lag_2h", "close_lag_4h", "close_lag_12h", "close_lag_24h",
+        "hour", "day_of_week", "hour_sin", "hour_cos", "weekday_sin", "weekday_cos",
+    ]
+    selected_features = [column for column in fallback_feature_candidates if column in available_features]
+    if not selected_features:
+        raise ValueError("Fallback feature selection produced an empty selected_features list")
+    features_to_drop = set(available_features) - set(selected_features)
+    created_at = pd.Timestamp.now(tz="UTC")
+    config_id = int(created_at.timestamp() * 1000)
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {feature_config_ref} (
+            config_key STRING,
+            config_value STRING,
+            config_id BIGINT,
+            config_version BIGINT,
+            created_at STRING,
+            created_by STRING,
+            is_active BOOLEAN,
+            n_features BIGINT,
+            method STRING,
+            source_table STRING,
+            source_table_version BIGINT,
+            target_col STRING,
+            candidate_features_json STRING,
+            dropped_features_json STRING,
+            selection_metrics_json STRING,
+            corr_threshold DOUBLE,
+            mi_threshold DOUBLE
+        )
+        USING DELTA
+    """)
+    config_df = spark.createDataFrame([{
+        "config_key": "selected_features",
+        "config_value": json.dumps(selected_features),
+        "config_id": config_id,
+        "config_version": config_id,
+        "created_at": created_at.isoformat(),
+        "created_by": "02_feature_engineering",
+        "is_active": True,
+        "n_features": len(selected_features),
+        "method": "fallback_too_few_samples",
+        "source_table": features_ref,
+        "source_table_version": features_table_version,
+        "target_col": target_col,
+        "candidate_features_json": json.dumps(available_features),
+        "dropped_features_json": json.dumps(sorted(features_to_drop)),
+        "selection_metrics_json": json.dumps({"feature_selection_rows": len(selection_pdf)}),
+        "corr_threshold": corr_threshold,
+        "mi_threshold": mi_threshold,
+    }])
+    config_df.write.format("delta").mode("append").option(
+        "mergeSchema", "true"
+    ).saveAsTable(feature_config_ref)
+    spark.sql(f"""
+        UPDATE {feature_config_ref}
+        SET is_active = false
+        WHERE config_key = 'selected_features'
+          AND is_active = true
+          AND COALESCE(config_id, config_version) != {config_id}
+    """)
+    print(f"fallback_feature_config_saved={feature_config_ref}")
+    print(f"feature_config_id={config_id}")
     dbutils.notebook.exit("SKIPPED: Not enough samples for feature selection")
 
 X = selection_pdf[available_features]

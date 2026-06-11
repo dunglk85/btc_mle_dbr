@@ -75,6 +75,9 @@ resources:
               timeout_seconds: "900"
               model_algo: "lightgbm"
               allow_default_feature_fallback: "true"
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
         - task_key: model_training_reg_xgb
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -85,6 +88,9 @@ resources:
               timeout_seconds: "900"
               model_algo: "xgboost"
               allow_default_feature_fallback: "true"
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
         - task_key: model_training_reg_rf
           notebook_task:
             notebook_path: notebooks/03_optuna_training
@@ -95,6 +101,9 @@ resources:
               timeout_seconds: "900"
               model_algo: "random_forest"
               allow_default_feature_fallback: "true"
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
         - task_key: champion_challenger
           notebook_task:
             notebook_path: notebooks/04_champion_challenger

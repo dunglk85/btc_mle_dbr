@@ -2,10 +2,10 @@
 
 ## Prerequisites
 
-Run the data prediction job at least once for operational and prediction metrics:
+Run the inference job at least once for operational and prediction metrics:
 
 ```text
-btc_data_prediction_job
+btc_inference_job
 ```
 
 Confirm monitoring data exists:
@@ -40,11 +40,11 @@ Recommended dashboard tiles:
 - Latest predictions table.
 - Actual vs predicted table.
 - Prediction error trend chart.
-- Training dataset manifests from recent model refresh runs.
+- Training dataset manifests from recent `btc_training_job` runs.
 - Prediction/model lineage table for `btc_predictions`.
 - Latest model explanation: top SHAP features and built-in feature importance.
 - Monitoring alerts table.
-- Job quality metrics and alerts.
+- Training trigger status metrics and alerts.
 
 Drift tiles:
 - Data drift PSI/KS by feature.
@@ -108,11 +108,18 @@ Recommended alert conditions:
 - No recent prediction: `prediction_age_hours > 3`.
 - High prediction error: at least 12 evaluated predictions and `avg_pct_error > 0.05`.
 - Feature target nulls beyond expected last row: `target_null_count > 1`.
+- Training trigger failure: `training_trigger_failure_count > 0`.
 
 Drift alert conditions:
 - Data drift PSI exceeds threshold, for example `psi > 0.2`.
 - Rolling RMSE exceeds Champion validation RMSE by configured multiplier.
 - Direction accuracy drops below configured threshold.
+
+Validate drift thresholds manually with:
+
+```text
+notebooks/test_drift_thresholds.py
+```
 
 Drift metrics are written by:
 
@@ -120,7 +127,7 @@ Drift metrics are written by:
 notebooks/06_monitoring.py
 ```
 
-Drift metrics are produced by the `drift_monitoring` task inside the hourly `btc_data_prediction_job`.
+Drift metrics are produced by the `monitoring` task inside the hourly `btc_inference_job`. If `training_job_id` is configured and drift alert count reaches the trigger threshold, monitoring can start `btc_training_job` through the Databricks Jobs API.
 
 ## Fallback If SQL Alerts Are Not Available
 
@@ -132,10 +139,10 @@ The notebook:
 notebooks/06_monitoring.py
 ```
 
-raises an error when alert metrics are produced. Configure job notifications on:
+can raise an error when `fail_on_alert=true`. Configure job notifications on:
 
 ```text
-btc_data_prediction_job
+btc_inference_job
 ```
 
 Notify on:

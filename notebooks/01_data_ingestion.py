@@ -33,8 +33,10 @@ table_name = "btc_hourly"
 table_ref = f"{catalog}.{raw_schema}.{table_name}"
 symbol = "BTCUSDT"
 interval = "1h"
-limit = int(get_widget("limit", "24"))
+requested_limit = int(get_widget("limit", "24"))
 start_date = get_widget("start_date", "")
+default_backfill_start_date = get_widget("default_backfill_start_date", "2025-01-01")
+backfill_limit = int(get_widget("backfill_limit", "1000000"))
 base_url = "https://data-api.binance.vision/api/v3/klines"
 max_page_size = 1000
 api_retries = 3
@@ -45,8 +47,10 @@ print("RUNNING DIRECT BINANCE INGESTION NOTEBOOK")
 print(f"table_ref={table_ref}")
 print(f"symbol={symbol}")
 print(f"interval={interval}")
-print(f"limit={limit}")
+print(f"requested_limit={requested_limit}")
 print(f"start_date={start_date}")
+print(f"default_backfill_start_date={default_backfill_start_date}")
+print(f"backfill_limit={backfill_limit}")
 print(f"run_started_at={run_started_at.isoformat()}")
 
 # COMMAND ----------
@@ -97,16 +101,26 @@ if start_date:
         .timestamp()
         * 1000
     )
+    effective_limit = backfill_limit if requested_limit == 24 else requested_limit
     print("mode=backfill_from_start_date")
 else:
     latest_open_time_ms = latest_raw_open_time_ms()
     if latest_open_time_ms is not None:
         start_time = latest_open_time_ms + 1
+        effective_limit = requested_limit
         print("mode=incremental")
     else:
-        raise ValueError("start_date is required when raw table is empty")
+        start_time = int(
+            datetime.strptime(default_backfill_start_date, "%Y-%m-%d")
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+            * 1000
+        )
+        effective_limit = backfill_limit
+        print("mode=initial_backfill_from_default_start_date")
 
 print(f"start_time={start_time}")
+print(f"effective_limit={effective_limit}")
 
 
 def fetch_page(page_limit, page_start_time=None):
@@ -132,7 +146,7 @@ def fetch_page(page_limit, page_start_time=None):
 
 
 rows = []
-remaining = limit
+remaining = effective_limit
 current_start = start_time
 while remaining > 0:
     page_limit = min(remaining, max_page_size)

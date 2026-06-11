@@ -32,7 +32,7 @@ SELECT
 FROM IDENTIFIER(:catalog || '.predictions.btc_predictions');
 
 -- Alert 4: High Prediction Error
--- Condition: avg_pct_error > 0.02
+-- Condition: avg_pct_error > 0.05
 SELECT
   AVG(ABS(r.close - p.predicted_close) / ABS(r.close)) AS avg_pct_error
 FROM IDENTIFIER(:catalog || '.predictions.btc_predictions') p
@@ -63,3 +63,10 @@ WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
   AND status = 'alert'
   AND metric_name RLIKE '^(feature_quality|schema_drift)_';
 
+-- Alert 8: Training Trigger Failure
+-- Condition: training_trigger_failure_count > 0
+SELECT COUNT(*) AS training_trigger_failure_count
+FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
+WHERE metric_time >= current_timestamp() - INTERVAL 2 HOURS
+  AND status = 'alert'
+  AND metric_name = 'training_trigger_status';

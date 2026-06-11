@@ -5,7 +5,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 ## Architecture
 
 - **Data**: Binance Vision API -> direct raw Delta MERGE (Unity Catalog)
-- **ML**: active feature selection config + Optuna LightGBM/XGBoost/Random Forest training + MLflow tracking
+- **ML**: hourly inference with on-demand Optuna LightGBM/XGBoost/Random Forest training + MLflow tracking
 - **CI/CD**: GitHub Actions + Databricks Asset Bundles (DABs)
 - **Monitoring**: Data quality, model performance, job health
 
@@ -43,7 +43,8 @@ databricks bundle validate
 
 ## Databricks Jobs
 
-- `btc_data_prediction_job`: hourly ingestion, feature engineering, feature selection, LightGBM/XGBoost/Random Forest training, dataset replay, Champion/Challenger promotion, prediction, and monitoring.
+- `btc_inference_job`: hourly ingestion, feature engineering, Champion prediction, and monitoring.
+- `btc_training_job`: manual or drift-triggered LightGBM/XGBoost/Random Forest training and Champion/Challenger promotion.
 
 ## CI/CD Branch Mapping
 
@@ -57,7 +58,6 @@ databricks bundle validate
 
 - Feature selection is governed by append-only `features.feature_selection_config` with one active config.
 - Training logs raw/features/config Delta versions to MLflow and `monitoring.training_dataset_manifests`.
-- `12_training_dataset_replay.py` validates `VERSION AS OF` replay before model promotion.
 - Champion/Challenger promotion compares both models on the same bounded holdout rows.
 - Predictions store both serving-input lineage and Champion training lineage.
 

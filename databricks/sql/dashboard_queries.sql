@@ -129,7 +129,7 @@ SELECT
   status,
   details
 FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
-WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'
+WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift|training_trigger)_'
 ORDER BY metric_time DESC, metric_name
 LIMIT 300;
 
@@ -141,7 +141,7 @@ SELECT
   status,
   details
 FROM IDENTIFIER(:catalog || '.monitoring.pipeline_metrics')
-WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift)_'
+WHERE metric_name RLIKE '^(data_drift|label_drift|prediction_drift|model_drift|concept_drift|feature_quality|schema_drift|training_trigger)_'
   AND status IN ('alert', 'warn')
 ORDER BY metric_time DESC, metric_name
 LIMIT 100;

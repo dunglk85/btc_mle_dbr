@@ -31,5 +31,5 @@ jobs:
           test -n "$DATABRICKS_HOST" || (echo "Missing DATABRICKS_HOST secret" && exit 1)
           test -n "$DATABRICKS_TOKEN" || (echo "Missing DATABRICKS_TOKEN secret" && exit 1)
 
-      - name: Run Databricks data prediction job
-        run: databricks bundle run btc_data_prediction_job --target "${{ inputs.target }}"
+      - name: Run Databricks inference job
+        run: databricks bundle run btc_inference_job --target "${{ inputs.target }}"
