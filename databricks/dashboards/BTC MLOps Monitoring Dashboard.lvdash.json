@@ -767,6 +767,50 @@
       ],
       "catalog": "btc_simply",
       "schema": "monitoring"
+    },
+    {
+      "name": "champion_explanation_health",
+      "displayName": "Champion Explanation Health",
+      "queryLines": [
+        "WITH champion AS (\n",
+        "  SELECT model_run_id\n",
+        "  FROM btc_simply.predictions.btc_predictions\n",
+        "  ORDER BY prediction_time DESC\n",
+        "  LIMIT 1\n",
+        "),\n",
+        "shap_stats AS (\n",
+        "  SELECT\n",
+        "    count(*) AS shap_row_count,\n",
+        "    max(e.mean_abs_shap) AS max_mean_abs_shap,\n",
+        "    avg(e.mean_abs_shap) AS avg_mean_abs_shap,\n",
+        "    max(e.importance) AS max_importance\n",
+        "  FROM btc_simply.monitoring.model_explanations e\n",
+        "    INNER JOIN champion c\n",
+        "      ON e.run_id = c.model_run_id\n",
+        "),\n",
+        "explanation_exists AS (\n",
+        "  SELECT\n",
+        "    CASE WHEN count(*) > 0 THEN 'YES' ELSE 'NO' END AS has_explanations\n",
+        "  FROM btc_simply.monitoring.model_explanations e\n",
+        "    INNER JOIN champion c\n",
+        "      ON e.run_id = c.model_run_id\n",
+        ")\n",
+        "SELECT\n",
+        "  coalesce(ss.shap_row_count, 0) AS explanation_row_count,\n",
+        "  coalesce(ss.max_mean_abs_shap, 0.0) AS max_shap_value,\n",
+        "  coalesce(ss.avg_mean_abs_shap, 0.0) AS avg_shap_value,\n",
+        "  coalesce(ss.max_importance, 0.0) AS max_importance_value,\n",
+        "  CASE\n",
+        "    WHEN ee.has_explanations = 'NO' THEN 'NO_EXPLANATIONS'\n",
+        "    WHEN coalesce(ss.max_mean_abs_shap, 0.0) = 0.0 AND coalesce(ss.max_importance, 0.0) = 0.0 THEN 'DEGENERATE_MODEL'\n",
+        "    WHEN coalesce(ss.max_mean_abs_shap, 0.0) < 1e-10 THEN 'NEAR_ZERO_EXPLANATIONS'\n",
+        "    ELSE 'HEALTHY'\n",
+        "  END AS explanation_status\n",
+        "FROM shap_stats ss\n",
+        "  CROSS JOIN explanation_exists ee"
+      ],
+      "catalog": "btc_simply",
+      "schema": "monitoring"
     }
   ],
   "pages": [
@@ -1692,6 +1736,75 @@
         },
         {
           "widget": {
+            "name": "champion_explanation_health_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_explanation_health",
+                  "fields": [
+                    {
+                      "name": "explanation_status",
+                      "expression": "`explanation_status`"
+                    },
+                    {
+                      "name": "explanation_row_count",
+                      "expression": "`explanation_row_count`"
+                    },
+                    {
+                      "name": "max_shap_value",
+                      "expression": "`max_shap_value`"
+                    },
+                    {
+                      "name": "avg_shap_value",
+                      "expression": "`avg_shap_value`"
+                    },
+                    {
+                      "name": "max_importance_value",
+                      "expression": "`max_importance_value`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Champion Explanation Health",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "explanation_status"
+                  },
+                  {
+                    "fieldName": "explanation_row_count"
+                  },
+                  {
+                    "fieldName": "max_shap_value"
+                  },
+                  {
+                    "fieldName": "avg_shap_value"
+                  },
+                  {
+                    "fieldName": "max_importance_value"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 12,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
             "name": "champion_model_status_table",
             "queries": [
               {
@@ -1782,7 +1895,7 @@
           },
           "position": {
             "x": 0,
-            "y": 17,
+            "y": 16,
             "width": 12,
             "height": 4
           }
@@ -1886,7 +1999,7 @@
           },
           "position": {
             "x": 0,
-            "y": 21,
+            "y": 20,
             "width": 6,
             "height": 10
           }
@@ -2018,7 +2131,7 @@
           },
           "position": {
             "x": 6,
-            "y": 21,
+            "y": 20,
             "width": 6,
             "height": 10
           }
