@@ -1375,45 +1375,6 @@
       "layout": [
         {
           "widget": {
-            "name": "avg_abs_error",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "error_stats",
-                  "fields": [
-                    {
-                      "name": "avg_abs_error",
-                      "expression": "`avg_abs_error`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Average Absolute Error",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "avg_abs_error"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 0,
-            "width": 2,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
             "name": "avg_pct_error",
             "queries": [
               {
@@ -1451,85 +1412,52 @@
             }
           },
           "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "max_pct_error",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "max_pct_error",
+                      "expression": "`max_pct_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.00%"
+                }
+              },
+              "frame": {
+                "title": "Max % Error",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max_pct_error"
+                }
+              }
+            }
+          },
+          "position": {
             "x": 2,
-            "y": 0,
-            "width": 2,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "max_abs_error",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "error_stats",
-                  "fields": [
-                    {
-                      "name": "max_abs_error",
-                      "expression": "`max_abs_error`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Max Absolute Error",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "max_abs_error"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 4,
-            "y": 0,
-            "width": 2,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "total_predictions",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "error_stats",
-                  "fields": [
-                    {
-                      "name": "total_predictions",
-                      "expression": "`total_predictions`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Total Predictions",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "total_predictions"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 6,
             "y": 0,
             "width": 2,
             "height": 4
@@ -1568,7 +1496,7 @@
             }
           },
           "position": {
-            "x": 8,
+            "x": 4,
             "y": 0,
             "width": 2,
             "height": 4
@@ -1608,6 +1536,84 @@
               "encodings": {
                 "value": {
                   "fieldName": "r_squared"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "total_predictions",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "total_predictions",
+                      "expression": "`total_predictions`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Total Predictions",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_predictions"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 0,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "avg_abs_error",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "error_stats",
+                  "fields": [
+                    {
+                      "name": "avg_abs_error",
+                      "expression": "`avg_abs_error`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Average Absolute Error",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_abs_error"
                 }
               }
             }
@@ -1694,22 +1700,6 @@
                   "datasetName": "error_stats",
                   "fields": [
                     {
-                      "name": "avg_abs_error",
-                      "expression": "`avg_abs_error`"
-                    },
-                    {
-                      "name": "avg_pct_error",
-                      "expression": "`avg_pct_error`"
-                    },
-                    {
-                      "name": "max_abs_error",
-                      "expression": "`max_abs_error`"
-                    },
-                    {
-                      "name": "max_pct_error",
-                      "expression": "`max_pct_error`"
-                    },
-                    {
                       "name": "min_abs_error",
                       "expression": "`min_abs_error`"
                     },
@@ -1731,36 +1721,6 @@
               "widgetType": "table",
               "encodings": {
                 "columns": [
-                  {
-                    "fieldName": "avg_abs_error",
-                    "displayName": "Avg Abs Error"
-                  },
-                  {
-                    "fieldName": "avg_pct_error",
-                    "format": {
-                      "type": "number-percent",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Avg % Error"
-                  },
-                  {
-                    "fieldName": "max_abs_error",
-                    "displayName": "Max Abs Error"
-                  },
-                  {
-                    "fieldName": "max_pct_error",
-                    "format": {
-                      "type": "number-percent",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Max % Error"
-                  },
                   {
                     "fieldName": "min_abs_error",
                     "displayName": "Min Abs Error"
