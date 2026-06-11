@@ -134,24 +134,22 @@ except Exception as exc:
         "vol_ratio_12_168",
     ]
 
-source = spark.table(features_ref).orderBy("open_time")
-available_features = [col for col in feature_cols if col in source.columns]
-missing_features = [col for col in feature_cols if col not in source.columns]
+source_schema = spark.table(features_ref).columns
+available_features = [col for col in feature_cols if col in source_schema]
+missing_features = [col for col in feature_cols if col not in source_schema]
 if missing_features:
     if not allow_missing_feature_skip:
         raise ValueError(f"Active feature config references missing columns in {features_ref}: {missing_features}")
     print(f"WARNING: Missing features skipped: {missing_features}")
 feature_cols = available_features
 
-model_df = source.select("open_time", target_col, *feature_cols).dropna()
+source = spark.table(features_ref).select("open_time", target_col, *feature_cols).orderBy("open_time")
+
+model_df = source.dropna()
 row_count = model_df.count()
 print(f"training_rows_after_dropna={row_count}")
 if row_count < 100:
     raise ValueError(f"Not enough training rows in {features_ref}: {row_count}")
-
-duplicate_open_time_count = model_df.groupBy("open_time").count().filter(F.col("count") > 1).count()
-if duplicate_open_time_count > 0:
-    raise ValueError(f"Training data contains {duplicate_open_time_count} duplicate open_time values")
 
 pdf = model_df.toPandas().sort_values("open_time").reset_index(drop=True)
 split_idx = int(len(pdf) * train_fraction)

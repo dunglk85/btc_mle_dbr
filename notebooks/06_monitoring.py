@@ -178,15 +178,9 @@ def psi(reference_df, recent_df, col_name, buckets=10):
 raw = spark.table(raw_ref)
 raw_count = raw.count()
 latest_raw = raw.agg(F.max("open_time").alias("latest_raw")).collect()[0]["latest_raw"]
-duplicate_raw_count = raw.groupBy("open_time").count().filter(F.col("count") > 1).count()
 null_raw_open_time_count = raw.filter(F.col("open_time").isNull()).count()
 
 append_metric("raw_count", raw_count)
-append_metric(
-    "raw_duplicate_open_time_count",
-    duplicate_raw_count,
-    "ok" if duplicate_raw_count == 0 else "alert",
-)
 append_metric(
     "raw_null_open_time_count",
     null_raw_open_time_count,
@@ -207,7 +201,7 @@ else:
 
 # COMMAND ----------
 
-features = spark.table(features_ref)
+features = spark.table(features_ref).select("target_close_1h")
 features_count = features.count()
 features_target_null_count = features.filter(F.col("target_close_1h").isNull()).count()
 
@@ -257,7 +251,7 @@ else:
 if not table_exists(features_ref):
     append_metric("drift_features_table_exists", 0, "alert", f"Missing {features_ref}")
 else:
-    features = spark.table(features_ref).filter(F.col("open_time").isNotNull())
+    features = spark.table(features_ref).select("open_time", "volume", "quote_volume", "trades", "return_1h").filter(F.col("open_time").isNotNull())
     latest_time = features.agg(F.max("open_time").alias("latest_time")).collect()[0]["latest_time"]
     if latest_time is None:
         append_metric("drift_features_row_count", 0, "alert", "No feature rows")

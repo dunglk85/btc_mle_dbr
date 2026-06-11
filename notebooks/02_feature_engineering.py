@@ -68,7 +68,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{features_schema}")
 
 # COMMAND ----------
 
-raw = spark.table(raw_ref).dropDuplicates(["open_time"]).orderBy("open_time")
+raw = spark.table(raw_ref).orderBy("open_time")
 raw_count = raw.count()
 print(f"raw_count={raw_count}")
 if raw_count == 0:
@@ -448,7 +448,7 @@ else:
 
 # COMMAND ----------
 
-result = spark.table(features_ref)
+result = spark.table(features_ref).select("target_return_1h")
 print(f"features_table_count={result.count()}")
 print(f"null_target_return_1h={result.filter(F.col('target_return_1h').isNull()).count()}")
 

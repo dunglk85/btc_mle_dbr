@@ -373,16 +373,16 @@ spark.sql(f"""
 """)
 print(f"champion_status_written={champion_status_ref}")
 
-source = spark.table(features_ref)
+select_cols = ["open_time", *feature_cols]
+if "close" not in feature_cols:
+    select_cols.append("close")
+
+source = spark.table(features_ref).select(*select_cols)
 missing_features = [col for col in feature_cols if col not in source.columns]
 if missing_features:
     raise ValueError(f"Missing prediction features in {features_ref}: {missing_features}")
 if "close" not in source.columns:
     raise ValueError(f"Missing close column in {features_ref}; cannot convert return prediction to close")
-
-select_cols = ["open_time", *feature_cols]
-if "close" not in feature_cols:
-    select_cols.append("close")
 
 latest = source.select(*select_cols).dropna(subset=feature_cols + ["close"]).orderBy(
     F.col("open_time").desc()

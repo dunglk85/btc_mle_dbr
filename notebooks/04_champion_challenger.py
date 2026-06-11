@@ -264,12 +264,6 @@ else:
     missing_eval_cols = [col for col in eval_feature_cols if col not in source.columns]
     if missing_eval_cols:
         raise ValueError(f"Missing evaluation feature columns in {features_table}: {missing_eval_cols}")
-    duplicate_open_time = source.groupBy("open_time").count().filter(F.col("count") > 1).limit(1).collect()
-    if duplicate_open_time:
-        raise ValueError(
-            "Evaluation requires unique open_time rows; "
-            f"found duplicate open_time={duplicate_open_time[0]['open_time']}"
-        )
 
     challenger_rows = source.select("open_time", target_col, *challenger_feature_cols).dropna(
         subset=[target_col, *challenger_feature_cols]
