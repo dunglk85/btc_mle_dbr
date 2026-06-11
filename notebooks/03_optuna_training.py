@@ -130,7 +130,7 @@ except Exception as exc:
         "roc_3h", "roc_6h", "roc_12h",
         "price_acceleration",
         "vol_price_divergence",
-        "return_skew_168h", "return_kurt_168h",
+        "return_asymmetry_168h", "return_tail_weight_168h",
         "vol_ratio_12_168",
     ]
 

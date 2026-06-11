@@ -333,10 +333,19 @@ features = features.withColumn(
     F.col("volume_trend_24h") - F.col("price_trend_24h"),
 )
 
-# --- Return Skewness & Kurtosis (168h window) ---
-dist_window = w.rowsBetween(-168, -1)
-features = features.withColumn("return_skew_168h", F.skewness("return_1h").over(dist_window))
-features = features.withColumn("return_kurt_168h", F.kurtosis("return_1h").over(dist_window))
+# --- Return Skewness & Kurtosis approximations (168h window) ---
+# Photon doesn't optimize skewness/kurtosis over windows well.
+# Use simpler asymmetry and tail-weight proxies instead.
+features = features.withColumn(
+    "return_asymmetry_168h",
+    (F.col("return_1h") - F.avg("return_1h").over(dist_window))
+    / F.stddev("return_1h").over(dist_window),
+)
+features = features.withColumn(
+    "return_tail_weight_168h",
+    F.abs(F.col("return_1h") - F.avg("return_1h").over(dist_window))
+    / F.stddev("return_1h").over(dist_window),
+)
 
 # --- Intraday Volatility Pattern: ratio of recent vol to long-term vol ---
 features = features.withColumn(
@@ -476,9 +485,9 @@ candidate_features = [
     "roc_3h", "roc_6h", "roc_12h",
     "price_acceleration",
     "vol_price_divergence",
-    "return_skew_168h", "return_kurt_168h",
+    "return_asymmetry_168h",
+    "return_tail_weight_168h",
     "vol_ratio_12_168",
-    "open", "high", "low", "close", "volume", "quote_volume", "trades",
 ]
 target_col = "target_return_1h"
 features_table_version = int(spark.sql(f"DESCRIBE HISTORY {features_ref} LIMIT 1").collect()[0]["version"])
@@ -510,7 +519,7 @@ if len(selection_pdf) < 6:
         "roc_3h", "roc_6h", "roc_12h",
         "price_acceleration",
         "vol_price_divergence",
-        "return_skew_168h", "return_kurt_168h",
+        "return_asymmetry_168h", "return_tail_weight_168h",
         "vol_ratio_12_168",
     ]
     selected_features = [column for column in fallback_feature_candidates if column in available_features]
