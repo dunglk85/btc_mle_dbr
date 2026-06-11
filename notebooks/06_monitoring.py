@@ -26,8 +26,6 @@ catalog = get_widget("catalog", "btc_simply")
 recent_hours = int(get_widget("recent_hours", "168"))
 reference_hours = int(get_widget("reference_hours", "720"))
 fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"
-trigger_training_on_drift = get_widget("trigger_training_on_drift", "false").lower() == "true"
-training_job_name = get_widget("training_job_name", "")
 min_drift_alerts_to_trigger = int(get_widget("min_drift_alerts_to_trigger", "2"))
 expected_feature_lookback_loss = int(get_widget("expected_feature_lookback_loss", "168"))
 
@@ -56,8 +54,6 @@ print(f"metrics_ref={metrics_ref}")
 print(f"recent_hours={recent_hours}")
 print(f"reference_hours={reference_hours}")
 print(f"fail_on_alert={fail_on_alert}")
-print(f"trigger_training_on_drift={trigger_training_on_drift}")
-print(f"training_job_name={training_job_name}")
 print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
 
 # COMMAND ----------
@@ -483,74 +479,19 @@ else:
 
 # COMMAND ----------
 
-# --- Drift-Triggered Training ---
+# --- Drift-Triggered Training Gate ---
 
-pre_trigger_metrics_df = spark.createDataFrame(metrics)
-pre_trigger_alert_count = pre_trigger_metrics_df.filter(F.col("status") == "alert").count()
+drift_alert_count = spark.createDataFrame(metrics).filter(
+    F.col("status") == "alert"
+).filter(
+    F.col("metric_name").rlike("^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_")
+).count()
 
-if not trigger_training_on_drift:
-    append_metric("training_trigger_status", 0, "ok", "trigger_training_on_drift=false")
-    print("trigger_training_on_drift=false; skipping training trigger check")
-else:
-    drift_alert_count = pre_trigger_metrics_df.filter(
-        F.col("status") == "alert"
-    ).filter(
-        F.col("metric_name").rlike("^(data_drift|label_drift|prediction_drift|model_drift|concept_drift)_")
-    ).count()
+print(f"drift_alert_count={drift_alert_count}")
+print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
+print(f"drift_threshold_met={drift_alert_count >= min_drift_alerts_to_trigger}")
 
-    print(f"drift_alert_count={drift_alert_count}")
-    print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
-
-    append_metric(
-        "training_trigger_drift_alert_count",
-        drift_alert_count,
-        "ok" if drift_alert_count < min_drift_alerts_to_trigger else "warn",
-        f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}",
-    )
-
-    if drift_alert_count >= min_drift_alerts_to_trigger:
-        print(f"DRIFT_THRESHOLD_MET: {drift_alert_count} drift alerts >= {min_drift_alerts_to_trigger}")
-
-        if training_job_name:
-            try:
-                try:
-                    from databricks.sdk import WorkspaceClient
-                except ImportError as exc:
-                    raise RuntimeError("databricks-sdk is required to trigger training job") from exc
-
-                workspace = WorkspaceClient()
-                matches = list(workspace.jobs.list(name=training_job_name))
-                if not matches:
-                    raise ValueError(f"Could not find Databricks job named '{training_job_name}'")
-                if len(matches) > 1:
-                    raise ValueError(f"Found multiple Databricks jobs named '{training_job_name}'")
-
-                resolved_job_id = matches[0].job_id
-                print(f"resolved_job_name='{training_job_name}' → job_id={resolved_job_id}")
-
-                run = workspace.jobs.run_now(job_id=resolved_job_id)
-                print(f"training_job_triggered=true run_id={run.run_id}")
-                append_metric(
-                    "training_trigger_status",
-                    1,
-                    "ok",
-                    f"Triggered training_job_name='{training_job_name}' (id={resolved_job_id}); run_id={run.run_id}",
-                )
-            except Exception as exc:
-                print(f"training_job_trigger_failed={exc}")
-                append_metric(
-                    "training_trigger_status",
-                    0,
-                    "warn",
-                    f"Failed to trigger training_job_name='{training_job_name}': {exc}",
-                )
-        else:
-            message = "training_job_name not set; training must be triggered manually or via scheduled run"
-            print(message)
-            append_metric("training_trigger_status", 0, "warn", message)
-    else:
-        append_metric("training_trigger_status", 0, "ok", "DRIFT_THRESHOLD_NOT_MET")
-        print("DRIFT_THRESHOLD_NOT_MET; no training trigger needed")
+dbutils.jobs.taskValues.set(key="drift_alert_count", value=drift_alert_count)
 
 # COMMAND ----------
 
