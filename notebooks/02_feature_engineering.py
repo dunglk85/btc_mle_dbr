@@ -415,8 +415,8 @@ lookback_required_cols = [
     "roc_6h",
     "roc_12h",
     "vol_price_divergence",
-    "return_skew_168h",
-    "return_kurt_168h",
+    "return_asymmetry_168h",
+    "return_tail_weight_168h",
     "vol_ratio_12_168",
 ]
 pre_lookback_drop_count = features.count()
