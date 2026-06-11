@@ -448,7 +448,7 @@ else:
 
 # COMMAND ----------
 
-result = spark.table(features_ref).select("target_return_1h")
+result = spark.table(features_ref)
 print(f"features_table_count={result.count()}")
 print(f"null_target_return_1h={result.filter(F.col('target_return_1h').isNull()).count()}")
 
