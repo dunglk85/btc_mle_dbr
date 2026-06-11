@@ -548,17 +548,114 @@
         "  btc_simply.monitoring.pipeline_metrics\n",
         "WHERE\n",
         "  metric_name IN (\n",
-        "    'model_drift_rmse_24h',\n",
-        "    'model_drift_mae_24h',\n",
-        "    'model_drift_mape_24h',\n",
-        "    'model_drift_direction_accuracy_24h',\n",
-        "    'model_drift_p95_abs_error_24h',\n",
-        "    'concept_drift_mean_error_bias_24h'\n",
+        "    'model_drift_rmse_168h',\n",
+        "    'model_drift_mae_168h',\n",
+        "    'model_drift_mape_168h',\n",
+        "    'model_drift_direction_accuracy_168h',\n",
+        "    'model_drift_p95_abs_error_168h',\n",
+        "    'concept_drift_mean_error_bias_168h'\n",
         "  )\n",
         "ORDER BY\n",
         "  metric_time DESC,\n",
         "  metric_name\n",
         "LIMIT 300"
+      ],
+      "catalog": "btc_simply",
+      "schema": "monitoring"
+    },
+    {
+      "name": "champion_model_status",
+      "displayName": "Current Champion Model",
+      "queryLines": [
+        "SELECT\n",
+        "  updated_at,\n",
+        "  model_name,\n",
+        "  model_alias,\n",
+        "  model_version,\n",
+        "  model_run_id,\n",
+        "  model_algo,\n",
+        "  model_target_col,\n",
+        "  rmse,\n",
+        "  mae,\n",
+        "  r2,\n",
+        "  mape,\n",
+        "  directional_accuracy,\n",
+        "  raw_table_version,\n",
+        "  features_table_version,\n",
+        "  feature_config_version,\n",
+        "  feature_config_id,\n",
+        "  n_features\n",
+        "FROM\n",
+        "  btc_simply.monitoring.champion_model_status\n",
+        "WHERE\n",
+        "  model_alias = 'Champion'\n",
+        "ORDER BY\n",
+        "  updated_at DESC\n",
+        "LIMIT 1"
+      ],
+      "catalog": "btc_simply",
+      "schema": "monitoring"
+    },
+    {
+      "name": "champion_shap_summary",
+      "displayName": "Champion SHAP Explanation",
+      "queryLines": [
+        "WITH champion AS (\n",
+        "  SELECT model_run_id\n",
+        "  FROM btc_simply.monitoring.champion_model_status\n",
+        "  WHERE model_alias = 'Champion'\n",
+        "  ORDER BY updated_at DESC\n",
+        "  LIMIT 1\n",
+        ")\n",
+        "SELECT\n",
+        "  e.created_at,\n",
+        "  e.model_algo,\n",
+        "  e.feature,\n",
+        "  e.mean_abs_shap,\n",
+        "  e.mean_shap,\n",
+        "  e.sample_rows,\n",
+        "  e.features_table_version,\n",
+        "  e.feature_config_id\n",
+        "FROM\n",
+        "  btc_simply.monitoring.model_explanations e\n",
+        "    INNER JOIN champion c\n",
+        "      ON e.run_id = c.model_run_id\n",
+        "WHERE\n",
+        "  e.explanation_type = 'shap_summary'\n",
+        "ORDER BY\n",
+        "  e.mean_abs_shap DESC\n",
+        "LIMIT 25"
+      ],
+      "catalog": "btc_simply",
+      "schema": "monitoring"
+    },
+    {
+      "name": "champion_feature_importance",
+      "displayName": "Champion Feature Importance",
+      "queryLines": [
+        "WITH champion AS (\n",
+        "  SELECT model_run_id\n",
+        "  FROM btc_simply.monitoring.champion_model_status\n",
+        "  WHERE model_alias = 'Champion'\n",
+        "  ORDER BY updated_at DESC\n",
+        "  LIMIT 1\n",
+        ")\n",
+        "SELECT\n",
+        "  e.created_at,\n",
+        "  e.model_algo,\n",
+        "  e.feature,\n",
+        "  e.importance,\n",
+        "  e.features_table_version,\n",
+        "  e.feature_config_id\n",
+        "FROM\n",
+        "  btc_simply.monitoring.model_explanations e\n",
+        "    INNER JOIN champion c\n",
+        "      ON e.run_id = c.model_run_id\n",
+        "WHERE\n",
+        "  e.explanation_type = 'feature_importance'\n",
+        "ORDER BY\n",
+        "  e.importance DESC\n",
+        "LIMIT 25"
       ],
       "catalog": "btc_simply",
       "schema": "monitoring"
@@ -1980,6 +2077,298 @@
             "y": 14,
             "width": 12,
             "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "model_explainability",
+      "displayName": "Model Explainability",
+      "layout": [
+        {
+          "widget": {
+            "name": "champion_model_status_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_model_status",
+                  "fields": [
+                    {
+                      "name": "updated_at",
+                      "expression": "`updated_at`"
+                    },
+                    {
+                      "name": "model_name",
+                      "expression": "`model_name`"
+                    },
+                    {
+                      "name": "model_version",
+                      "expression": "`model_version`"
+                    },
+                    {
+                      "name": "model_run_id",
+                      "expression": "`model_run_id`"
+                    },
+                    {
+                      "name": "model_algo",
+                      "expression": "`model_algo`"
+                    },
+                    {
+                      "name": "model_target_col",
+                      "expression": "`model_target_col`"
+                    },
+                    {
+                      "name": "rmse",
+                      "expression": "`rmse`"
+                    },
+                    {
+                      "name": "mae",
+                      "expression": "`mae`"
+                    },
+                    {
+                      "name": "r2",
+                      "expression": "`r2`"
+                    },
+                    {
+                      "name": "mape",
+                      "expression": "`mape`"
+                    },
+                    {
+                      "name": "directional_accuracy",
+                      "expression": "`directional_accuracy`"
+                    },
+                    {
+                      "name": "n_features",
+                      "expression": "`n_features`"
+                    },
+                    {
+                      "name": "features_table_version",
+                      "expression": "`features_table_version`"
+                    },
+                    {
+                      "name": "feature_config_version",
+                      "expression": "`feature_config_version`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Current Champion Model",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "updated_at"
+                  },
+                  {
+                    "fieldName": "model_name"
+                  },
+                  {
+                    "fieldName": "model_version"
+                  },
+                  {
+                    "fieldName": "model_run_id"
+                  },
+                  {
+                    "fieldName": "model_algo"
+                  },
+                  {
+                    "fieldName": "model_target_col"
+                  },
+                  {
+                    "fieldName": "rmse"
+                  },
+                  {
+                    "fieldName": "mae"
+                  },
+                  {
+                    "fieldName": "r2"
+                  },
+                  {
+                    "fieldName": "mape"
+                  },
+                  {
+                    "fieldName": "directional_accuracy"
+                  },
+                  {
+                    "fieldName": "n_features"
+                  },
+                  {
+                    "fieldName": "features_table_version"
+                  },
+                  {
+                    "fieldName": "feature_config_version"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "champion_shap_summary_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_shap_summary",
+                  "fields": [
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    },
+                    {
+                      "name": "mean_abs_shap",
+                      "expression": "`mean_abs_shap`"
+                    },
+                    {
+                      "name": "mean_shap",
+                      "expression": "`mean_shap`"
+                    },
+                    {
+                      "name": "sample_rows",
+                      "expression": "`sample_rows`"
+                    },
+                    {
+                      "name": "model_algo",
+                      "expression": "`model_algo`"
+                    },
+                    {
+                      "name": "created_at",
+                      "expression": "`created_at`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Champion SHAP Explanation",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "feature"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap"
+                  },
+                  {
+                    "fieldName": "mean_shap"
+                  },
+                  {
+                    "fieldName": "sample_rows"
+                  },
+                  {
+                    "fieldName": "model_algo"
+                  },
+                  {
+                    "fieldName": "created_at"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "champion_feature_importance_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_feature_importance",
+                  "fields": [
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    },
+                    {
+                      "name": "importance",
+                      "expression": "`importance`"
+                    },
+                    {
+                      "name": "model_algo",
+                      "expression": "`model_algo`"
+                    },
+                    {
+                      "name": "created_at",
+                      "expression": "`created_at`"
+                    },
+                    {
+                      "name": "features_table_version",
+                      "expression": "`features_table_version`"
+                    },
+                    {
+                      "name": "feature_config_id",
+                      "expression": "`feature_config_id`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Champion Feature Importance",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "feature"
+                  },
+                  {
+                    "fieldName": "importance"
+                  },
+                  {
+                    "fieldName": "model_algo"
+                  },
+                  {
+                    "fieldName": "created_at"
+                  },
+                  {
+                    "fieldName": "features_table_version"
+                  },
+                  {
+                    "fieldName": "feature_config_id"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 9
           }
         }
       ],

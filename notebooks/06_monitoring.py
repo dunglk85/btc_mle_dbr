@@ -438,7 +438,7 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
         )
         append_metric(f"model_drift_p95_abs_error_{recent_hours}h", perf["p95_abs_error"], "ok")
         append_metric(
-            "concept_drift_mean_error_bias_24h",
+            f"concept_drift_mean_error_bias_{recent_hours}h",
             perf["mean_error"],
             "ok",
             "Proxy metric: persistent signed error can indicate concept drift",

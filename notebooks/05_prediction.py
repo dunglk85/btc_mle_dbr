@@ -19,6 +19,7 @@ import mlflow
 import json
 import pandas as pd
 from pyspark.sql import functions as F
+from pyspark.sql import types as T
 from mlflow.exceptions import MlflowException
 from mlflow.tracking import MlflowClient
 
@@ -48,6 +49,7 @@ predictions_ref = f"{catalog}.{predictions_schema}.{predictions_table}"
 champion_uri = f"models:/{catalog}.{model_schema}.{model_name}@Champion"
 full_model_name = f"{catalog}.{model_schema}.{model_name}"
 training_manifest_ref = f"{catalog}.monitoring.training_dataset_manifests"
+champion_status_ref = f"{catalog}.monitoring.champion_model_status"
 
 print("RUNNING SELF-CONTAINED PREDICTION NOTEBOOK")
 print(f"raw_ref={raw_ref}")
@@ -254,6 +256,115 @@ def load_feature_cols_for_champion(run_id, run_params):
 model_target_col = load_champion_target_col(champion_run_id)
 feature_cols = load_feature_cols_for_champion(champion_run_id, champion_run.data.params)
 print(f"model_target_col={model_target_col}")
+
+# COMMAND ----------
+
+# Publish current Champion metadata for dashboards and operators.
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.monitoring")
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {champion_status_ref} (
+        updated_at TIMESTAMP,
+        model_name STRING,
+        model_alias STRING,
+        model_version STRING,
+        model_run_id STRING,
+        model_algo STRING,
+        model_target_col STRING,
+        rmse DOUBLE,
+        mae DOUBLE,
+        r2 DOUBLE,
+        mape DOUBLE,
+        directional_accuracy DOUBLE,
+        raw_table_version BIGINT,
+        features_table_version BIGINT,
+        feature_config_version BIGINT,
+        feature_config_id BIGINT,
+        n_features BIGINT,
+        feature_cols_json STRING
+    )
+    USING DELTA
+""")
+
+def metric_or_none(name):
+    value = champion_run.data.metrics.get(name)
+    return float(value) if value is not None else None
+
+
+champion_status_schema = T.StructType([
+    T.StructField("model_name", T.StringType(), True),
+    T.StructField("model_alias", T.StringType(), True),
+    T.StructField("model_version", T.StringType(), True),
+    T.StructField("model_run_id", T.StringType(), True),
+    T.StructField("model_algo", T.StringType(), True),
+    T.StructField("model_target_col", T.StringType(), True),
+    T.StructField("rmse", T.DoubleType(), True),
+    T.StructField("mae", T.DoubleType(), True),
+    T.StructField("r2", T.DoubleType(), True),
+    T.StructField("mape", T.DoubleType(), True),
+    T.StructField("directional_accuracy", T.DoubleType(), True),
+    T.StructField("raw_table_version", T.LongType(), True),
+    T.StructField("features_table_version", T.LongType(), True),
+    T.StructField("feature_config_version", T.LongType(), True),
+    T.StructField("feature_config_id", T.LongType(), True),
+    T.StructField("n_features", T.LongType(), True),
+    T.StructField("feature_cols_json", T.StringType(), True),
+])
+
+champion_status_df = spark.createDataFrame(
+    [
+        {
+            "model_name": full_model_name,
+            "model_alias": "Champion",
+            "model_version": str(champion_version.version),
+            "model_run_id": champion_run_id,
+            "model_algo": champion_run.data.params.get("model_algo"),
+            "model_target_col": model_target_col,
+            "rmse": metric_or_none("rmse"),
+            "mae": metric_or_none("mae"),
+            "r2": metric_or_none("r2"),
+            "mape": metric_or_none("mape"),
+            "directional_accuracy": metric_or_none("directional_accuracy"),
+            "raw_table_version": model_raw_table_version,
+            "features_table_version": model_features_table_version,
+            "feature_config_version": model_feature_config_version,
+            "feature_config_id": model_feature_config_id,
+            "n_features": len(feature_cols),
+            "feature_cols_json": json.dumps(feature_cols),
+        }
+    ],
+    champion_status_schema,
+).withColumn("updated_at", F.current_timestamp())
+
+champion_status_df.select(
+    "updated_at",
+    "model_name",
+    "model_alias",
+    "model_version",
+    "model_run_id",
+    "model_algo",
+    "model_target_col",
+    "rmse",
+    "mae",
+    "r2",
+    "mape",
+    "directional_accuracy",
+    "raw_table_version",
+    "features_table_version",
+    "feature_config_version",
+    "feature_config_id",
+    "n_features",
+    "feature_cols_json",
+).createOrReplaceTempView("_champion_model_status")
+
+spark.sql(f"""
+    MERGE INTO {champion_status_ref} AS target
+    USING _champion_model_status AS source
+    ON target.model_name = source.model_name
+       AND target.model_alias = source.model_alias
+    WHEN MATCHED THEN UPDATE SET *
+    WHEN NOT MATCHED THEN INSERT *
+""")
+print(f"champion_status_written={champion_status_ref}")
 
 source = spark.table(features_ref)
 missing_features = [col for col in feature_cols if col not in source.columns]
