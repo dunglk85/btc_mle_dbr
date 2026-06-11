@@ -1371,7 +1371,7 @@
     },
     {
       "name": "model_performance",
-      "displayName": "Model Performance",
+      "displayName": "Model Performance & Explainability",
       "layout": [
         {
           "widget": {
@@ -1786,6 +1786,339 @@
             "width": 3,
             "height": 4
           }
+        },
+        {
+          "widget": {
+            "name": "champion_model_status_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_model_status",
+                  "fields": [
+                    {
+                      "name": "updated_at",
+                      "expression": "`updated_at`"
+                    },
+                    {
+                      "name": "model_name",
+                      "expression": "`model_name`"
+                    },
+                    {
+                      "name": "model_version",
+                      "expression": "`model_version`"
+                    },
+                    {
+                      "name": "model_run_id",
+                      "expression": "`model_run_id`"
+                    },
+                    {
+                      "name": "model_algo",
+                      "expression": "`model_algo`"
+                    },
+                    {
+                      "name": "model_target_col",
+                      "expression": "`model_target_col`"
+                    },
+                    {
+                      "name": "n_features",
+                      "expression": "`n_features`"
+                    },
+                    {
+                      "name": "features_table_version",
+                      "expression": "`features_table_version`"
+                    },
+                    {
+                      "name": "feature_config_version",
+                      "expression": "`feature_config_version`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Current Champion Model",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "updated_at"
+                  },
+                  {
+                    "fieldName": "model_name"
+                  },
+                  {
+                    "fieldName": "model_version"
+                  },
+                  {
+                    "fieldName": "model_run_id"
+                  },
+                  {
+                    "fieldName": "model_algo"
+                  },
+                  {
+                    "fieldName": "model_target_col"
+                  },
+                  {
+                    "fieldName": "n_features"
+                  },
+                  {
+                    "fieldName": "features_table_version"
+                  },
+                  {
+                    "fieldName": "feature_config_version"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "champion_shap_summary_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_shap_summary",
+                  "fields": [
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    },
+                    {
+                      "name": "mean_abs_shap",
+                      "expression": "`mean_abs_shap`"
+                    },
+                    {
+                      "name": "mean_abs_shap_bps",
+                      "expression": "`mean_abs_shap_bps`"
+                    },
+                    {
+                      "name": "mean_abs_shap_scientific",
+                      "expression": "`mean_abs_shap_scientific`"
+                    },
+                    {
+                      "name": "mean_shap",
+                      "expression": "`mean_shap`"
+                    },
+                    {
+                      "name": "mean_shap_bps",
+                      "expression": "`mean_shap_bps`"
+                    },
+                    {
+                      "name": "normalized_shap_pct",
+                      "expression": "`normalized_shap_pct`"
+                    },
+                    {
+                      "name": "sample_rows",
+                      "expression": "`sample_rows`"
+                    },
+                    {
+                      "name": "model_algo",
+                      "expression": "`model_algo`"
+                    },
+                    {
+                      "name": "created_at",
+                      "expression": "`created_at`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Champion SHAP Explanation",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "feature"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap_bps"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap_scientific"
+                  },
+                  {
+                    "fieldName": "mean_shap"
+                  },
+                  {
+                    "fieldName": "mean_shap_bps"
+                  },
+                  {
+                    "fieldName": "normalized_shap_pct"
+                  },
+                  {
+                    "fieldName": "sample_rows"
+                  },
+                  {
+                    "fieldName": "model_algo"
+                  },
+                  {
+                    "fieldName": "created_at"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 27,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "champion_feature_importance_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "champion_feature_importance",
+                  "fields": [
+                    {
+                      "name": "feature",
+                      "expression": "`feature`"
+                    },
+                    {
+                      "name": "importance",
+                      "expression": "`importance`"
+                    },
+                    {
+                      "name": "mean_abs_shap",
+                      "expression": "`mean_abs_shap`"
+                    },
+                    {
+                      "name": "mean_abs_shap_bps",
+                      "expression": "`mean_abs_shap_bps`"
+                    },
+                    {
+                      "name": "mean_abs_shap_scientific",
+                      "expression": "`mean_abs_shap_scientific`"
+                    },
+                    {
+                      "name": "explanation_score",
+                      "expression": "`explanation_score`"
+                    },
+                    {
+                      "name": "explanation_score_bps",
+                      "expression": "`explanation_score_bps`"
+                    },
+                    {
+                      "name": "explanation_score_scientific",
+                      "expression": "`explanation_score_scientific`"
+                    },
+                    {
+                      "name": "score_source",
+                      "expression": "`score_source`"
+                    },
+                    {
+                      "name": "normalized_importance_pct",
+                      "expression": "`normalized_importance_pct`"
+                    },
+                    {
+                      "name": "model_algo",
+                      "expression": "`model_algo`"
+                    },
+                    {
+                      "name": "created_at",
+                      "expression": "`created_at`"
+                    },
+                    {
+                      "name": "features_table_version",
+                      "expression": "`features_table_version`"
+                    },
+                    {
+                      "name": "feature_config_id",
+                      "expression": "`feature_config_id`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Champion Feature Importance",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "feature"
+                  },
+                  {
+                    "fieldName": "importance"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap_bps"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap_scientific"
+                  },
+                  {
+                    "fieldName": "explanation_score"
+                  },
+                  {
+                    "fieldName": "explanation_score_bps"
+                  },
+                  {
+                    "fieldName": "explanation_score_scientific"
+                  },
+                  {
+                    "fieldName": "score_source"
+                  },
+                  {
+                    "fieldName": "normalized_importance_pct"
+                  },
+                  {
+                    "fieldName": "model_algo"
+                  },
+                  {
+                    "fieldName": "created_at"
+                  },
+                  {
+                    "fieldName": "features_table_version"
+                  },
+                  {
+                    "fieldName": "feature_config_id"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 27,
+            "width": 6,
+            "height": 9
+          }
         }
       ],
       "pageType": "PAGE_TYPE_CANVAS",
@@ -2185,382 +2518,6 @@
             "y": 14,
             "width": 12,
             "height": 6
-          }
-        }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
-    },
-    {
-      "name": "model_explainability",
-      "displayName": "Model Explainability",
-      "layout": [
-        {
-          "widget": {
-            "name": "champion_model_status_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "champion_model_status",
-                  "fields": [
-                    {
-                      "name": "updated_at",
-                      "expression": "`updated_at`"
-                    },
-                    {
-                      "name": "model_name",
-                      "expression": "`model_name`"
-                    },
-                    {
-                      "name": "model_version",
-                      "expression": "`model_version`"
-                    },
-                    {
-                      "name": "model_run_id",
-                      "expression": "`model_run_id`"
-                    },
-                    {
-                      "name": "model_algo",
-                      "expression": "`model_algo`"
-                    },
-                    {
-                      "name": "model_target_col",
-                      "expression": "`model_target_col`"
-                    },
-                    {
-                      "name": "rmse",
-                      "expression": "`rmse`"
-                    },
-                    {
-                      "name": "mae",
-                      "expression": "`mae`"
-                    },
-                    {
-                      "name": "r2",
-                      "expression": "`r2`"
-                    },
-                    {
-                      "name": "mape",
-                      "expression": "`mape`"
-                    },
-                    {
-                      "name": "directional_accuracy",
-                      "expression": "`directional_accuracy`"
-                    },
-                    {
-                      "name": "n_features",
-                      "expression": "`n_features`"
-                    },
-                    {
-                      "name": "features_table_version",
-                      "expression": "`features_table_version`"
-                    },
-                    {
-                      "name": "feature_config_version",
-                      "expression": "`feature_config_version`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Current Champion Model",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "updated_at"
-                  },
-                  {
-                    "fieldName": "model_name"
-                  },
-                  {
-                    "fieldName": "model_version"
-                  },
-                  {
-                    "fieldName": "model_run_id"
-                  },
-                  {
-                    "fieldName": "model_algo"
-                  },
-                  {
-                    "fieldName": "model_target_col"
-                  },
-                  {
-                    "fieldName": "rmse"
-                  },
-                  {
-                    "fieldName": "mae"
-                  },
-                  {
-                    "fieldName": "r2"
-                  },
-                  {
-                    "fieldName": "mape"
-                  },
-                  {
-                    "fieldName": "directional_accuracy"
-                  },
-                  {
-                    "fieldName": "n_features"
-                  },
-                  {
-                    "fieldName": "features_table_version"
-                  },
-                  {
-                    "fieldName": "feature_config_version"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 0,
-            "width": 12,
-            "height": 5
-          }
-        },
-        {
-          "widget": {
-            "name": "champion_shap_summary_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "champion_shap_summary",
-                  "fields": [
-                    {
-                      "name": "feature",
-                      "expression": "`feature`"
-                    },
-                    {
-                      "name": "mean_abs_shap",
-                      "expression": "`mean_abs_shap`"
-                    },
-                    {
-                      "name": "mean_abs_shap_bps",
-                      "expression": "`mean_abs_shap_bps`"
-                    },
-                    {
-                      "name": "mean_abs_shap_scientific",
-                      "expression": "`mean_abs_shap_scientific`"
-                    },
-                    {
-                      "name": "mean_shap",
-                      "expression": "`mean_shap`"
-                    },
-                    {
-                      "name": "mean_shap_bps",
-                      "expression": "`mean_shap_bps`"
-                    },
-                    {
-                      "name": "normalized_shap_pct",
-                      "expression": "`normalized_shap_pct`"
-                    },
-                    {
-                      "name": "sample_rows",
-                      "expression": "`sample_rows`"
-                    },
-                    {
-                      "name": "model_algo",
-                      "expression": "`model_algo`"
-                    },
-                    {
-                      "name": "created_at",
-                      "expression": "`created_at`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Champion SHAP Explanation",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "feature"
-                  },
-                  {
-                    "fieldName": "mean_abs_shap"
-                  },
-                  {
-                    "fieldName": "mean_abs_shap_bps"
-                  },
-                  {
-                    "fieldName": "mean_abs_shap_scientific"
-                  },
-                  {
-                    "fieldName": "mean_shap"
-                  },
-                  {
-                    "fieldName": "mean_shap_bps"
-                  },
-                  {
-                    "fieldName": "normalized_shap_pct"
-                  },
-                  {
-                    "fieldName": "sample_rows"
-                  },
-                  {
-                    "fieldName": "model_algo"
-                  },
-                  {
-                    "fieldName": "created_at"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 5,
-            "width": 6,
-            "height": 9
-          }
-        },
-        {
-          "widget": {
-            "name": "champion_feature_importance_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "champion_feature_importance",
-                  "fields": [
-                    {
-                      "name": "feature",
-                      "expression": "`feature`"
-                    },
-                    {
-                      "name": "importance",
-                      "expression": "`importance`"
-                    },
-                    {
-                      "name": "mean_abs_shap",
-                      "expression": "`mean_abs_shap`"
-                    },
-                    {
-                      "name": "mean_abs_shap_bps",
-                      "expression": "`mean_abs_shap_bps`"
-                    },
-                    {
-                      "name": "mean_abs_shap_scientific",
-                      "expression": "`mean_abs_shap_scientific`"
-                    },
-                    {
-                      "name": "explanation_score",
-                      "expression": "`explanation_score`"
-                    },
-                    {
-                      "name": "explanation_score_bps",
-                      "expression": "`explanation_score_bps`"
-                    },
-                    {
-                      "name": "explanation_score_scientific",
-                      "expression": "`explanation_score_scientific`"
-                    },
-                    {
-                      "name": "score_source",
-                      "expression": "`score_source`"
-                    },
-                    {
-                      "name": "normalized_importance_pct",
-                      "expression": "`normalized_importance_pct`"
-                    },
-                    {
-                      "name": "model_algo",
-                      "expression": "`model_algo`"
-                    },
-                    {
-                      "name": "created_at",
-                      "expression": "`created_at`"
-                    },
-                    {
-                      "name": "features_table_version",
-                      "expression": "`features_table_version`"
-                    },
-                    {
-                      "name": "feature_config_id",
-                      "expression": "`feature_config_id`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Champion Feature Importance",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "feature"
-                  },
-                  {
-                    "fieldName": "importance"
-                  },
-                  {
-                    "fieldName": "mean_abs_shap"
-                  },
-                  {
-                    "fieldName": "mean_abs_shap_bps"
-                  },
-                  {
-                    "fieldName": "mean_abs_shap_scientific"
-                  },
-                  {
-                    "fieldName": "explanation_score"
-                  },
-                  {
-                    "fieldName": "explanation_score_bps"
-                  },
-                  {
-                    "fieldName": "explanation_score_scientific"
-                  },
-                  {
-                    "fieldName": "score_source"
-                  },
-                  {
-                    "fieldName": "normalized_importance_pct"
-                  },
-                  {
-                    "fieldName": "model_algo"
-                  },
-                  {
-                    "fieldName": "created_at"
-                  },
-                  {
-                    "fieldName": "features_table_version"
-                  },
-                  {
-                    "fieldName": "feature_config_id"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 5,
-            "width": 6,
-            "height": 9
           }
         }
       ],
