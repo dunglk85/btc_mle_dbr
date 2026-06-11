@@ -53,7 +53,7 @@ resources:
               reference_hours: "720"
               fail_on_alert: "false"
               trigger_training_on_drift: "true"
-              training_job_id: ${var.training_job_id}
+              training_job_name: "[${bundle.target}] BTC Model Training Job"
               min_drift_alerts_to_trigger: "2"
           depends_on:
             - task_key: prediction

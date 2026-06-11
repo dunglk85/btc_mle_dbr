@@ -27,7 +27,7 @@ recent_hours = int(get_widget("recent_hours", "168"))
 reference_hours = int(get_widget("reference_hours", "720"))
 fail_on_alert = get_widget("fail_on_alert", "false").lower() == "true"
 trigger_training_on_drift = get_widget("trigger_training_on_drift", "false").lower() == "true"
-training_job_id = get_widget("training_job_id", "")
+training_job_name = get_widget("training_job_name", "")
 min_drift_alerts_to_trigger = int(get_widget("min_drift_alerts_to_trigger", "2"))
 expected_feature_lookback_loss = int(get_widget("expected_feature_lookback_loss", "168"))
 
@@ -57,7 +57,7 @@ print(f"recent_hours={recent_hours}")
 print(f"reference_hours={reference_hours}")
 print(f"fail_on_alert={fail_on_alert}")
 print(f"trigger_training_on_drift={trigger_training_on_drift}")
-print(f"training_job_id={training_job_id}")
+print(f"training_job_name={training_job_name}")
 print(f"min_drift_alerts_to_trigger={min_drift_alerts_to_trigger}")
 
 # COMMAND ----------
@@ -511,17 +511,36 @@ else:
     if drift_alert_count >= min_drift_alerts_to_trigger:
         print(f"DRIFT_THRESHOLD_MET: {drift_alert_count} drift alerts >= {min_drift_alerts_to_trigger}")
 
-        if training_job_id:
-            print(f"triggering_training_job_id={training_job_id}")
+        if training_job_name:
             try:
                 ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
                 api_url = ctx.apiUrl().get()
                 api_token = ctx.apiToken().get()
 
                 import urllib.request
+                import urllib.parse
 
+                # Resolve job_name → job_id
+                encoded_name = urllib.parse.quote(training_job_name)
+                list_url = f"{api_url}/api/2.1/jobs/list?name={encoded_name}"
+                list_req = urllib.request.Request(
+                    list_url,
+                    headers={"Authorization": f"Bearer {api_token}"},
+                    method="GET",
+                )
+                with urllib.request.urlopen(list_req, timeout=30) as list_response:
+                    list_result = json.loads(list_response.read().decode("utf-8"))
+
+                jobs = list_result.get("jobs", [])
+                if not jobs:
+                    raise ValueError(f"No job found with name '{training_job_name}'")
+
+                resolved_job_id = jobs[0]["job_id"]
+                print(f"resolved_job_name='{training_job_name}' → job_id={resolved_job_id}")
+
+                # Trigger the job
                 url = f"{api_url}/api/2.1/jobs/run-now"
-                data = json.dumps({"job_id": int(training_job_id)}).encode("utf-8")
+                data = json.dumps({"job_id": resolved_job_id}).encode("utf-8")
                 req = urllib.request.Request(
                     url,
                     data=data,
@@ -539,7 +558,7 @@ else:
                         "training_trigger_status",
                         1,
                         "ok",
-                        f"Triggered training_job_id={training_job_id}; run_id={triggered_run_id}",
+                        f"Triggered training_job_name='{training_job_name}' (id={resolved_job_id}); run_id={triggered_run_id}",
                     )
             except Exception as exc:
                 print(f"training_job_trigger_failed={exc}")
@@ -547,12 +566,12 @@ else:
                     "training_trigger_status",
                     0,
                     "alert",
-                    f"Failed to trigger training_job_id={training_job_id}: {exc}",
+                    f"Failed to trigger training_job_name='{training_job_name}': {exc}",
                 )
         else:
-            message = "training_job_id not set; training must be triggered manually or via scheduled run"
+            message = "training_job_name not set; training must be triggered manually or via scheduled run"
             print(message)
-            append_metric("training_trigger_status", 0, "alert", message)
+            append_metric("training_trigger_status", 0, "warn", message)
     else:
         append_metric("training_trigger_status", 0, "ok", "DRIFT_THRESHOLD_NOT_MET")
         print("DRIFT_THRESHOLD_NOT_MET; no training trigger needed")

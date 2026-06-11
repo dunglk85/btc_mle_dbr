@@ -11,8 +11,8 @@ variables:
   git_branch:
     description: Git branch used by Databricks Git-backed jobs
     default: simplying
-  training_job_id:
-    description: Databricks Job ID for the training job (set after first deploy)
+  training_job_name:
+    description: Databricks Job name for the training job (resolved to job_id at runtime)
     default: ""
 
 include:
