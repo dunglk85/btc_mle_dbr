@@ -445,13 +445,16 @@ if features_table_exists:
     features.limit(0).write.format("delta").mode("append").option(
         "mergeSchema", "true"
     ).saveAsTable(features_ref)
+    cols = ", ".join([f"target.`{c}` = source.`{c}`" for c in features.columns])
+    insert_cols = ", ".join([f"`{c}`" for c in features.columns])
+    insert_vals = ", ".join([f"source.`{c}`" for c in features.columns])
     spark.sql(f"""
         MERGE INTO {features_ref} AS target
         USING _btc_features_upsert AS source
-        ON target.symbol <=> source.symbol
-        AND target.open_time = source.open_time
-        WHEN MATCHED THEN UPDATE SET *
-        WHEN NOT MATCHED THEN INSERT *
+        ON target.`symbol` <=> source.`symbol`
+        AND target.`open_time` = source.`open_time`
+        WHEN MATCHED THEN UPDATE SET {cols}
+        WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({insert_vals})
     """)
 else:
     features.write.format("delta").mode("overwrite").saveAsTable(features_ref)
