@@ -336,6 +336,7 @@ features = features.withColumn(
 # --- Return Skewness & Kurtosis approximations (168h window) ---
 # Photon doesn't optimize skewness/kurtosis over windows well.
 # Use simpler asymmetry and tail-weight proxies instead.
+dist_window = w.rowsBetween(-168, -1)
 features = features.withColumn(
     "return_asymmetry_168h",
     (F.col("return_1h") - F.avg("return_1h").over(dist_window))
