@@ -1523,7 +1523,7 @@
             "spec": {
               "version": 2,
               "frame": {
-                "title": "R\u00c2\u00b2 Score",
+                "title": "R2 Score",
                 "showTitle": true
               },
               "format": {
@@ -1688,63 +1688,6 @@
             "y": 4,
             "width": 12,
             "height": 8
-          }
-        },
-        {
-          "widget": {
-            "name": "error_stats_table",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "error_stats",
-                  "fields": [
-                    {
-                      "name": "min_abs_error",
-                      "expression": "`min_abs_error`"
-                    },
-                    {
-                      "name": "min_pct_error",
-                      "expression": "`min_pct_error`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "Error Statistics Summary",
-                "showTitle": true
-              },
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "min_abs_error",
-                    "displayName": "Min Abs Error"
-                  },
-                  {
-                    "fieldName": "min_pct_error",
-                    "format": {
-                      "type": "number-percent",
-                      "decimalPlaces": {
-                        "type": "exact",
-                        "places": 2
-                      }
-                    },
-                    "displayName": "Min % Error"
-                  }
-                ]
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 12,
-            "width": 12,
-            "height": 5
           }
         },
         {
