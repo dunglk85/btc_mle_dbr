@@ -513,60 +513,29 @@ else:
 
         if training_job_name:
             try:
-                ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-                api_url = ctx.apiUrl().get()
-                api_token = ctx.apiToken().get()
+                try:
+                    from databricks.sdk import WorkspaceClient
+                except ImportError as exc:
+                    raise RuntimeError("databricks-sdk is required to trigger training job") from exc
 
-                if not api_token:
-                    raise RuntimeError(
-                        "API token not available. "
-                        "This is expected when running manually in a notebook session. "
-                        "The training trigger works when monitoring runs as part of the scheduled inference job."
-                    )
+                workspace = WorkspaceClient()
+                matches = list(workspace.jobs.list(name=training_job_name))
+                if not matches:
+                    raise ValueError(f"Could not find Databricks job named '{training_job_name}'")
+                if len(matches) > 1:
+                    raise ValueError(f"Found multiple Databricks jobs named '{training_job_name}'")
 
-                import urllib.request
-                import urllib.parse
-
-                # Resolve job_name → job_id
-                encoded_name = urllib.parse.quote(training_job_name)
-                list_url = f"{api_url}/api/2.1/jobs/list?name={encoded_name}"
-                list_req = urllib.request.Request(
-                    list_url,
-                    headers={"Authorization": f"Bearer {api_token}"},
-                    method="GET",
-                )
-                with urllib.request.urlopen(list_req, timeout=30) as list_response:
-                    list_result = json.loads(list_response.read().decode("utf-8"))
-
-                jobs = list_result.get("jobs", [])
-                if not jobs:
-                    raise ValueError(f"No job found with name '{training_job_name}'")
-
-                resolved_job_id = jobs[0]["job_id"]
+                resolved_job_id = matches[0].job_id
                 print(f"resolved_job_name='{training_job_name}' → job_id={resolved_job_id}")
 
-                # Trigger the job
-                url = f"{api_url}/api/2.1/jobs/run-now"
-                data = json.dumps({"job_id": resolved_job_id}).encode("utf-8")
-                req = urllib.request.Request(
-                    url,
-                    data=data,
-                    headers={
-                        "Authorization": f"Bearer {api_token}",
-                        "Content-Type": "application/json",
-                    },
-                    method="POST",
+                run = workspace.jobs.run_now(job_id=resolved_job_id)
+                print(f"training_job_triggered=true run_id={run.run_id}")
+                append_metric(
+                    "training_trigger_status",
+                    1,
+                    "ok",
+                    f"Triggered training_job_name='{training_job_name}' (id={resolved_job_id}); run_id={run.run_id}",
                 )
-                with urllib.request.urlopen(req, timeout=30) as response:
-                    result = json.loads(response.read().decode("utf-8"))
-                    triggered_run_id = result.get("run_id")
-                    print(f"training_job_triggered=true run_id={triggered_run_id}")
-                    append_metric(
-                        "training_trigger_status",
-                        1,
-                        "ok",
-                        f"Triggered training_job_name='{training_job_name}' (id={resolved_job_id}); run_id={triggered_run_id}",
-                    )
             except Exception as exc:
                 print(f"training_job_trigger_failed={exc}")
                 append_metric(
