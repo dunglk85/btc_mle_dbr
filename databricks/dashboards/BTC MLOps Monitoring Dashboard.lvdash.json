@@ -656,7 +656,14 @@
         "  e.model_algo,\n",
         "  e.feature,\n",
         "  e.mean_abs_shap,\n",
+        "  e.mean_abs_shap * 10000.0 AS mean_abs_shap_bps,\n",
+        "  format_string('%.8e', e.mean_abs_shap) AS mean_abs_shap_scientific,\n",
         "  e.mean_shap,\n",
+        "  e.mean_shap * 10000.0 AS mean_shap_bps,\n",
+        "  CASE\n",
+        "    WHEN max(e.mean_abs_shap) OVER () > 0.0 THEN 100.0 * e.mean_abs_shap / max(e.mean_abs_shap) OVER ()\n",
+        "    ELSE 0.0\n",
+        "  END AS normalized_shap_pct,\n",
         "  e.sample_rows,\n",
         "  e.features_table_version,\n",
         "  e.feature_config_id\n",
@@ -683,29 +690,56 @@
         "  ORDER BY prediction_time DESC\n",
         "  LIMIT 1\n",
         "),\n",
-        "scored AS (\n",
+        "importance AS (\n",
         "  SELECT\n",
+        "    e.run_id,\n",
         "    e.created_at,\n",
         "    e.model_algo,\n",
         "    e.feature,\n",
-        "    e.importance,\n",
-        "    s.mean_abs_shap,\n",
-        "    CASE\n",
-        "      WHEN coalesce(e.importance, 0.0) > 0.0 THEN cast(e.importance AS DOUBLE)\n",
-        "      ELSE coalesce(s.mean_abs_shap, 0.0)\n",
-        "    END AS explanation_score,\n",
+        "    cast(e.importance AS DOUBLE) AS importance,\n",
         "    e.features_table_version,\n",
         "    e.feature_config_id\n",
+        "  FROM btc_simply.monitoring.model_explanations e\n",
+        "    INNER JOIN champion c\n",
+        "      ON e.run_id = c.model_run_id\n",
+        "  WHERE e.explanation_type = 'feature_importance'\n",
+        "),\n",
+        "shap AS (\n",
+        "  SELECT\n",
+        "    e.run_id,\n",
+        "    e.created_at,\n",
+        "    e.model_algo,\n",
+        "    e.feature,\n",
+        "    e.mean_abs_shap,\n",
+        "    e.features_table_version,\n",
+        "    e.feature_config_id\n",
+        "  FROM btc_simply.monitoring.model_explanations e\n",
+        "    INNER JOIN champion c\n",
+        "      ON e.run_id = c.model_run_id\n",
+        "  WHERE e.explanation_type = 'shap_summary'\n",
+        "),\n",
+        "scored AS (\n",
+        "  SELECT\n",
+        "    coalesce(i.created_at, s.created_at) AS created_at,\n",
+        "    coalesce(i.model_algo, s.model_algo) AS model_algo,\n",
+        "    coalesce(i.feature, s.feature) AS feature,\n",
+        "    i.importance,\n",
+        "    s.mean_abs_shap,\n",
+        "    CASE\n",
+        "      WHEN coalesce(i.importance, 0.0) > 0.0 THEN i.importance\n",
+        "      ELSE coalesce(s.mean_abs_shap, 0.0)\n",
+        "    END AS explanation_score,\n",
+        "    CASE\n",
+        "      WHEN coalesce(i.importance, 0.0) > 0.0 THEN 'built_in_importance'\n",
+        "      ELSE 'shap_fallback'\n",
+        "    END AS score_source,\n",
+        "    coalesce(i.features_table_version, s.features_table_version) AS features_table_version,\n",
+        "    coalesce(i.feature_config_id, s.feature_config_id) AS feature_config_id\n",
         "  FROM\n",
-        "    btc_simply.monitoring.model_explanations e\n",
-        "      INNER JOIN champion c\n",
-        "        ON e.run_id = c.model_run_id\n",
-        "      LEFT JOIN btc_simply.monitoring.model_explanations s\n",
-        "        ON e.run_id = s.run_id\n",
-        "        AND e.feature = s.feature\n",
-        "        AND s.explanation_type = 'shap_summary'\n",
-        "  WHERE\n",
-        "    e.explanation_type = 'feature_importance'\n",
+        "    importance i\n",
+        "      FULL OUTER JOIN shap s\n",
+        "        ON i.run_id = s.run_id\n",
+        "        AND i.feature = s.feature\n",
         ")\n",
         "SELECT\n",
         "  created_at,\n",
@@ -713,7 +747,12 @@
         "  feature,\n",
         "  importance,\n",
         "  mean_abs_shap,\n",
+        "  mean_abs_shap * 10000.0 AS mean_abs_shap_bps,\n",
+        "  format_string('%.8e', mean_abs_shap) AS mean_abs_shap_scientific,\n",
         "  explanation_score,\n",
+        "  explanation_score * 10000.0 AS explanation_score_bps,\n",
+        "  format_string('%.8e', explanation_score) AS explanation_score_scientific,\n",
+        "  score_source,\n",
         "  CASE\n",
         "    WHEN max(explanation_score) OVER () > 0.0 THEN 100.0 * explanation_score / max(explanation_score) OVER ()\n",
         "    ELSE 0.0\n",
@@ -2306,8 +2345,24 @@
                       "expression": "`mean_abs_shap`"
                     },
                     {
+                      "name": "mean_abs_shap_bps",
+                      "expression": "`mean_abs_shap_bps`"
+                    },
+                    {
+                      "name": "mean_abs_shap_scientific",
+                      "expression": "`mean_abs_shap_scientific`"
+                    },
+                    {
                       "name": "mean_shap",
                       "expression": "`mean_shap`"
+                    },
+                    {
+                      "name": "mean_shap_bps",
+                      "expression": "`mean_shap_bps`"
+                    },
+                    {
+                      "name": "normalized_shap_pct",
+                      "expression": "`normalized_shap_pct`"
                     },
                     {
                       "name": "sample_rows",
@@ -2342,7 +2397,19 @@
                     "fieldName": "mean_abs_shap"
                   },
                   {
+                    "fieldName": "mean_abs_shap_bps"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap_scientific"
+                  },
+                  {
                     "fieldName": "mean_shap"
+                  },
+                  {
+                    "fieldName": "mean_shap_bps"
+                  },
+                  {
+                    "fieldName": "normalized_shap_pct"
                   },
                   {
                     "fieldName": "sample_rows"
@@ -2386,8 +2453,28 @@
                       "expression": "`mean_abs_shap`"
                     },
                     {
+                      "name": "mean_abs_shap_bps",
+                      "expression": "`mean_abs_shap_bps`"
+                    },
+                    {
+                      "name": "mean_abs_shap_scientific",
+                      "expression": "`mean_abs_shap_scientific`"
+                    },
+                    {
                       "name": "explanation_score",
                       "expression": "`explanation_score`"
+                    },
+                    {
+                      "name": "explanation_score_bps",
+                      "expression": "`explanation_score_bps`"
+                    },
+                    {
+                      "name": "explanation_score_scientific",
+                      "expression": "`explanation_score_scientific`"
+                    },
+                    {
+                      "name": "score_source",
+                      "expression": "`score_source`"
                     },
                     {
                       "name": "normalized_importance_pct",
@@ -2433,7 +2520,22 @@
                     "fieldName": "mean_abs_shap"
                   },
                   {
+                    "fieldName": "mean_abs_shap_bps"
+                  },
+                  {
+                    "fieldName": "mean_abs_shap_scientific"
+                  },
+                  {
                     "fieldName": "explanation_score"
+                  },
+                  {
+                    "fieldName": "explanation_score_bps"
+                  },
+                  {
+                    "fieldName": "explanation_score_scientific"
+                  },
+                  {
+                    "fieldName": "score_source"
                   },
                   {
                     "fieldName": "normalized_importance_pct"
