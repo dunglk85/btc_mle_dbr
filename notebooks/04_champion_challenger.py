@@ -273,7 +273,7 @@ else:
     )
     eval_keys = (
         challenger_rows.select("open_time")
-        .intersect(champion_rows.select("open_time"))
+        .join(champion_rows.select("open_time"), "open_time")
         .orderBy(F.col("open_time").desc())
         .limit(max_evaluation_rows)
         .orderBy("open_time")
