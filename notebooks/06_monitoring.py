@@ -428,9 +428,19 @@ if table_exists(predictions_ref) and table_exists(raw_ref):
             F.avg("error").alias("mean_error"),
             F.percentile_approx("abs_error", 0.95).alias("p95_abs_error"),
         ).collect()[0]
+        actual_mean = scored.agg(F.avg("actual_close").alias("actual_mean")).collect()[0]["actual_mean"]
+        r2 = None
+        if actual_mean is not None:
+            r2_parts = scored.agg(
+                F.sum(F.pow(F.col("actual_close") - F.col("predicted_close"), 2)).alias("ss_res"),
+                F.sum(F.pow(F.col("actual_close") - F.lit(actual_mean), 2)).alias("ss_tot"),
+            ).collect()[0]
+            if r2_parts["ss_tot"] and float(r2_parts["ss_tot"]) != 0.0:
+                r2 = 1.0 - (float(r2_parts["ss_res"]) / float(r2_parts["ss_tot"]))
         append_metric("model_drift_joined_prediction_count", perf["count"], "ok")
         append_metric(f"model_drift_rmse_{recent_hours}h", perf["rmse"], "ok")
         append_metric(f"model_drift_mae_{recent_hours}h", perf["mae"], "ok")
+        append_metric(f"model_drift_r2_{recent_hours}h", r2, "ok")
         append_metric(
             f"model_drift_mape_{recent_hours}h",
             perf["mape"],
