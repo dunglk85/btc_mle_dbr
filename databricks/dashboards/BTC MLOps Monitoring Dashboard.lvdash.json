@@ -1408,7 +1408,7 @@
           "position": {
             "x": 0,
             "y": 0,
-            "width": 3,
+            "width": 2,
             "height": 4
           }
         },
@@ -1451,9 +1451,9 @@
             }
           },
           "position": {
-            "x": 3,
+            "x": 2,
             "y": 0,
-            "width": 3,
+            "width": 2,
             "height": 4
           }
         },
@@ -1490,9 +1490,9 @@
             }
           },
           "position": {
-            "x": 6,
+            "x": 4,
             "y": 0,
-            "width": 3,
+            "width": 2,
             "height": 4
           }
         },
@@ -1529,9 +1529,93 @@
             }
           },
           "position": {
-            "x": 9,
+            "x": 6,
             "y": 0,
-            "width": 3,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "rmse_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "rmse_metric",
+                  "fields": [
+                    {
+                      "name": "rmse",
+                      "expression": "`rmse`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "RMSE",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "rmse"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 0,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "r_squared_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "r_squared_metric",
+                  "fields": [
+                    {
+                      "name": "r_squared",
+                      "expression": "`r_squared`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "R\u00c2\u00b2 Score",
+                "showTitle": true
+              },
+              "format": {
+                "numberFormat": {
+                  "formatType": "numeral",
+                  "format": "0.0000"
+                }
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "r_squared"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 0,
+            "width": 2,
             "height": 4
           }
         },
@@ -1700,91 +1784,7 @@
             "x": 0,
             "y": 12,
             "width": 12,
-            "height": 6
-          }
-        },
-        {
-          "widget": {
-            "name": "rmse_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "rmse_metric",
-                  "fields": [
-                    {
-                      "name": "rmse",
-                      "expression": "`rmse`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "RMSE",
-                "showTitle": true
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "rmse"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 18,
-            "width": 3,
-            "height": 4
-          }
-        },
-        {
-          "widget": {
-            "name": "r_squared_counter",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "r_squared_metric",
-                  "fields": [
-                    {
-                      "name": "r_squared",
-                      "expression": "`r_squared`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "frame": {
-                "title": "R\u00c2\u00b2 Score",
-                "showTitle": true
-              },
-              "format": {
-                "numberFormat": {
-                  "formatType": "numeral",
-                  "format": "0.0000"
-                }
-              },
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "r_squared"
-                }
-              }
-            }
-          },
-          "position": {
-            "x": 3,
-            "y": 18,
-            "width": 3,
-            "height": 4
+            "height": 5
           }
         },
         {
@@ -1879,9 +1879,9 @@
           },
           "position": {
             "x": 0,
-            "y": 22,
+            "y": 17,
             "width": 12,
-            "height": 5
+            "height": 4
           }
         },
         {
@@ -1983,9 +1983,9 @@
           },
           "position": {
             "x": 0,
-            "y": 27,
+            "y": 21,
             "width": 6,
-            "height": 9
+            "height": 10
           }
         },
         {
@@ -2115,9 +2115,9 @@
           },
           "position": {
             "x": 6,
-            "y": 27,
+            "y": 21,
             "width": 6,
-            "height": 9
+            "height": 10
           }
         }
       ],
