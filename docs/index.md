@@ -46,8 +46,6 @@
 ## Validation Commands
 
 ```bash
-pytest
-ruff check src/ tests/
-python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_model_training.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/test_drift_thresholds.py
 databricks bundle validate
 ```

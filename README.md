@@ -15,13 +15,6 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 ├── .github/workflows/    # CI/CD pipelines
 ├── databricks/            # DABs configuration & job definitions
 ├── notebooks/             # Databricks notebooks
-├── src/                   # Python source code
-│   ├── data/              # Ingestion & feature engineering
-│   ├── models/            # Training & evaluation
-│   ├── monitoring/        # Data & model monitoring
-│   └── utils/             # Config, logging
-├── tests/                 # Unit tests
-├── configs/               # Optuna search spaces
 └── docs/                  # Architecture & design docs
 ```
 
@@ -36,8 +29,7 @@ End-to-end MLOps system on Databricks for Bitcoin price prediction (hourly time 
 
 ```bash
 pip install -r requirements.txt
-pytest
-ruff check src/ tests/
+python -m py_compile notebooks/01_data_ingestion.py notebooks/02_feature_engineering.py notebooks/03_optuna_training.py notebooks/04_champion_challenger.py notebooks/05_prediction.py notebooks/06_monitoring.py notebooks/test_drift_thresholds.py
 databricks bundle validate
 ```
 

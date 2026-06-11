@@ -13,15 +13,5 @@ databricks-sdk>=0.20
 databricks-cli>=0.18
 pyspark>=3.5
 
-# Monitoring & Logging
+# Monitoring
 mlflow>=2.8
-structlog>=23.0
-
-# Testing
-pytest>=7.4
-pytest-cov>=4.1
-
-# Utils
-python-dotenv>=1.0
-PyYAML>=6.0
-python-binance>=1.0.19

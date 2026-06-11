@@ -334,7 +334,6 @@ BTC/
 ├── .github/
 │   └── workflows/
 │       ├── cicd.yml
-│       └── hourly-trigger.yml
 ├── databricks.yml              # Root DAB config: bundle, variables, dev/prod targets
 ├── databricks/
 │   ├── resources/
@@ -347,7 +346,6 @@ BTC/
 │   ├── 01_data_ingestion.py          # Auto Loader landing CSV -> staging Delta -> raw Delta MERGE
 │   ├── 02_feature_engineering.py     # Features + exact target_close_1h
 │   ├── 02b_eda_feature_selection.py  # Active feature selection config governance
-│   ├── 03_model_training.py          # Legacy baseline notebook, not model refresh path
 │   ├── 03_optuna_training.py         # Regression Optuna LightGBM/XGBoost training
 │   ├── 04_champion_challenger.py     # Replay-gated fair Champion/Challenger promotion
 │   ├── 05_prediction.py              # Predict next 1h with @Champion
@@ -356,27 +354,6 @@ BTC/
 │   ├── 10_data_remediation.py        # Safe data remediation actions
 │   ├── 11_trigger_model_refresh.py   # Conditional model refresh trigger
 │   └── 12_training_dataset_replay.py # Delta VERSION AS OF dataset replay validation
-├── src/
-│   ├── data/
-│   │   ├── binance_landing.py
-│   │   ├── ingestion.py
-│   │   └── features.py
-│   ├── models/
-│   │   ├── training.py
-│   │   └── evaluation.py
-│   ├── monitoring/
-│   │   ├── data_quality.py
-│   │   └── model_performance.py
-│   └── utils/
-│       ├── config.py
-│       └── logger.py
-├── scripts/
-│   └── fetch_binance_to_volume.py
-├── tests/
-│   ├── test_binance_landing.py
-│   ├── test_ingestion.py
-│   ├── test_features.py
-│   └── test_training.py
 ├── docs/
 │   ├── index.md
 │   ├── btc-databricks-mlops-project.md
@@ -386,7 +363,6 @@ BTC/
 ├── _bmad-output/
 │   ├── planning-artifacts/
 │   └── implementation-artifacts/
-├── pytest.ini
 └── requirements.txt
 ```
 
