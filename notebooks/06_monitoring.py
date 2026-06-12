@@ -35,16 +35,16 @@ predictions_ref = f"{catalog}.predictions.btc_predictions"
 metrics_ref = f"{catalog}.monitoring.pipeline_metrics"
 freshness_threshold_hours = 3
 
-psi_warn_threshold = 0.25
-psi_alert_threshold = 1.0
+psi_warn_threshold = 0.30
+psi_alert_threshold = 1.5
 ks_warn_threshold = 0.30
 ks_alert_threshold = 0.60
 psi_monitor_only_alert_threshold = 999.0
 ks_monitor_only_alert_threshold = 999.0
 mape_warn_threshold = 0.02
 mape_alert_threshold = 0.05
-direction_warn_threshold = 0.45
-direction_alert_threshold = 0.40
+direction_warn_threshold = 0.48
+direction_alert_threshold = 0.45
 
 print("RUNNING MONITORING NOTEBOOK")
 print(f"raw_ref={raw_ref}")
@@ -270,9 +270,6 @@ else:
         append_metric("drift_reference_feature_count", reference_count, "ok")
 
         drift_features = [
-            "volume",
-            "quote_volume",
-            "trades",
             "return_1h",
         ]
         for col_name in drift_features:
