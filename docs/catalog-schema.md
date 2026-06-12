@@ -69,6 +69,10 @@ Training reads only `is_active = true` configs unless `allow_default_feature_fal
 
 `training_dataset_manifests` records the raw/features/config Delta versions, feature config ID, feature columns, split boundaries, and row counts used for each MLflow training run.
 
+`model_explanations` records SHAP summary and built-in feature importance for each training run. Columns: `run_id`, `model_algo`, `explanation_type` (`shap_summary` or `feature_importance`), `feature`, `importance`, `mean_abs_shap`, `mean_shap`, `sample_rows`, `features_table_version`, `feature_config_id`, `created_at`.
+
+`champion_challenger_history` records each promotion evaluation. Columns: `evaluated_at`, `registered_version`, `challenger_run_id`, `champion_run_id`, `expected_champion_version`, `challenger_rmse`, `challenger_fair_rmse`, `challenger_fair_mae`, `challenger_directional_accuracy`, `champion_fair_rmse`, `champion_fair_mae`, `champion_directional_accuracy`, `challenger_eval_rows`, `champion_eval_rows`, `training_mode`, `features_table`, `features_table_version`, `challenger_data_context`, `champion_data_context`, `promoted`, `champion_smoke_test_passed`, `champion_smoke_test_error`.
+
 `predictions.btc_predictions` includes model/data lineage fields: `model_version`, `model_run_id`, prediction-input `raw_table_version`/`features_table_version`, and Champion training lineage fields `model_raw_table_version`, `model_features_table_version`, `model_feature_config_version`, `model_feature_config_id`.
 
 Important prediction columns:

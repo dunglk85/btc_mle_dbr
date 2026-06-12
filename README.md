@@ -35,8 +35,7 @@ databricks bundle validate
 
 ## Databricks Jobs
 
-- `btc_inference_job`: hourly ingestion, feature engineering, Champion prediction, and monitoring.
-- `btc_training_job`: manual or drift-triggered LightGBM/XGBoost/Random Forest training and Champion/Challenger promotion.
+- `btc_inference_job`: hourly ingestion, feature engineering, Champion prediction, monitoring, and conditional training (LGBM/XGB/RF + champion/challenger) triggered by drift threshold.
 
 ## CI/CD Branch Mapping
 
@@ -61,7 +60,7 @@ SQL alerts are managed by DAB in `databricks/resources/alerts.yml`. Deploy them 
 databricks bundle deploy --var="sql_warehouse_id=<warehouse-id>"
 ```
 
-The monitoring dashboard is managed by DAB in `databricks/resources/dashboards.yml` using the exported layout in `databricks/dashboards/`.
+The monitoring dashboard is managed by DAB in `databricks/dashboards/BTC MLOps Monitoring Dashboard.lvdash.json`.
 
 ## License
 

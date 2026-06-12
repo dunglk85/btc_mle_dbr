@@ -42,9 +42,8 @@ Recommended dashboard tiles:
 - Prediction error trend chart.
 - Training dataset manifests from recent `btc_training_job` runs.
 - Prediction/model lineage table for `btc_predictions`.
-- Latest model explanation: top SHAP features and built-in feature importance.
+- Latest model explanation: top SHAP features and built-in feature importance (filtered to current Champion `model_run_id`).
 - Monitoring alerts table.
-- Training trigger status metrics and alerts.
 
 Drift tiles:
 - Data drift PSI/KS by feature.
@@ -108,7 +107,6 @@ Recommended alert conditions:
 - No recent prediction: `prediction_age_hours > 3`.
 - High prediction error: at least 12 evaluated predictions and `avg_pct_error > 0.05`.
 - Feature target nulls beyond expected last row: `target_null_count > 1`.
-- Training trigger failure: `training_trigger_failure_count > 0`.
 
 Drift alert conditions:
 - Data drift PSI exceeds threshold, for example `psi > 0.2`.
@@ -121,13 +119,7 @@ Validate drift thresholds manually with:
 notebooks/test_drift_thresholds.py
 ```
 
-Drift metrics are written by:
-
-```text
-notebooks/06_monitoring.py
-```
-
-Drift metrics are produced by the `monitoring` task inside the hourly `btc_inference_job`. If `training_job_id` is configured and drift alert count reaches the trigger threshold, monitoring can start `btc_training_job` through the Databricks Jobs API.
+Drift metrics are produced by the `monitoring` task inside the hourly `btc_inference_job`. If drift alert count reaches the trigger threshold, the `check_drift_threshold` condition task enables training tasks within the same job run.
 
 ## Fallback If SQL Alerts Are Not Available
 
